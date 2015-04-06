@@ -52,7 +52,7 @@ void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt deno
 /** Compare two BitInts.
  * \returns sign(a - b)
  */
-int biCmp(BigInt a, BigInt b);
+long long biCmp(BigInt a, BigInt b);
 
 #ifdef __cplusplus
 }

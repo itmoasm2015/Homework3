@@ -9,6 +9,15 @@
 
 using namespace std;
 
+#define calc(a, ans)        \
+    int __b = a;            \
+    int __res = 0;          \
+                            \
+    while (__b!=0) {        \
+        __res++; __b /= 10; \
+    }                       \
+    ans = __res;            \
+
 bool myStrCmp(const char *s1, const char *s2) {
     if (strlen(s1) != strlen(s2)) return false;
     int len = strlen(s1);
@@ -22,13 +31,12 @@ bool myStrCmp(const char *s1, const char *s2) {
 
 void genBigIntAsString(char *s, int len) {
     int sign = rand() % 2;
-    sign=0;
     if (sign == 1) {
         s[0] = '-';
     }
     int curDig;
     curDig = rand() % 9;
-    s[0+sign] = '1' + curDig;
+    s[sign] = '1' + curDig;
     for (int i = 1; i < len; i++) {
         curDig = rand() % 10;
         s[i+sign] = '0' + curDig;
@@ -40,27 +48,31 @@ void genStuff(char *s, int len) {
 
 }
 
-char s[1005];
-char buf[1005];
+char s[10000005];
+char buf[10000005];
 
 void test1() {
-    for (int t = 0; t < 1; t++) {
-        //int len = rand() % 1000 + 1;
-        int len = 1000;
+    for (int t = 0; t < 10; t++) {
+        int len = rand() % 10000000 + 1;
         genBigIntAsString(s, len);
         BigInt a = biFromString(s);
-        cout << biToString(a, buf, 1000) << "\n";
-        //assert(myStrCmp(buf, s) == true);
-        if (!myStrCmp(buf, s)) {
-            cout << len << "\n";
-            break;
-        }
+        biToString(a, buf, len + 5);
+        assert(myStrCmp(buf, s) == true);
         biDelete(a);
     }
 }
 
 int main() {
     srand(time(NULL));
-    test1();
+    //test1();
+    BigInt n = biFromString("1");
+    biToString(n, buf, 100);
+    //cout << buf << "\n";
+    //cout << biSign(n) << "\n";
+    BigInt a = biFromString("-11111111110");
+    BigInt b = biFromString("-1111111111");
+    cout << biCmp(a, b) << "\n";
+    //cout << *((int*)a+1) << "\n";
+    //cout << biSign(a) << "\n";
     return 0;
 }
