@@ -1,6 +1,9 @@
 section .text
 
 
+%include "vector.i"
+
+
 extern aligned_alloc
 extern free
 
@@ -17,12 +20,6 @@ global vecCapacity
 global vecGet
 global vecSet
 
-
-                    struc   vector
-.size:              resq    1
-.capacity:          resq    1
-.data:
-                    endstruc
 
 default_capacity    equ     10
 
