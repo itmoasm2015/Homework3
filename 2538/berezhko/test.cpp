@@ -71,6 +71,8 @@ int main() {
     //cout << biSign(n) << "\n";
     BigInt a = biFromString("-11111111110");
     BigInt b = biFromString("-1111111111");
+    char s[100];
+    biToString(a, s, 100);
     cout << biCmp(a, b) << "\n";
     //cout << *((int*)a+1) << "\n";
     //cout << biSign(a) << "\n";
