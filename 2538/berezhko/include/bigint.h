@@ -21,7 +21,7 @@ BigInt biFromString(char const *s);
 /** Generate a decimal string representation from a BigInt.
  *  Writes at most limit bytes to buffer.
  */
-long long biToString(BigInt bi, char *buffer, size_t limit);
+int biToString(BigInt bi, char *buffer, size_t limit);
 
 /** Destroy a BigInt.
  */
@@ -33,7 +33,7 @@ void biDelete(BigInt bi);
 int biSign(BigInt bi);
 
 /** dst += src */
-void biAdd(BigInt dst, BigInt src);
+int biAdd(BigInt dst, BigInt src);
 
 /** dst -= src */
 void biSub(BigInt dst, BigInt src);

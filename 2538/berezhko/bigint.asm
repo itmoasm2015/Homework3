@@ -2,7 +2,7 @@ default rel
 
 section .text
 
-extern calloc, strlen, free
+extern calloc, strlen, free, memcpy
 
 global biFromInt
 global biFromString
@@ -10,6 +10,9 @@ global biDelete
 global biToString
 global biSign
 global biCmp
+global biAdd
+global biSub
+global biMul
 
 BASE equ 1000000000
 
@@ -79,18 +82,6 @@ BASE equ 1000000000
         pop rdi
 %endmacro
 
-%macro fillBy9Zero 1
-        mov byte[%1],   '0'
-        mov byte[%1+1], '0'
-        mov byte[%1+2], '0'
-        mov byte[%1+3], '0'
-        mov byte[%1+4], '0'
-        mov byte[%1+5], '0'
-        mov byte[%1+6], '0'
-        mov byte[%1+7], '0'
-        mov byte[%1+8], '0'
-%endmacro
-
 ; Calcs digits count of %1, result to rax
 %macro getDigitsCount 1
         push rdx
@@ -112,17 +103,24 @@ BASE equ 1000000000
         pop rdx
 %endmacro
 
-; Writes rax % 10 to string rsi
-%macro writeRaxMod10ToRsi 0
+; rax = 10 ** %1
+%macro power10 1
+        push r12
         push rbx
-        xor rdx, rdx
+        mov r12, %1
+        xor rax, rax
+        mov eax, 1
+        %%loop:
+        cmp r12, 0
+        je %%finish
+        sub r12, 1
         xor rbx, rbx
         mov ebx, 10
-        div ebx
-        add dl, '0'
-        sub rsi, 1
-        mov byte[rsi], dl
+        mul ebx
+        jmp %%loop
+        %%finish:
         pop rbx
+        pop r12
 %endmacro
 
 ; rdi - int x
@@ -277,11 +275,14 @@ biDelete:
 ; rsi - string
 ; rdx - limit
 biToString:
+    push r13
+    push r14
     push rsi    ; save string address
     push rbx
-    push rdx    ; save limit for return
 
-    push rdx    ; save limit
+    mov r13, rdx ; r13 - limit
+    cmp r13, 1
+    jle .finish
 
     xor rax, rax
     mov eax, [rdi]
@@ -289,6 +290,9 @@ biToString:
     jne .start_converting
     mov byte[rsi], '-'      ; put '-' to string
     inc rsi
+    sub r13, 1              ; limit--, because of we've writed '-'
+    cmp r13, 1
+    je .finish
 
     .start_converting:
     ; Calc string size to put BigInt to it:
@@ -297,62 +301,85 @@ biToString:
     sub eax, 1
     mov rbx, 9
     mul rbx
-    mov r8, rax                 ; rax - length without last big_digit
     xor rcx, rcx
     mov ecx, [rdi+4]
     xor rbx, rbx
     mov ebx, [rdi+(rcx+1)*4]
-    getDigitsCount rbx
-    add r8, rax                 ; r8 - length of string
+    getDigitsCount rbx          ; rax - digits count of first_big_digit
 
-    pop rdx     ; load limit
-
-    cmp r8, rdx
-    jg .finish
-
-    add rsi, r8         ; s = s + need_length
-    mov byte[rsi], 0    ; s[need_length] = 0
-
-    xor r8, r8
-
-    .loop:
-    xor rax, rax
-    mov eax, [rdi+4]
-    sub eax, 1          ; except first big_digit
-    cmp r8, rax
-    je .overit
-
-    xor rax, rax
-    mov eax, [rdi+(r8+2)*4]
-
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-    writeRaxMod10ToRsi
-
-    inc r8
-    jmp .loop
-
-    .overit:
+    %macro helper 0
+        xor r9, r9
+        mov r9d, eax    ; save old value
+        div r8d         ; eax = cur_digit
+        mov rbx, rax
+        add bl, '0'         ; bl - cur_digit as char
+        mov byte[rsi], bl
+        inc rsi             ; s++
+        sub r13, 1          ; limit--
+        cmp r13, 1          ; check limit
+        je .finish
+        mul r8d         ; eax = cur_digit * 10^(...)
+        sub r9d, eax    ; remove cur_digit
+        mov rax, r9
+    %endmacro
 
     ; first big_digit:
+    sub rax, 1              ; first_big_digit.length - 1
+    power10 rax
+    xor r8, r8
+    mov r8d, eax            ; r8 - 10 ** (first_big_digit.length-1)
+    xor r14, r14
+    mov r14d, [rdi+4]        ; r9 = digits_count
     xor rax, rax
-    mov eax, [rdi+(r8+2)*4]
+    mov eax, [rdi+(r14+1)*4] ; rax - first_big_digit
     .loop_dig:
-    writeRaxMod10ToRsi
-    cmp rax, 0
-    jne .loop_dig
+        helper
+
+        cmp rax, 0          ; we've write first big_digit
+        je .end_loop_dig
+
+        push rax
+        mov eax, r8d        ;
+        mov ebx, 10         ;
+        div ebx             ;
+        mov r8d, eax        ; r8 /= 10 for next big_digit
+        pop rax
+
+        jmp .loop_dig
+        .end_loop_dig:
+
+    .loop:
+        sub r14d, 1
+        cmp r14d, 0
+        je .end_loop
+        mov eax, [rdi+(r14+1)*4] ; rax - big_digit
+        mov r8d, 100000000
+        helper
+        mov r8d, 10000000
+        helper
+        mov r8d, 1000000
+        helper
+        mov r8d, 100000
+        helper
+        mov r8d, 10000
+        helper
+        mov r8d, 1000
+        helper
+        mov r8d, 100
+        helper
+        mov r8d, 10
+        helper
+        mov r8d, 1
+        helper
+        jmp .loop
+    .end_loop:
 
     .finish
-    pop rdx
+    mov byte[rsi], 0
     pop rbx
     pop rsi
-    mov byte[rsi+rdx-1], 0
+    pop r14
+    pop r13
     ret
 
 ; rdi - BigInt
@@ -371,6 +398,10 @@ biCmp:
     push r12
     push r13
     push rbx
+
+    mov rax, 3
+    power10 rax
+    jmp .finish
 
     ; r12 for mask of signs:
     ; r12 = 0 - first condition is FALSE, second condition is FALSE
@@ -486,10 +517,54 @@ biCmp:
     pop r12
     ret
 
+; %1 - dst
+; %2 - src
+%macro biCopy 2
+       push r12
+       push r13
+
+       ; r12 and r13 are used for case if %1 or %2 is rdi or rsi
+       mov r12, %1      ; r12 - dst
+       mov r13, %2      ; r13 - src
+
+       mov rdi, r12      ; rdi - dst
+       call free         ; delete dst
+       mov rsi, r13      ; rsi - src
+
+       xor rax, rax
+       mov eax, [rsi+4]
+       callocNDigits rax    ; allocate memory for dst
+       mov rdi, rax
+
+       xor rdx, rdx
+       mov edx, [rsi+4]     ; rdx - src.length
+       add edx, 2           ; for sign and length
+       shl edx, 2           ; rdx = rdx * sizeof(int) (rdx * 4)
+       call memcpy
+
+       mov %1, rdi          ; dst = copied src
+
+       %%cont:
+       mov %2, r13          ; load address of src
+       pop r13
+       pop r12
+%endmacro
 ; rdi - a
 ; rsi - b
 ;
 ; a += b
 biAdd:
+    xor rax, rax
+    cmp [rdi], eax  ; if a == 0, then a = b
+    jne .continue1
+    biCopy rdi, rsi ; a = b
+    jmp .finish
+    .continue1:
+    xor rax, rax
+    cmp [rsi], eax  ; if b == 0, then a = a
+    je .finish
 
-ret
+
+
+    .finish:
+    ret
