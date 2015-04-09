@@ -1,6 +1,7 @@
 #ifndef _HOMEWORK3_BIGINT_H
 #define _HOMEWORK3_BIGINT_H
 #include <stdint.h>
+#include <stddef.h>
 
 typedef void* BigInt;
 
