@@ -65,12 +65,17 @@ void test1() {
 int main() {
     srand(time(NULL));
     //test1();
-    BigInt a = biFromString("0");
-    BigInt b = biFromString("-167897656787656765678");
-    cout << biAdd(a, b) << "\n";
-    char s[1000];
-   // biToString(a, s, 1000);
+    BigInt a = biFromString("-23");
+    BigInt b = biFromString("45");
+    BigInt c = biFromString("1000000000");
+    biToString(a, s, 1000);
     cout << s << "\n";
+    cout << biAdd(a, b) << "\n";
+
+    //char s[1000];
+    biToString(a, s, 1000);
+    cout << s << "\n";
+    //cout << biCmp(a, b) << "\n";
     //cout << biCmp(a, b) << "\n";
     //cout << *((int*)a+1) << "\n";
     //cout << biSign(a) << "\n";
