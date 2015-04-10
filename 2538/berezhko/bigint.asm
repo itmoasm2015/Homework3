@@ -23,6 +23,7 @@ BASE equ 1000000000
 ;   values[1] - bigdigits count
 ;   values[2..values[1]+2] - bigdigits
 
+
 ; Create BigInt with one memory cell for address to value
 ; Output:
 ;   rax - address of BigInt
@@ -172,7 +173,6 @@ biFromInt:
     remToI r9, 4
 
     mov [r9], esi       ; bigint[0] = sign
-    xor rax, rax
     mov eax, 3
     mov [r9+4], eax     ; bigint[1] = 3
 
@@ -553,42 +553,6 @@ biSign:
         pop r12
 %endmacro
 
-; %1 - BigInt.values
-; %1 = abs(%1)
-%macro biAbs 1
-        push r12
-        xor r12, r12
-        cmp [%1], r12d      ; compare sign with 0
-        jeg %%is_positive
-        xor rax, rax
-        mov eax, [%1]       ; eax = %1.sign
-        mul eax, -1         ; eax*(-1)
-        mov [%1], eax       ; %1.sign *= -1
-        %%is_positive:
-        pop r12
-%endmacro
-
-; rdi - a.values
-; rsi - b.values
-; rax - result (result =  0 if abs(a) = abs(b)
-;               result = -1 if abs(a) < abs(b)
-;               result =  1 if abs(a) > abs(b))
-%macro biAbsCmp 0
-        push r12
-        push r13
-        xor r12, r12
-        xor r13, r13
-        mov r12d, [rdi] ; r12 = a.sign
-        mov r13d, [rsi] ; r13 = b.sign
-        biAbs rdi
-        biAbs rsi
-        biCmpMacro
-        mov [rdi], r12d ; load old sign of a
-        mov [rsi], r13d ; load old sign of b
-        pop r13
-        pop r12
-%endmacro
-
 biCmp:
     mov rdi, [rdi] ; rdi = a.values
     mov rsi, [rsi] ; rsi = b.values
@@ -737,7 +701,6 @@ push rbx
         mov [r12], eax      ; res[0] = sign
         mov [r12+4], ebx    ; res[1] = size
 
-
         xor r13d, r13d        ; carry
         xor rbx, rbx
         %%loop:
@@ -775,7 +738,7 @@ push rbx
         pop rsi
         pop rdi
 
-%%finish:
+        %%finish:
         pop r13
         pop r12
         pop rbx
@@ -836,6 +799,8 @@ push rbx
         subAGB
 
         %%finish:
+        deleteNils rdi
+        isNull rdi
         pop r13
         pop r12
 %endmacro ; subPositive
@@ -893,8 +858,8 @@ push rbx
         subPositive     ; rdi = (abs(a)-abs(b)).values
         mov eax, [rdi]
         mov r12d, -1
-        mul eax         ; eax = -(abs(a)-abs(b)).sign
-        mov [rdi], eax  ; rdi = -(abs(a)-abs(b))
+        mul r12d         ; eax = -(abs(a)-abs(b)).sign
+        mov [rdi], eax   ; rdi = -(abs(a)-abs(b))
         jmp %%finish
         %%continue4:
 
@@ -956,14 +921,14 @@ mov rax, r15
         ; a < 0 && b > 0
         ; then a + b = -abs(a) + b = -(abs(a) - b)
         mov eax, 1      ;
-        mov [rdi], eax  ; a = abs(a) - b
+        mov [rdi], eax  ; a = abs(a)
 
         subPositive     ; a = abs(a) - b
 
-        xor rax, rax
         mov eax, -1
         mov r12d, [rdi]
         mul r12d        ; eax = (-(a - b)).sign = -1 * (abs(a) - b).sign
+        mov [rdi], eax  ; rdi = -(abs(a) - b)
         jmp %%finish
         %%continue4:
 
