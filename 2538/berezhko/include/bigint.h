@@ -36,7 +36,7 @@ int biSign(BigInt bi);
 int biAdd(BigInt dst, BigInt src);
 
 /** dst -= src */
-void biSub(BigInt dst, BigInt src);
+int biSub(BigInt dst, BigInt src);
 
 /** dst *= src */
 void biMul(BigInt dst, BigInt src);

@@ -9,6 +9,8 @@
 
 using namespace std;
 
+typedef long long LL;
+
 #define calc(a, ans)        \
     int __b = a;            \
     int __res = 0;          \
@@ -52,29 +54,44 @@ char s[10000005];
 char buf[10000005];
 
 void test1() {
-    for (int t = 0; t < 10; t++) {
-        int len = rand() % 10000000 + 1;
+    for (int t = 0; t < 100000; t++) {
+        int len = rand() % 10 + 1;
         genBigIntAsString(s, len);
         BigInt a = biFromString(s);
         biToString(a, buf, len + 5);
-        assert(myStrCmp(buf, s) == true);
+        if (myStrCmp(buf, s) == false) {
+            cout << s << "\n";
+            return;
+        }
         biDelete(a);
     }
 }
 
 int main() {
     srand(time(NULL));
-    //test1();
-    BigInt a = biFromString("-23");
-    BigInt b = biFromString("45");
-    BigInt c = biFromString("1000000000");
-    biToString(a, s, 1000);
+
+    BigInt a = biFromInt(-2599119775);
+    void *addr = *((void**)a);
+    cout << *((int*)addr+3) << "\n";
+    cout << biToString(a, s, 1000) << "\n";
     cout << s << "\n";
-    cout << biAdd(a, b) << "\n";
+
+    //test1();
+    //BigInt a = biFromString("2222222222222222222222222222");
+    //BigInt b = biFromString("33333333333333333333333333333333333333333333333");
+    //BigInt c = biFromString("1000000000");
+    //biToString(a, s, 1000);
+    //cout << s << "\n";
+    //cout << a << "\n";
+    //cout << biAdd(a, b) << "\n";
+    //cout << a << "\n";
+    //biToString(a, s, 1000);
+    //cout << s << "\n";
+
 
     //char s[1000];
-    biToString(a, s, 1000);
-    cout << s << "\n";
+    //biToString(a, s, 1000);
+    //cout << s << "\n";
     //cout << biCmp(a, b) << "\n";
     //cout << biCmp(a, b) << "\n";
     //cout << *((int*)a+1) << "\n";
