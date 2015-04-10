@@ -70,9 +70,9 @@ void test1() {
 int main() {
     srand(time(NULL));
    // test1();
-    BigInt a = biFromString("0");
-    BigInt b = biFromString("999999999999999999999999999999999999999999999999999999999999999999999999999999");
-    biAdd(a, b);
+    BigInt a = biFromString("2");
+    BigInt b = biFromString("200000000000000000000000000000000");
+    cout << biSub(a, b) << "\n";
     biToString(a, s, 1000);
     cout << s << "\n";
 
