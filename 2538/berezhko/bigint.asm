@@ -48,7 +48,12 @@ BASE equ 1000000000
         xor rcx, rcx
         mov ecx, [%1+4]
         %%loop:
-        cmp qword[%1+(1+rcx)*4], 0     ; compare with 0
+        sub ecx, 1
+        cmp ecx, 0
+        je %%overit
+
+        xor rdx, rdx
+        cmp [%1+(2+rcx)*4], edx        ; compare with 0
         jne %%overit
 
         xor rdx, rdx
@@ -56,9 +61,7 @@ BASE equ 1000000000
         sub edx, 1
         mov [%1+4], edx                ; decrease digit count
 
-        sub ecx, 1
-        cmp ecx, 1
-        jne %%loop
+        jmp %%loop
         %%overit:
 %endmacro
 
@@ -309,6 +312,7 @@ biDelete:
 biToString:
     push r13
     push r14
+    push r15
     push rsi        ; save string address
     push rbx
 
@@ -344,8 +348,9 @@ biToString:
     ; Writes rax/r8 to [rsi] and compare r13 with limit
     ;       (r8 - power of 10, r8 > rax)
     %macro helper 0
-        xor r9, r9
-        mov r9d, eax    ; save old value
+        xor r15, r15
+        mov r15d, eax   ; save old value
+        xor rdx, rdx    ; divider only in eax
         div r8d         ; eax = cur_digit
         mov rbx, rax
         add bl, '0'         ; bl - cur_digit as char
@@ -355,8 +360,8 @@ biToString:
         cmp r13, 1          ; check limit
         je .finish
         mul r8d         ; eax = cur_digit * 10^(...)
-        sub r9d, eax    ; remove cur_digit
-        mov rax, r9
+        sub r15d, eax    ; remove cur_digit
+        mov rax, r15
     %endmacro
 
     ; first big_digit:
@@ -382,9 +387,6 @@ biToString:
         cmp r8, 0           ; r8 = 0 => we've write first big_digit
         jne .loop_dig
         .end_loop_dig:
-
-    mov rax, r14
-    jmp .finish
 
     .loop:
         sub r14d, 1
@@ -416,6 +418,7 @@ biToString:
     mov byte[rsi], 0
     pop rbx
     pop rsi
+    pop r15
     pop r14
     pop r13
     ret
@@ -555,39 +558,38 @@ biSign:
         pop r12
 %endmacro
 
-;; %1 = abs(%1)
-;%macro biAbs 1
-;        push r12
-;        xor r12, r12
-;        cmp [%1], r12d ; compare sign with 0
-;        jeg %%is_positive
-;        xor rax, rax
-;        mov eax, [%1]
-;        mul eax, -1
-;        mov [%1], eax
-;        %%is_positive:
-;        pop r12
-;%endmacro
+; %1 - BigInt.values
+; %1 = abs(%1)
+%macro biAbs 1
+        push r12
+        xor r12, r12
+        cmp [%1], r12d      ; compare sign with 0
+        jeg %%is_positive
+        xor rax, rax
+        mov eax, [%1]       ; eax = %1.sign
+        mul eax, -1         ; eax*(-1)
+        mov [%1], eax       ; %1.sign *= -1
+        %%is_positive:
+        pop r12
+%endmacro
 
-; rdi - BigInt a
-; rsi - BigInt b
+; rdi - a.values
+; rsi - b.values
 ; rax - result (result =  0 if abs(a) = abs(b)
 ;               result = -1 if abs(a) < abs(b)
 ;               result =  1 if abs(a) > abs(b))
 %macro biAbsCmp 0
-        mov rdi, [rdi] ; rdi = a.values
-        mov rsi, [rsi] ; rsi = b.values
         push r12
         push r13
         xor r12, r12
         xor r13, r13
-        mov r12d, [rdi]
-        mov r13d, [rsi]
+        mov r12d, [rdi] ; r12 = a.sign
+        mov r13d, [rsi] ; r13 = b.sign
         biAbs rdi
         biAbs rsi
         biCmpMacro
-        mov [rdi], r12d
-        mov [rsi], r13d
+        mov [rdi], r12d ; load old sign of a
+        mov [rsi], r13d ; load old sign of b
         pop r13
         pop r12
 %endmacro
@@ -596,11 +598,9 @@ biCmp:
     biCmpMacro
     ret
 
-; rdi - dst
-; rsi - src
+; rdi - dst.values
+; rsi - src.values
 %macro biCopy 0
-        mov rdi, [rdi] ; rdi = dst.values
-        mov rsi, [rsi] ; rsi = src.values
             ;;;;; DELETING ;;;;;
         push rsi
         call free
@@ -657,6 +657,10 @@ biCmp:
         .bl0:
 %endmacro
 
+%macro subMacro 0
+
+%endmacro ; subMacro
+
 ; rdi - a
 ; rsi - b
 biSub:
@@ -706,122 +710,129 @@ biSub:
     pop r12
     ret
 
+%macro addMacro 0
+        push rbx
+        push r12
+        push r13
+
+        xor rax, rax
+        cmp [rdi], eax  ; if a == 0, then a = b
+        jne %%continue1
+        biCopy          ; a = b
+        jmp %%finish
+        %%continue1:
+        xor rax, rax
+        cmp [rsi], eax  ; if b == 0, then a = a
+        je %%finish
+
+        ; a != 0 && b != 0 now
+
+        getSignsMask ; r12 - mask of signs
+
+        cmp r12, 1      ; a > 0 && b < 0 ?
+        jne %%continue3  ; if not, continue add
+        ; a > 0 && b < 0
+        ; then a + b = a + (-abs(b)) = a - abs(b)
+        mov eax, 1      ;
+        mov [rsi], eax  ; b = abs(b)
+
+        call biSub      ; a = a - abs(b)
+
+        mov eax, -1     ;
+        mov [rsi], eax  ; load b.sign
+        jmp %%finish
+
+        %%continue3:
+        cmp r12, 2 ; a < 0 && b > 0 ?
+        jne %%continue4
+        ; a < 0 && b > 0
+        ; then a + b = -abs(a) + b = -(abs(a) - b)
+        mov eax, 1      ;
+        mov [rdi], eax  ; a = abs(a) - b
+
+        call biSub      ; a = abs(a) - b
+
+        xor rax, rax
+        mov eax, -1
+        mov r12d, [rdi]
+        mul r12d        ; eax = (-(a - b)).sign = -1 * (abs(a) - b).sign
+        jmp %%finish
+        %%continue4:
+
+        ; a > 0 and b > 0 or a < 0 && b < 0
+
+        xor rbx, rbx
+        mov ebx, [rdi+4]    ; eax = a.size
+        cmp ebx, [rsi+4]
+        jg %%continue2
+        mov ebx, [rsi+4]    ; rax = max(a.size, b.size)
+        %%continue2:
+
+        inc ebx             ; res.size = max(a.size, b.size) + 1 (1 for last carry, if it will)
+        callocNDigits rbx
+        mov r12, rax        ; r12 - res
+
+        mov eax, [rsi]      ; eax = sign
+        mov [r12], eax      ; res[0] = sign
+        mov [r12+4], ebx    ; res[1] = size
+
+        xor r13d, r13d        ; carry
+        xor rbx, rbx
+        %%loop:
+            xor r8, r8
+            add r8d, r13d    ; r8 += carry
+            getIth ebx, rdi
+            add r8d, eax     ; r8 += a.digits[i]
+            getIth ebx, rsi
+            add r8d, eax     ; r8 += b.digits[i]
+
+            xor r13d, r13d      ; carry = 0
+            cmp r8d, BASE
+            jl %%no_carry
+            inc r13d            ; carry = 1
+            sub r8d, BASE       ; r8 %= BASE
+            %%no_carry:
+            mov [r12+(rbx+2)*4], r8d    ; res.digits[i] = (a.digits[i]+b.digits[i]+carry)%BASE
+            inc rbx                     ; i++
+            cmp ebx, [r12+4]
+            jne %%loop
+
+        %%overit:
+
+        deleteNils r12  ; delete leading zeros
+
+        push rsi
+        mov rsi, r12
+        biCopy          ; copy tmp to dst
+        pop rsi
+
+        mov eax, [rdi+12]
+        jmp %%finish
+
+        push rdi
+        push rsi
+        mov rdi, r12
+        call free       ; delete tmp
+        pop rsi
+        pop rdi
+
+        %%finish:
+
+        pop r13
+        pop r12
+        pop rbx
+%endmacro ; addMacro
+
 ; rdi - a
 ; rsi - b
 ;
 ; a += b
 biAdd:
-    mov rdi, [rdi] ; rdi = a.values
-    mov rsi, [rsi] ; rsi = b.values
-
-    push rbx
-    push r12
-    push r13
-
-    xor rax, rax
-    cmp [rdi], eax  ; if a == 0, then a = b
-    jne .continue1
-    biCopy          ; a = b
-    jmp .finish
-    .continue1:
-    xor rax, rax
-    cmp [rsi], eax  ; if b == 0, then a = a
-    je .finish
-
-    ; a != 0 && b != 0 now
-
-    getSignsMask ; r12 - mask of signs
-
-    cmp r12, 1      ; a > 0 && b < 0 ?
-    jne .continue3  ; if not, continue add
-    ; a > 0 && b < 0
-    ; then a + b = a + (-abs(b)) = a - abs(b)
-    mov eax, 1      ;
-    mov [rsi], eax  ; b = abs(b)
-
-    call biSub      ; a = a - abs(b)
-
-    mov eax, -1     ;
-    mov [rsi], eax  ; load b.sign
-    jmp .finish
-
-    .continue3:
-    cmp r12, 2 ; a < 0 && b > 0 ?
-    jne .continue4
-    ; a < 0 && b > 0
-    ; then a + b = -abs(a) + b = -(abs(a) - b)
-    mov eax, 1      ;
-    mov [rdi], eax  ; a = abs(a) - b
-
-    call biSub      ; a = abs(a) - b
-
-    xor rax, rax
-    mov eax, -1
-    mov r12d, [rdi]
-    mul r12d        ; eax = (-(a - b)).sign = -1 * (abs(a) - b).sign
-    jmp .finish
-    .continue4:
-
-    ; a > 0 and b > 0 or a < 0 && b < 0
-
-    xor rbx, rbx
-    mov ebx, [rdi+4]    ; eax = a.size
-    cmp ebx, [rsi+4]
-    jg .continue2
-    mov ebx, [rsi+4]    ; rax = max(a.size, b.size)
-    .continue2:
-
-    inc ebx             ; res.size = max(a.size, b.size) + 1 (1 for last carry, if it will)
-    callocNDigits rbx
-    mov r12, rax        ; r12 - res
-
-    mov eax, [rsi]      ; eax = sign
-    mov [r12], eax      ; res[0] = sign
-    mov [r12+4], ebx    ; res[1] = size
-
-    xor r13d, r13d        ; carry
-    xor rbx, rbx
-    .loop:
-        xor r8, r8
-        add r8d, r13d    ; r8 += carry
-        getIth ebx, rdi
-        add r8d, eax     ; r8 += a.digits[i]
-        getIth ebx, rsi
-        add r8d, eax     ; r8 += b.digits[i]
-
-        xor r13d, r13d      ; carry = 0
-        cmp r8d, BASE
-        jl .no_carry
-        inc r13d            ; carry = 1
-        sub r8d, BASE       ; r8 %= BASE
-        .no_carry:
-        mov [r12+(rbx+2)*4], r8d    ; res.digits[i] = (a.digits[i]+b.digits[i]+carry)%BASE
-        inc rbx                     ; i++
-        cmp ebx, [r12+4]
-        jne .loop
-
-    .overit:
-
-    deleteNils r12  ; deleteleading zeros
-
-    push rsi
-    mov rsi, r12
-    biCopy          ; copy tmp to dst
-    pop rsi
-
-    mov eax, [rdi+12]
-    jmp .finish
-
     push rdi
-    push rsi
-    mov rdi, r12
-    call free       ; delete tmp
-    pop rsi
+    mov rdi, [rdi]  ; rdi - address of a.values
+    mov rsi, [rsi]  ; rsi - address of b.values
+    addMacro        ; rdi - address of (a+b).values
+    mov rax, rdi    ; save (a+b).values
     pop rdi
-
-    .finish:
-
-    pop r13
-    pop r12
-    pop rbx
+    mov [rdi], rax  ; a.values = (a+b).values
     ret

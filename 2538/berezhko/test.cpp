@@ -54,8 +54,8 @@ char s[10000005];
 char buf[10000005];
 
 void test1() {
-    for (int t = 0; t < 100000; t++) {
-        int len = rand() % 10 + 1;
+    for (int t = 0; t < 100; t++) {
+        int len = rand() % 1000000 + 1;
         genBigIntAsString(s, len);
         BigInt a = biFromString(s);
         biToString(a, buf, len + 5);
@@ -69,24 +69,12 @@ void test1() {
 
 int main() {
     srand(time(NULL));
-
-    BigInt a = biFromInt(-2599119775);
-    void *addr = *((void**)a);
-    cout << *((int*)addr+3) << "\n";
-    cout << biToString(a, s, 1000) << "\n";
+   // test1();
+    BigInt a = biFromString("0");
+    BigInt b = biFromString("999999999999999999999999999999999999999999999999999999999999999999999999999999");
+    biAdd(a, b);
+    biToString(a, s, 1000);
     cout << s << "\n";
-
-    //test1();
-    //BigInt a = biFromString("2222222222222222222222222222");
-    //BigInt b = biFromString("33333333333333333333333333333333333333333333333");
-    //BigInt c = biFromString("1000000000");
-    //biToString(a, s, 1000);
-    //cout << s << "\n";
-    //cout << a << "\n";
-    //cout << biAdd(a, b) << "\n";
-    //cout << a << "\n";
-    //biToString(a, s, 1000);
-    //cout << s << "\n";
 
 
     //char s[1000];
