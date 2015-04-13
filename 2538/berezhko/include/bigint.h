@@ -39,7 +39,7 @@ int biAdd(BigInt dst, BigInt src);
 int biSub(BigInt dst, BigInt src);
 
 /** dst *= src */
-void biMul(BigInt dst, BigInt src);
+long long biMul(BigInt dst, BigInt src);
 
 /** Compute quotient and remainder by divising numerator by denominator.
  *  quotient * denominator + remainder = numerator

@@ -176,6 +176,8 @@ void test5() {
 
 void test6() {
     cout << "Stuff in string ...";
+    BigInt tmp = biFromString("-");
+    assert(tmp == NULL);
     for (int t = 0; t < 100; t++) {
         int len = rand() % 1000000 + 1;
         genBigIntAsString(s, len);
@@ -199,14 +201,56 @@ void test7() {
     cout << " OK\n";
 }
 
+void test8() {
+    cout << "Mul ... ";
+    for (int t = 0; t < 100; t++) {
+        int len1 = rand() % 1000 + 1;
+        int len2 = rand() % 1000 + 1;
+        genBigIntAsString(s1, len1);
+        BigInt a = biFromString(s1);
+        genBigIntAsString(s2, len2);
+        BigInt b = biFromString(s2);
+
+        aa = stringToBigInteger(s1);
+        bb = stringToBigInteger(s2);
+        aa *= bb;
+
+        biMul(a, b);
+        biToString(a, buf, len1+len2+5);
+
+        if (myStrCmp(buf, bigIntegerToString(aa).c_str()) != true) {
+            cout << s1 << " * " << s2 << " != " << buf << "\n";
+            cout << s1 << " * " << s2 << " == " << bigIntegerToString(aa).c_str() << "\n";
+            return;
+        }
+
+        assert(myStrCmp(buf, bigIntegerToString(aa).c_str()) == true);
+
+        biDelete(a);
+        biDelete(b);
+    }
+    cout << " OK\n";
+}
+
 int main() {
     srand(time(NULL));
+    test8();
+    return 0;
    /* test1();
     test2();
     test3();
     test4();
     test5();
-    test6(); */
-    test7();
+    test6();
+    test7(); */
+    BigInt a = biFromString("7054747573");
+    BigInt b = biFromString("611608645");
+
+    //BigInt a = biFromString("10000");
+    //BigInt b = biFromString("100000");
+
+    cout << biMul(a, b) << "\n";
+    biToString(a, s, 100);
+    cout << s << "\n";
     return 0;
 }
