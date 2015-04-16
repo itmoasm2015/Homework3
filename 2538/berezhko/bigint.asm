@@ -13,6 +13,7 @@ global biCmp
 global biAdd
 global biSub
 global biMul
+global biDivRem
 
 BASE equ 1000000000
 
@@ -1173,4 +1174,8 @@ biMul:
     mov rax, rdi    ; save (a*b).values
     pop rdi
     mov [rdi], rax  ; a.values = (a*b).values
+    ret
+
+;; DO NOTHING
+biDivRem:
     ret
