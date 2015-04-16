@@ -23,6 +23,8 @@ endstruc
 
 biFromInt:
     push rdi
+    push rbx
+    push rdi
     mov rdi, BigInt_size
     call malloc
     push rax
@@ -33,18 +35,22 @@ biFromInt:
     mov rax, rdx
     pop rdi
 
-    cmp rdi, 0
     mov qword [rax + len], 1
-    jb .minus
+    cmp rdi, 0
+    js .minus
     ;plus
         mov qword [rax + sign], 1
-        mov qword [rax + data], rdi
+        mov rbx, [rax + data]
+        mov [rbx], rdi
         jmp .sign_done
     .minus
         mov qword [rax + sign], 0
         imul rdi, -1
-        mov [rax + data], rdi
+        mov rbx, [rax + data]
+        mov [rbx], rdi
     .sign_done
+    pop rbx
+    pop rdi
     ret
 
 cmpData:
@@ -58,9 +64,9 @@ cmpData:
         dec rcx
         .cmp_loop
             mov rax, [rdi + data]
-            mov rax, [rax + rcx]
+            mov rax, [rax + 8 * rcx]
             mov rbx, [rsi + data]
-            mov rbx, [rbx + rcx]
+            mov rbx, [rbx + 8 * rcx]
             cmp rax, rbx
             ja .more
             jb .less
@@ -71,10 +77,10 @@ cmpData:
         xor rax, rax
         jmp .cmpData_done
     .less
-        mov qword rax, 1
+        mov rax, 1
         jmp .cmpData_done
     .equals
-        mov qword rax, -1
+        mov rax, -1
     .cmpData_done
     pop rbx
     ret
@@ -87,17 +93,18 @@ biCmp:
     ;signs equal
         call cmpData
         cmp rax, 0
-        jb .equals
+        js .equals
         xor rax, [rdi + sign]
         cmp rax, 0
         je .less
         jmp .more
     .more
-        mov qword rax, 1
+        mov eax, 1
         jmp .cmp_done
     .less
-        mov qword rax, -1
+        mov eax, -1
         jmp .cmp_done
     .equals
-        xor rax, rax
+        xor eax, eax
     .cmp_done
+    ret
