@@ -108,3 +108,24 @@ biCmp:
         xor eax, eax
     .cmp_done
     ret
+
+biSign:
+    cmp qword [rdi + sign], 0
+    je .minus
+        cmp qword [rdi + len], 1
+        je .len_eq1
+            mov eax, 1
+            jmp .sign_done
+        .len_eq1
+        mov rax, [rdi + data]
+        cmp qword [rax], 0
+        je .zero
+            mov eax, 1
+            jmp .sign_done
+        .zero
+            xor eax, eax
+            jmp .sign_done
+    .minus
+        mov eax, -1
+    .sign_done
+    ret
