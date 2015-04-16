@@ -23,15 +23,15 @@ int main()
 {
 
     BigInt b1 = biFromInt(9223372036854775807);
-    BigInt b2 = biFromInt(0);
+    BigInt b2 = biFromString("000001");
     BigInt b3 = biFromInt(-123);
     BigInt b4 = biFromInt(11111);
     char str[100] = "     ";
     biToString(b1,str,40);
     printf("work %s\n", str);
     printf("check sign: 1:%d, 0:%d -1:%d\n", biSign(b1),biSign(b2),biSign(b3));
-    biAdd(b1, b4);
+    biAdd(b1, b2);
     biToString(b1,str,40);
-    printf("add:%s\n",str);
+    printf("add: %s\n",str);
     return 0;
 }

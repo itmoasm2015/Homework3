@@ -98,7 +98,63 @@ biFromInt:
 	mov [Res + bigint.data], r12 ;r13 is vector pointer
 	end
 
-biFromString:	ret
+
+;; Arg1 -> string
+;; Res -> bigint 
+biFromString:
+	begin
+	mov r12, Arg1		;save string ptr
+	mov Arg1, 0
+	call biFromInt
+
+	cmp byte [r12], 0	;empty string
+	jz .all_done
+
+	mov byte [Res + bigint.sign], 1 ;'+'
+	cmp byte [r12], '-'
+	jne .sign_done
+	mov byte [Res + bigint.sign], 0
+	inc r12
+	.sign_done:
+
+	
+	.skip_leading_zeros:
+		cmp byte [r12], '0'
+		jne .skipped
+		inc r12
+		cmp byte [r12], 0 ; end of string => there are only zeros => all done
+		jz .all_done
+		jmp .skip_leading_zeros
+	.skipped:
+
+	mov Arg1, Res
+	xor rbx, rbx
+	.loop:
+		mov bl, byte [r12]
+		inc r12
+		cmp bl, 0
+		je .all_done
+		cmp bl, '0'
+		jl .bad_string
+		cmp bl, '9'
+		jg .bad_string
+
+		sub rbx, '0'
+		mov Arg2, 10
+		call biMulInt
+		mov Arg2, rbx
+		call biAddInt
+		jmp .loop
+		
+	.all_done:
+	mov Res, Arg1
+	end
+
+	.bad_string:
+	mov Arg1, Res
+	call biDelete 
+	xor Res, Res
+	end
 biDelete:
 	begin
 	mov r12, Arg1
@@ -142,7 +198,8 @@ biAdd:
 	 	lea r13, [r13 + 8]
 	 	dec r12
 	 	jnz .loop
-	
+
+	;; TODO: set new size
 	 .carry:
 	 	adc qword [r13], 0
 	 	lea r13, [r13 + 8]
@@ -156,7 +213,7 @@ biAdd:
 ;; adds int64 to bigint
 ;; Arg1 -> bigint
 ;; Arg2 = int
-;; Res -> bigint 
+;; result: Arg1 -> bigint
 biAddInt:
 	begin
 	push Arg1
@@ -171,23 +228,57 @@ biAddInt:
 	
 	lea Arg1, [Arg1 + bigint.data]
 	xor r13, r13
+	mov r15, 1
 	add [Arg1], Arg2
 	lea Arg1, [Arg1 + 8]
+	jnc .done
 	.carry:
 	 	adc qword [Arg1], 0
 	 	lea Arg1, [Arg1 + 8]
-	 	jc .carry 
-		
-	pop Res
+		inc r15
+	 	jc .carry
+	.done:
+
+	pop Arg1
+	mov [Arg1 + bigint.size], r15 	;; update size
 	end
 
 ;; multiplies bigint on int64
 ;; Arg1 -> bigint
 ;; Arg2 = int
-;; Res -> bigint 
+;; result: Arg1 -> bigint 
 biMulInt:
 	begin
+	mov r15, Arg1
+	mov r12, [Arg1 + bigint.size]
 
+	inc r12
+	push Arg2
+	mov Arg2, r12
+	call expandVec
+	pop Arg2
+	dec r12
+
+	lea Arg1, [Arg1 + bigint.data]
+	xor r13, r13
+	.loop:
+		mov rax, [Arg1]
+		mul Arg2	;rdx:rax = rax * arg2
+		add rax, r13	;add carried part from previous multiplication
+		adc rdx, 0	
+		mov [Arg1], rax
+		lea Arg1, [Arg1 + 8]
+		mov r13, rdx	;save carried part
+		dec r12
+		jnz .loop
+
+	cmp r13, 0
+	jz .done
+		mov [Arg1], r13
+		inc qword [r15 + bigint.size]
+	.done:
+	
+	mov Arg1, r15
 	end
 
 
@@ -342,7 +433,7 @@ getFirstInt:
 	begin
 	mov Arg2, 11
 	call biAddInt
-	mov Res, [Res + bigint.data]
+	mov Res, [Arg1 + bigint.data]
 	end
 
 
