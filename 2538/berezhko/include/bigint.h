@@ -1,6 +1,7 @@
 #ifndef _HOMEWORK3_BIGINT_H
 #define _HOMEWORK3_BIGINT_H
 #include <stdint.h>
+#include <stddef.h>
 
 typedef void* BigInt;
 
@@ -16,12 +17,11 @@ BigInt biFromInt(int64_t x);
  *  Returns NULL on incorrect string.
  */
 BigInt biFromString(char const *s);
-//long long biFromString(char const *s);
 
 /** Generate a decimal string representation from a BigInt.
  *  Writes at most limit bytes to buffer.
  */
-int biToString(BigInt bi, char *buffer, size_t limit);
+void biToString(BigInt bi, char *buffer, size_t limit);
 
 /** Destroy a BigInt.
  */
@@ -33,13 +33,13 @@ void biDelete(BigInt bi);
 int biSign(BigInt bi);
 
 /** dst += src */
-int biAdd(BigInt dst, BigInt src);
+void biAdd(BigInt dst, BigInt src);
 
 /** dst -= src */
-int biSub(BigInt dst, BigInt src);
+void biSub(BigInt dst, BigInt src);
 
 /** dst *= src */
-long long biMul(BigInt dst, BigInt src);
+void biMul(BigInt dst, BigInt src);
 
 /** Compute quotient and remainder by divising numerator by denominator.
  *  quotient * denominator + remainder = numerator
