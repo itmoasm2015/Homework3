@@ -190,20 +190,26 @@ biAdd:
 	
 	lea r13, [Arg1 + bigint.data] ;vector1 pointer
 	lea r14, [Arg2 + bigint.data] ;vector2 pointer
+	mov r8, 1		      ;size counter
+	
 	clc
 	 .loop:
 	 	mov r15, [r14]	
 	 	lea r14, [r14 + 8]
 	 	adc [r13], r15
 	 	lea r13, [r13 + 8]
-	 	dec r12
+		inc r8
+		dec r12
 	 	jnz .loop
 
-	;; TODO: set new size
+	jnc .done
 	 .carry:
 	 	adc qword [r13], 0
 	 	lea r13, [r13 + 8]
+		inc r8
 	 	jc .carry
+	.done:
+	mov [Arg1 + bigint.size], r8 ;update size
 	end
 	
 	.sub:
@@ -240,7 +246,11 @@ biAddInt:
 	.done:
 
 	pop Arg1
+	cmp r15, [Arg1 + bigint.size]
+	jle .end
 	mov [Arg1 + bigint.size], r15 	;; update size
+
+	.end:
 	end
 
 ;; multiplies bigint on int64

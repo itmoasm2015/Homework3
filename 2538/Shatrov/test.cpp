@@ -21,15 +21,16 @@ bool eq(double a, double b)
 
 int main()
 {
-
-    BigInt b1 = biFromInt(9223372036854775807);
-    BigInt b2 = biFromString("000001");
-    BigInt b3 = biFromInt(-123);
+    //2^64 - 1 = 18446744073709551615
+    //9223372036854775807
+    BigInt b1 = biFromInt((unsigned long long)2000000000000000000);
+    BigInt b2 = biFromString("184467440737095516150");
+    BigInt b3 = biFromString("0000000000");
     BigInt b4 = biFromInt(11111);
     char str[100] = "     ";
+    printf("check sign: 1:%d, 0:%d -1:%d\n", biSign(b1),biSign(b2),biSign(b3));
     biToString(b1,str,40);
     printf("work %s\n", str);
-    printf("check sign: 1:%d, 0:%d -1:%d\n", biSign(b1),biSign(b2),biSign(b3));
     biAdd(b1, b2);
     biToString(b1,str,40);
     printf("add: %s\n",str);
