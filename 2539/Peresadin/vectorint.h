@@ -11,7 +11,8 @@ extern "C" {
 #endif
 VectorInt newVector(int size);
 void pushBack(VectorInt a, TypeElement x);
-void popBack();
+void popBack(VectorInt a);
+int element(VectorInt a, int i);
 void deleteVector(VectorInt a);
 
 #ifdef __cplusplus

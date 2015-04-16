@@ -5,9 +5,10 @@ section .text
 extern malloc
 extern free
 
-global newVetor
+global newVector
 global pushBack
 global popBack
+global element
 global deleteVector
 
 struc VectorInt
@@ -22,8 +23,6 @@ newVector:
         shl rax, 1
         cmp rdi, rax
         jae .loop
-    ret
-
     push rax
     push rdi
     mov rdi, VectorInt_size
@@ -35,27 +34,45 @@ newVector:
     mov [rdx + alignSize], rax
     push rdx
     mov rdi, rax
+    shl rdi, 2
     call malloc
     pop rdx
     mov [rdx + elem], rax
     mov rax, rdx
-    ;TODO write set_zero
+
+    mov rcx, [rax + sz]
+    shl rcx, 2
+    cmp rcx, 0
+    je .size_zero
+    mov rdx, [rax + elem]
+    .loop_set
+        mov dword [rdx + rcx - 4], 0
+        sub rcx, 4
+        jnz .loop_set
+
+    .size_zero
     ret
 
 copyElem:
-    push rbp
-    push rbx
     push rdi
     mov [rdi + alignSize], rsi
     mov rdi, rsi
+    shl rdi, 2
     call malloc
     pop rdi
+
     mov rcx, [rdi + sz]
-    mov rbp, [rdi + elem]
+    shl rcx, 2
+    cmp rcx, 0
+    je .size_zero
+    mov rdx, [rdi + elem]
     .loop_copy
-        mov rbx, [rbp + rcx - 1]
-        mov [rax + rcx - 1], rbx
-        loop .loop_copy
+        mov esi, [rdx + rcx - 4]
+        mov [rax + rcx - 4], esi
+        sub rcx, 4
+        jnz .loop_copy
+    .size_zero
+
     push rdi
     push rax
     mov rdi, [rdi + elem]
@@ -63,8 +80,6 @@ copyElem:
     pop rax
     pop rdi
     mov [rdi + elem], rax
-    pop rbx
-    pop rbp
     ret
 
 pushBack:
@@ -74,26 +89,31 @@ pushBack:
     ;align size
         push rsi
         mov rsi, [rdi + alignSize]
-        shl rsi
+        shl rsi, 1
         call copyElem
         pop rsi
     .push_back
     mov rax, [rdi + sz]
     mov rdx, [rdi + elem]
-    mov [rdx + 4*rax], rsi
+    mov [rdx + 4*rax], esi
     inc qword [rdi + sz]
     ret
 
 popBack:
-    dec [rdi + sz]
+    dec qword [rdi + sz]
     mov rax, [rdi + sz]
     shl rax, 2
     cmp rax, [rdi + alignSize]
     ja .not_copy
         mov rsi, [rdi + alignSize]
-        shr rsi
+        shr rsi, 1
         call copyElem
     .not_copy
+    ret
+
+element:
+    mov rax, [rdi + elem]
+    mov eax, [rax + 4*rsi]
     ret
 
 deleteVector:
