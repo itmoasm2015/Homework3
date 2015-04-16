@@ -14,7 +14,7 @@ global biMul
 global biCmp
 global biSign
 
-BASE equ 1000000000
+BASE equ 100000000
 
 global newVector
 global pushBack
@@ -260,5 +260,55 @@ biSign:
     .sign_done
     ret
 
+add:
+    push rbx
+    length r9, rdi
+    length rax, rsi
+    cmp r9, rax
+    ja .ok_max
+        mov r9, rax
+    .ok_max
+    length r8, rdi
+    cmp r8, r9
+    je .not_push
+        push rsi
+        .loop_push
+            xor rsi, rsi
+            call pushBack
+            inc r8
+            cmp r8, r9
+            jb .loop_push
+        pop rsi
+    .not_push
+
+    xor r8, r8
+    mov rcx, r9
+    xor rax, rax;carry
+    .loop
+        element r9, rdi, r8
+        element rbx, rsi, r8
+        add rax, r9
+        add rax, r8
+        xor rdx, rdx
+        div BASE
+        setElement rdi, r8, rdx
+        inc r8
+        cmp r8, rcx
+        ja .loop
+    cmp rax, 0
+    je .done
+        mov rsi, rax
+        call pushBack
+    .done
+    pop rbx
+    ret
+
 biAdd:
+    mov rax, [rsi + sign]
+    cmp rax, [rdi + sign]
+    jne .not_eq_sign
+
+    .not_eq_sign
+    ret
+biSub:
     ret
