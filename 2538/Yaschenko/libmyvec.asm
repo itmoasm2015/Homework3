@@ -9,6 +9,7 @@ global vectorDelete
 global vectorPushBack
 global vectorGet
 global vectorSet
+global vectorSize
 
 %assign	DEFAULT_CAPACITY	4
 %assign ELEM_SIZE		4
@@ -176,5 +177,16 @@ vectorSet:
 
 	ret
 .out_of_bounds
+	ret
+
+;;size_t vectorSize(Vector v);
+;;
+;; Returns size of VECTOR.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+;; Returns:
+;;	* RAX: size of VECTOR.
+vectorSize:
+	mov	rax, [rdi + Vector.size]
 	ret
 
