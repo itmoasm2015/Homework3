@@ -13,14 +13,30 @@ global vectorSet
 %assign	DEFAULT_CAPACITY	4
 %assign ELEM_SIZE		4
 
+;; Round up to the next highest power of 2.
+;; See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 %macro round_next_2_power 1
+	push	rax
 	dec	%1
-	or	%1, 1
-	or	%1, 2
-	or	%1, 4
-	or	%1, 8
-	or	%1, 16
+	mov	rax, %1
+
+	shr	rax, 1
+	or	%1, rax
+
+	shr	rax, 1
+	or	%1, rax
+
+	shr	rax, 2
+	or	%1, rax
+
+	shr	rax, 4
+	or	%1, rax
+
+	shr	rax, 8
+	or	%1, rax
+
 	inc	%1
+	pop	rax
 %endmacro
 
 struc Vector
@@ -37,22 +53,24 @@ endstruc
 ;; Returns:
 ;;	* RAX: pointer to newly created vector.
 vectorNew:
+	round_next_2_power rdi
 	push	rdi
+	mov	rsi, ELEM_SIZE
+	call	calloc
+	push	rax
+
 	mov	rdi, 1
 	mov	rsi, Vector_size
 	call	calloc
-	mov	rdx, rax
-	pop	rdi
 
-	round_next_2_power	rdi
-	mov	rsi, ELEM_SIZE
-	call	calloc
+	pop	rdx
+	mov	[rax + Vector.data], rdx
 
-	mov	[rdx + Vector.data], rax
-	mov	[rdx + Vector.capacity], rdi
-	mov	qword [rdx + Vector.size], 0
+	pop	rdx
+	mov	[rax + Vector.capacity], rdx
 
-	mov	rax, rdx
+	mov	qword [rax + Vector.size], 0
+
 	ret
 
 ;; void vectorDelete(Vector v);
