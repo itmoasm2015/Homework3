@@ -1,0 +1,6 @@
+# objects and libs
+*.o
+*.a
+
+# executables
+test_vector
