@@ -53,6 +53,7 @@ endstruc
 ;; Returns:
 ;;	* RAX: pointer to newly created vector.
 vectorNew:
+	push	rdi
 	round_next_2_power rdi
 	push	rdi
 	mov	rsi, ELEM_SIZE
@@ -69,7 +70,8 @@ vectorNew:
 	pop	rdx
 	mov	[rax + Vector.capacity], rdx
 
-	mov	qword [rax + Vector.size], 0
+	pop	rdx
+	mov	[rax + Vector.size], rdx
 
 	ret
 
@@ -141,7 +143,7 @@ vectorEnsureCapacity:
 ;;	* RDI: pointer to VECTOR.
 ;;	* RSI: INDEX
 ;; Returns:
-;;	* RAX: INDEX'th element of VECTOR.
+;;	* RAX: INDEX'th element of VECTOR, or 0 if index is out of bounds.
 vectorGet:
 	cmp	rsi, 0
 	jl	.out_of_bounds
@@ -157,7 +159,22 @@ vectorGet:
 	ret
 
 ;; void vectorSet(Vector v, size_t index, unsigned element);
+;;
+;; Sets INDEX'th element of VECTOR to ELEMENT. Does nothing if INDEX is out of bounds.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+;;	* RSI: INDEX.
+;;	* RDX: value of ELEMENT.
 vectorSet:
-	
+	cmp	rsi, 0
+	jl	.out_of_bounds
+	cmp	rsi, [rdi + Vector.size]
+	jge	.out_of_bounds
 
+	mov	rax, [rdi + Vector.data]
+	mov	[rax + rsi * ELEM_SIZE], rdx
+
+	ret
+.out_of_bounds
+	ret
 
