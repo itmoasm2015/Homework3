@@ -80,8 +80,8 @@ biFromInt:
 	mov r12, Arg1		;save input
 	
 	alloc16 25
-	mov Arg1, Res
-	mov Arg2, 4	;first time we alloc a bit more to avoid multiple expands of vector
+	mov Arg1, Res		;TODO: AAA! initial size
+	mov Arg2, 1	;first time we alloc a bit more to avoid multiple expands of vector
 	call newVec
 	mov qword [Res + bigint.size], 1 ;initial size
 	
@@ -212,7 +212,10 @@ biAdd:
 	mov [Arg1 + bigint.size], r8 ;update size
 	end
 	
-	.sub:
+	.sub:			;b1 -= -b2
+	xor byte [Arg2 + bigint.sign], 1
+	call biSub
+	xor byte [Arg2 + bigint.sign], 1 ;change sign back
 	
 	end
 
@@ -292,12 +295,78 @@ biMulInt:
 	end
 
 
-biSub:	ret
-biMul:	ret
-biCmp:	ret
 
+;;Arg1 -> bigInt1
+;;Arg2 -> bigInt2
+;;res: bigInt1 += bigInt2 
+biSub:
+	begin
+
+	;; check signs
+	movzx r13, byte [Arg1 + bigint.sign]
+	movzx r14, byte [Arg2 + bigint.sign]
+	cmp r13, r14
+	jne .add
 	
+	cmp r13, 0
+	jz .negative
+	call biCmp
+	cmp Res, 0
+	jge .simple_sub
+	jmp .reverse_sub	;b1 < b2 -> answ = -(b2 - b1)
+	
+	.negative:
+	call biCmp
+	cmp Res, 0
+	jle .simple_sub
+	jmp .reverse_sub
+
+	.simple_sub:
+		mov r12, [Arg1 + bigint.size]
+		lea r13, [Arg1 + bigint.data] ;vector1 pointer
+		lea r14, [Arg2 + bigint.data] ;vector2 pointer
+	
+		clc
+		.loop:
+			mov r15, [r14]	
+			lea r14, [r14 + 8]
+			sbb [r13], r15
+			lea r13, [r13 + 8]
+			dec r12
+			jnz .loop
+
+		jnc .done
+		.carry:
+			sbb qword [r13], 0
+			lea r13, [r13 + 8]
+			inc r8
+			jc .carry
+		.done:
+	
+	.reverse_sub:
+		mov r12, Arg1
+		mov r13, Arg2
+		mov Arg1, Arg2
+		call biCpy	; tmp = b2
+		mov Arg1, Res
+		mov Arg2, r12
+		mov r14, Res	;save tmp pointer
+		call biSub	;tmp -= b1
+		mov r15, [r14 + bigint.size]
+		
+	end
+	
+	.add:			;b1 += -b2
+	xor byte [Arg2 + bigint.sign], 1
+	call biAdd
+	xor byte [Arg2 + bigint.sign], 1 ;change sign back
+	end
+	
+biMul:	ret
+
 %macro biSignMacro 1
+	cmp qword [%1 + bigint.size], 1
+	jg %%not_zero
 	cmp qword [%1 + bigint.data], 0
 	jnz %%not_zero
 	xor Res, Res
@@ -314,10 +383,80 @@ biCmp:	ret
 %%end
 %endmacro
 	
+	
+biCmp:
+	begin
+
+	biSignMacro Arg1
+	mov r12, Res
+	biSignMacro Arg2
+	cmp r12, Res
+	jl .lower
+	jg .greater
+
+	;; signs equal
+	mov r13, [Arg1 + bigint.size]
+	cmp r13, [Arg2 + bigint.size]
+	jl .smaller
+	jg .bigger		
+
+	;; size equal
+
+	mov r15, [Arg1 + bigint.size]
+	lea r13, [Arg1 + bigint.data + r15 * 8 - 8]
+	lea r14, [Arg2 + bigint.data + r15 * 8 - 8]
+	
+
+	.loop:
+		mov rbx, [r13]
+		cmp rbx, [r14]
+		jg .bigger
+		jl .smaller
+		lea r13, [r13 - 8]
+		lea r14, [r14 - 8]
+		dec r15
+		jnz .loop
+	;; bigints are equal
+	xor Res, Res
+	end
+	
+	.smaller:		;answer depends on sign
+		cmp r12, 0	;check sign
+		jl .greater	;'-'
+		jg .lower	;'+'
+	.bigger
+		cmp r12, 0
+		jl .lower
+		jg .greater
+	.greater:
+	mov Res, 1
+	end
+	
+	.lower:
+	mov Res, -1
+	end
+
+	
+
 ;;Arg1 - ptr to bigint
 biSign:
 	begin
-	biSignMacro Arg1
+
+	cmp qword [Arg1 + bigint.size], 1
+	jg .not_zero
+	cmp qword [Arg1 + bigint.data], 0
+	jnz .not_zero
+	xor Res, Res
+	end
+	
+	.not_zero:
+	cmp byte [Arg1 + bigint.sign], 0
+	jz .negative
+	mov Res, 1
+	end
+	
+	.negative:
+	mov Res, -1
 	end
 	
 biDivRem:	ret

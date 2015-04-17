@@ -28,9 +28,9 @@ objc objcxx obja:
 
 
 objc/%.o: %.c objc
-	gcc -std=c11 -c -m64 -g -O2 -o $@ $<
+	gcc -std=c11 -c -m64 -g -O0 -o $@ $<
 objcxx/%.o: %.cpp objcxx
-	g++ -std=c++11 -c -m64 -g -O2 -o $@ $<
+	g++ -std=c++11 -c -m64 -g -O0 -o $@ $<
 
 obja/%.o: %.asm obja
 	yasm $(YASM_FLAGS) -o $@ $<
