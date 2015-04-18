@@ -120,6 +120,7 @@ vectorEnsureCapacity:
 	call	calloc
 ; Save pointer to memory.
 	push	rax
+; stack: | *NEWDATA | *VECTOR | ...
 
 ; Copy elements from old array to newly created with memcpy.
 ; 1st parameter: dst
@@ -129,6 +130,7 @@ vectorEnsureCapacity:
 	mov	rsi, [rax + Vector.data]
 ; 3rd parameter: count
 	mov	rdx, [rax + Vector.capacity]
+	imul	rdx, ELEM_SIZE
 
 	call	memcpy
 
@@ -140,9 +142,10 @@ vectorEnsureCapacity:
 ; Restore pointer to new array.
 	pop	rdx
 ; And save it to vector.
-	mov	[rax + Vector.data], rdx
+	pop	rdi
+	mov	[rdi + Vector.data], rdx
 ; Update capacity.
-	shl	qword [rax + Vector.capacity], 1
+	shl	qword [rdi + Vector.capacity], 1
 .done:
 	ret
 
@@ -248,9 +251,10 @@ vectorPushBack:
 	pop	rdi
 
 	mov	rax, [rdi + Vector.data]
-	mov	rdx, [rdi + Vector.size]
-	inc	rdx
-	mov	[rax + rdx * ELEM_SIZE], rsi
+	mov	rcx, [rdi + Vector.size]
+	mov	[rax + rcx * ELEM_SIZE], rsi
+	inc	rcx
+	mov	[rdi + Vector.size], rcx
 
 	ret
 
