@@ -11,8 +11,10 @@ global vectorGet
 global vectorSet
 global vectorSize
 global vectorPushBack
+global vectorBack
+global vectorCapacity
 
-%assign	DEFAULT_CAPACITY	4
+%assign	DEFAULT_CAPACITY	8
 %assign ELEM_SIZE		4
 
 ;; Round up to the next highest power of 2.
@@ -56,6 +58,12 @@ endstruc
 ;;	* RAX: pointer to newly created vector.
 vectorNew:
 	push	rdi
+	cmp	rdi, DEFAULT_CAPACITY
+	jge	.round_up
+
+	mov	rdi, DEFAULT_CAPACITY
+
+.round_up:
 	round_next_2_power rdi
 	push	rdi
 	mov	rsi, ELEM_SIZE
@@ -160,6 +168,28 @@ vectorGet:
 	xor	rax, rax
 	ret
 
+
+;; unsigned vectorBack(Vector v);
+;;
+;; Returns last element of VECTOR, or zero if vector is empty.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+;; Returns:
+;;	* RAX: last element of VECTOR.
+vectorBack:
+	mov	rsi, [rdi + Vector.size]
+	cmp	rsi, 0
+	jle	.out_of_bounds
+	dec	rsi
+
+	mov	rdi, [rdi + Vector.data]
+	mov	rax, [rdi + rsi * ELEM_SIZE]
+
+	ret
+.out_of_bounds:
+	xor	rax, rax
+	ret
+
 ;; void vectorSet(Vector v, size_t index, unsigned element);
 ;;
 ;; Sets INDEX'th element of VECTOR to ELEMENT. Does nothing if INDEX is out of bounds.
@@ -189,6 +219,17 @@ vectorSet:
 ;;	* RAX: size of VECTOR.
 vectorSize:
 	mov	rax, [rdi + Vector.size]
+	ret
+
+;;size_t vectorCapacity(Vector v);
+;;
+;; Returns capacity of VECTOR.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+;; Returns:
+;;	* RAX: capacity of VECTOR.
+vectorCapacity:
+	mov	rax, [rdi + Vector.capacity]
 	ret
 
 
