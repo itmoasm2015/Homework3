@@ -259,3 +259,23 @@ vectorPushBack:
 	ret
 
 
+;; void vectorPopBack(Vector v);
+;;
+;; Pops last element from VECTOR.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+vectorPopBack:
+	mov	rsi, [rdi + Vector.size]
+	cmp	rsi, 0
+	jle	.out_of_bounds
+
+	dec	rsi
+	mov	[rdi + Vector.size], rsi
+
+;; TODO: shrink vector if it's size is less than capacity / 4.
+
+	ret
+.out_of_bounds:
+	ret
+
+
