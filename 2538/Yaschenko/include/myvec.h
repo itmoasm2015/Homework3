@@ -15,22 +15,25 @@ Vector vectorNew(size_t size);
 /** Deletes vector \v. */
 void vectorDelete(Vector v);
 
-/** Adds \element at the end of vector. Vector automatically grows to hold elements. */
+/** Adds \element at the end of \v. Vector automatically grows to hold elements. */
 void vectorPushBack(Vector v, unsigned element);
 
-/** Returns index'th element of vector \v, or 0 if index is out of bounds. */ 
-unsigned vectorGet(Vector v, size_t index);
+/** Pops last element from \v*/
+void vectorPopBack(Vector v);
 
-/** Returns last element of VECTOR, or zero if vector is empty. */
+/** Returns last element of \v, or zero if \v is empty. */
 unsigned vectorBack(Vector v);
 
-/** Sets \index'th element of vector v to value \element, or 0 if \index is out of bounds. */
+/** Returns \index'th element of vector \v, or 0 if \index is out of bounds. */ 
+unsigned vectorGet(Vector v, size_t index);
+
+/** Sets \index'th element of \v to value \element, or 0 if \index is out of bounds. */
 void vectorSet(Vector v, size_t index, unsigned element);
 
-/** Returns size of vector \v. */
+/** Returns size of \v. */
 size_t vectorSize(Vector v);
 
-/** Returns capacity of VECTOR. */
+/** Returns capacity of \v. */
 size_t vectorCapacity(Vector v);
 
 #ifdef __cplusplus
