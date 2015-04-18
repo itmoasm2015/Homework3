@@ -10,6 +10,7 @@ global vectorPushBack
 global vectorGet
 global vectorSet
 global vectorSize
+global vectorPushBack
 
 %assign	DEFAULT_CAPACITY	4
 %assign ELEM_SIZE		4
@@ -189,4 +190,27 @@ vectorSet:
 vectorSize:
 	mov	rax, [rdi + Vector.size]
 	ret
+
+
+;; void vectorPushBack(Vector v, unsigned element);
+;;
+;; Adds ELEMENT at the end of VECTOR.
+;; Vector automatically grows up in size if there is no space to store ELEMENT.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+;;	* RSI: value of ELEMENT.
+vectorPushBack:
+	push	rdi
+	push	rsi
+	call	vectorEnsureCapacity
+	pop	rsi
+	pop	rdi
+
+	mov	rax, [rdi + Vector.data]
+	mov	rdx, [rdi + Vector.size]
+	inc	rdx
+	mov	[rax + rdx * ELEM_SIZE], rsi
+
+	ret
+
 

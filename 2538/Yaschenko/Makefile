@@ -21,9 +21,11 @@ clean_obj:
 clean_lib:
 	rm -f *.a
 
+test_vector: gtest-all.o gtest_main.o test_vector.o libmyvec.a
+	$(CC) gtest-all.o gtest_main.o test_vector.o -o $@ $(CFLAGS) -lmyvec -lstdc++ -lpthread
 
-test_vector: test_vector.o libmyvec.a
-	$(CC) $^ -o $@ $(CFLAGS) -lmyvec -lstdc++
+%.o: %.cc
+	$(CC) $(CFLAGS) -c $^ -o $@ -std=c++11
 
 %.o: %.cpp
 	$(CC) $(CFLAGS) -c $^ -o $@ 
