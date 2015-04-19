@@ -216,29 +216,46 @@ subData:
         add rax, [r9 + 4*r8]
         sub rax, [r10 + 4*r8]
         jns .pos_carry
-            add rax, BASE
+            add rax, BASE;TODO write
+            mov [r9 + 4*r8], rax
+            mov rax, 1
+            jmp .done_sub
         .pos_carry
-        mov [r9 + 4*r8], rax
+            mov [r9 + 4*r8], rax
+            xor rax, rax
+        .done_sub
         inc r8
         cmp r8, rcx
         ja .loop
     cmp rax, 0
 
-    je .done;TODO write
-        mov rsi, rax
-        call pushBack
+    cmp rax, 0
+    je .done
+    .sub_carry_loop
+        imul rax, -1
+        add rax, [r9 + 4*r8]
+        jns .pos_carry
+            add rax, BASE
+            mov [r9 + 4*r8], rax
+            mov rax, 1
+            jmp .sub_carry_loop
+        .pos_carry
+        mov [r9 + 4*r8], rax
     .done
 
-    .pop_back_zeroes
+    push r12
+    length r12, rdi
+    .pop_back_zeroes_loop
         call back
         cmp rax, 0
         je .break
-        length rax, rdi
-        cmp rax, 1
+        cmp r12, 1
         je .break
         call popBack
-        jmp .pop_back_zeroes
+        dec r12
+        jmp .pop_back_zeroes_loop
     .break
+    pop r12
     ret
 
 biAdd:
