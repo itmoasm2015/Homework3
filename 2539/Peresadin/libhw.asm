@@ -30,19 +30,19 @@ endstruc
 BASE equ 100000000
 
 %macro element 3;to vec index
-    push rbp
+    push r15
     mov %1, [%2 + vec]
-    mov rbp, [%1 + elem]
-    mov %1, [rbp + 4*%3]
-    pop rbp
+    mov r15, [%1 + elem]
+    mov %1, [r15 + 4*%3]
+    pop r15
 %endmacro
 
 %macro setElement 3;vec index x
-    push rbp
-    mov rbp, [%1 + vec]
-    mov rbp, [rbp + elem]
-    mov [rbp + 4*%2], %3
-    pop rbp
+    push r15
+    mov r15, [%1 + vec]
+    mov r15, [r15 + elem]
+    mov [r15 + 4*%2], %3
+    pop r15
 %endmacro
 
 ;Структура длинного числа
@@ -52,10 +52,10 @@ struc BigInt
 endstruc
 
 %macro length 2;to vec
-    push rbp
-    mov rbp, [%2 + vec]
-    mov %1, [rbp + sz]
-    pop rbp
+    push r15
+    mov r15, [%2 + vec]
+    mov %1, [r15 + sz]
+    pop r15
 %endmacro
 
 biFromInt:
@@ -63,7 +63,7 @@ biFromInt:
     mov rdi, BigInt_size
     call malloc
     push rax
-    mov rdi, 1
+    mov rdi, 0
     call newVector
     pop rdx
     mov [rdx + vec], rax
@@ -79,7 +79,25 @@ biFromInt:
         mov qword [rax + sign], 0
         imul rdi, -1
     .sign_done
-    setElement rax, 0, rdi
+
+    push rax
+    push r12
+    mov rbx, BASE
+    xchg rdi, rax
+    mov rdi, [rdi + vec]
+    mov r12, rdi
+    .push_long_long
+        xor rdx, rdx
+        div rbx
+        mov rsi, rdx
+        push rax
+        call pushBack
+        pop rax
+        mov rdi, r12
+        cmp rax, 0
+        jne .push_long_long
+    pop r12
+    pop rax
     ret
 
 cmpData:
@@ -92,12 +110,21 @@ cmpData:
     ;lens equal
         mov rcx, rax
         dec rcx
+        mov rax, [rdi + vec]
+        mov rax, [rax + elem]
+        lea rax, [rax + 4*rcx]
+
+        mov rbx, [rsi + vec]
+        mov rbx, [rbx + elem]
+        lea rbx, [rbx + 4*rcx]
+
         .cmp_loop
-            element rax, rdi, rcx
-            element rbx, rsi, rcx
-            cmp rax, rbx
+            mov edx, [rax]
+            cmp edx, [rbx]
             ja .more
             jb .less
+            sub rax, 4
+            sub rbx, 4
             sub rcx, 1
             jns .cmp_loop
         jmp .equals
@@ -147,7 +174,7 @@ biSign:
             jmp .sign_done
         .len_eq1
             mov rax, [rdi + elem]
-            cmp qword [rax], 0
+            cmp dword [rax], 0
             je .zero
                 mov eax, 1
                 jmp .sign_done
@@ -160,6 +187,7 @@ biSign:
     ret
 
 addData:
+    push rbx
     length r9, rdi
     length rax, rsi
     cmp r9, rax
@@ -182,17 +210,17 @@ addData:
     xor r8, r8
     mov rcx, r9
     xor rax, rax;carry
-    mov r11, BASE
+    mov rbx, BASE
     mov r9, [rdi + vec]
     mov r9, [r9 + elem]
     mov r10, [rsi + vec]
     mov r10, [r10 + elem]
     .loop
-        add rax, [r9 + 4*r8]
-        add rax, [r10 + 4*r8]
-        xor rdx, rdx
-        div r11
-        mov [r9 + 4*r8], rdx
+        add eax, [r9 + 4*r8]
+        add eax, [r10 + 4*r8]
+        xor edx, edx
+        div rbx
+        mov [r9 + 4*r8], edx
         inc r8
         cmp r8, rcx
         ja .loop
@@ -201,6 +229,7 @@ addData:
         mov rsi, rax
         call pushBack
     .done
+    pop rbx
     ret
 
 subData:
@@ -212,42 +241,42 @@ subData:
     mov r10, [rsi + vec]
     mov r10, [r10 + elem]
     .loop
-        imul rax, -1
-        add rax, [r9 + 4*r8]
-        sub rax, [r10 + 4*r8]
+        imul eax, -1
+        add eax, [r9 + 4*r8]
+        sub eax, [r10 + 4*r8]
         jns .pos_carry
-            add rax, BASE;TODO write
-            mov [r9 + 4*r8], rax
-            mov rax, 1
+            add eax, BASE
+            mov [r9 + 4*r8], eax
+            mov eax, 1
             jmp .done_sub
         .pos_carry
-            mov [r9 + 4*r8], rax
-            xor rax, rax
+            mov [r9 + 4*r8], eax
+            xor eax, eax
         .done_sub
         inc r8
         cmp r8, rcx
-        ja .loop
-    cmp rax, 0
+        jne .loop
 
-    cmp rax, 0
+    cmp eax, 0
     je .done
     .sub_carry_loop
-        imul rax, -1
-        add rax, [r9 + 4*r8]
-        jns .pos_carry
-            add rax, BASE
-            mov [r9 + 4*r8], rax
-            mov rax, 1
+        imul eax, -1
+        add eax, [r9 + 4*r8]
+        jns .pos_carry_2
+            add eax, BASE
+            mov [r9 + 4*r8], eax
+            mov eax, 1
             jmp .sub_carry_loop
-        .pos_carry
-        mov [r9 + 4*r8], rax
+        .pos_carry_2
+        mov [r9 + 4*r8], eax
     .done
 
     push r12
     length r12, rdi
+    mov rdi, [rdi + vec]
     .pop_back_zeroes_loop
         call back
-        cmp rax, 0
+        cmp eax, 0
         je .break
         cmp r12, 1
         je .break
@@ -266,7 +295,7 @@ biAdd:
         jmp .done
     .not_eq_sign
         call cmpData
-        cmp rax, 1
+        cmp rax, 0
         je .a_more_b
             cmp rax, -1
             je .res_zero
@@ -292,7 +321,11 @@ biAdd:
                 mov qword [rdi + sign], 1
                 jmp .done
         .a_more_b
+            push rdi
+            push rsi
             call subData
+            pop rsi
+            pop rdi
             mov rax, [rsi + sign]
             cmp [rdi + sign], rax
             ja .b_neg

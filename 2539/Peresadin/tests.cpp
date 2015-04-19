@@ -10,7 +10,9 @@ using namespace std;
 
 int main() {
     BigInt a = biFromInt(-5);
-    BigInt b = biFromInt(-5);
-    printf("cmp = %d\n", biCmp(a, b));
+    BigInt b = biFromInt(1);
+    BigInt c = biFromInt(-4);
+    biAdd(a, b);
+    printf("cmp = %d\n", biCmp(c, a));
     return 0;
 }

@@ -117,7 +117,7 @@ back:
     dec rax
     shl rax, 2
     add rax, [rdi + elem]
-    mov rax, [rax]
+    mov eax, [rax]
     ret
 
 copyVector:
