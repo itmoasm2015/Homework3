@@ -10,6 +10,7 @@ extern pushBack
 extern popBack
 extern back
 extern deleteVector
+extern copyVector
 
 global biFromInt
 global biFromString
@@ -223,7 +224,7 @@ subData:
         ja .loop
     cmp rax, 0
 
-    je .done
+    je .done;TODO write
         mov rsi, rax
         call pushBack
     .done
@@ -247,7 +248,40 @@ biAdd:
         call addData
         jmp .done
     .not_eq_sign
-
+        call cmpData
+        cmp rax, 1
+        je .a_more_b
+            cmp rax, -1
+            je .res_zero
+                xchg rdi, rsi
+                call copyVector
+                push rax
+                push rdi
+                push rsi
+                call subData
+                mov qword rax, [rsp]
+                mov rdi, [rax + vec]
+                call deleteVector
+                pop rsi
+                pop rdi
+                mov rax, [rdi + vec]
+                mov [rsi + vec], rax
+                pop rax
+                mov [rdi + vec], rax
+                mov qword [rsi + sign], 0
+                jmp .done
+            .res_zero
+                call subData
+                mov qword [rdi + sign], 1
+                jmp .done
+        .a_more_b
+            call subData
+            mov rax, [rsi + sign]
+            cmp [rdi + sign], rax
+            ja .b_neg
+                mov qword [rdi + sign], 0
+            .b_neg
+            jmp .done
     .done
     ret
 

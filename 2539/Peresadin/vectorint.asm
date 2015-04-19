@@ -10,6 +10,7 @@ global pushBack
 global popBack
 global back
 global deleteVector
+global copyVector
 
 struc VectorInt
     sz:        resq 1
@@ -117,6 +118,37 @@ back:
     shl rax, 2
     add rax, [rdi + elem]
     mov rax, [rax]
+    ret
+
+copyVector:
+    push rdi
+    mov rdi, VectorInt_size
+    call malloc
+    push rax
+    mov rcx, [rsp]
+    mov rdx, [rcx + sz]
+    mov [rax + sz], rdx
+    mov rdx, [rcx + alignSize]
+    mov [rax + alignSize], rdx
+    mov rdi, rdx
+    shl rdi, 2
+    call malloc
+    pop rdx
+    pop rdi
+
+    mov rcx, [rdi + sz]
+    shl rcx, 2
+    cmp rcx, 0
+    je .size_zero
+    mov rdx, [rdi + elem]
+    .loop_copy
+        mov esi, [rdx + rcx - 4]
+        mov [rax + rcx - 4], esi
+        sub rcx, 4
+        jnz .loop_copy
+    .size_zero
+    mov [rdx + elem], rax
+    mov rax, rdx
     ret
 
 deleteVector:
