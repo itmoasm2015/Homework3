@@ -72,8 +72,8 @@ DEFAULT_CAPACITY  equ 2
 ; capacity -- RDI
 ; RAX -- результат
 ; сохраняет RDI
-createBigIntWithCapacity:
-    mov r9, rdi                 ; R9 -- вместимость
+%macro createBigIntWithCapacity 1
+    mov r9, %1                  ; R9 -- вместимость
 
     mpush rdi, r9
     lea rdi, [r9 * 4 + 9]       ; RDI -- количество байтов, которое надо выделить
@@ -83,27 +83,27 @@ createBigIntWithCapacity:
     pop r9
     mov byte [rax], 0           ; По умолчанию знак числа равен 0
     mov rsi, 1                  ; RSI -- текущая позиция в длинном числе
-.fill_zeroes:
+%%fill_zeroes:
     cmp rsi, rdi                ; RSI = RDI => все заполнили
-    je .finish
+    je %%finish
     mov dword [rax + rsi], 0    ; Все цифры делаем равными 0
     add rsi, 4                  ; И переходим к следующей цифре
-    jmp .fill_zeroes
-.finish:
+    jmp %%fill_zeroes
+%%finish:
     mov [rax + 5], r9d          ; Устанавливаем в числе вместимость, которая лежит в R9
     pop rdi                     
-    ret
+%endmacro
 
 ; BigInt createBigInt();
 ; создает длинное число с вместимостью по умолчанию (DEFAULT_CAPACITY)
 ; RAX -- результат
 ; сохраняет RDI
-createBigInt:
+%macro createBigInt 0
     push rdi
     mov rdi, DEFAULT_CAPACITY
-    call createBigIntWithCapacity
+    createBigIntWithCapacity rdi
     pop rdi
-    ret
+%endmacro
 
 ; void ensureCapacity(size_t size, size_t capacity, BigInt number);
 ; Проверяет, хватает ли вместимости длинного числа, чтобы добавить в конец одну цифру
@@ -118,9 +118,8 @@ ensureCapacity:
                                     ; RDI >= RSI, значит надо увеличивать размер
     mpush rbx, rdx, rdi, rsi        ; RBX -- новый указатель на длинное число, RBX надо сохранять
     shl rsi, 1                      ; RSI -- новая вместимость, RSI = RSI_OLD * 2
-    mov rdi, rsi                    ; RDI = RSI, можем создать новое длинное число
     push rax
-    call createBigIntWithCapacity
+    createBigIntWithCapacity rsi
     mov rbx, rax                    ; RBX -- новое длинное число с новой вместимостью
     mpop rdx, rdi, rsi, rax
 
@@ -284,7 +283,7 @@ ensureCapacity:
 ; возвращает RAX
 ; создает длинное число по короткому
 biFromInt:
-    call createBigInt           ; создаем число с дефолтной вместимостью
+    createBigInt                ; создаем число с дефолтной вместимостью
     mov byte [rax], 1           ; изначально его знак равен 1
     cmp rdi, 0
     jge .non_negative           
