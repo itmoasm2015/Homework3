@@ -8,11 +8,11 @@ extern free
 global newVector
 global pushBack
 global popBack
-global element
+global back
 global deleteVector
 
 struc VectorInt
-    sz:      resq 1
+    sz:        resq 1
     alignSize: resq 1
     elem:      resq 1;элементы вектора
 endstruc
@@ -111,9 +111,12 @@ popBack:
     .not_copy
     ret
 
-element:
-    mov rax, [rdi + elem]
-    mov eax, [rax + 4*rsi]
+back:
+    mov rax, [rdi + sz]
+    dec rax
+    shl rax, 2
+    add rax, [rdi + elem]
+    mov rax, [rax]
     ret
 
 deleteVector:

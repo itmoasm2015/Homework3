@@ -5,6 +5,12 @@ section .text
 extern malloc
 extern free
 
+extern newVector
+extern pushBack
+extern popBack
+extern back
+extern deleteVector
+
 global biFromInt
 global biFromString
 global biDelete
@@ -14,121 +20,13 @@ global biMul
 global biCmp
 global biSign
 
-BASE equ 100000000
-
-global newVector
-global pushBack
-global popBack
-global element
-global deleteVector
-
 struc VectorInt
     sz:        resq 1
     alignSize: resq 1
     elem:      resq 1;элементы вектора
 endstruc
 
-newVector:
-    mov rax, 1
-    .loop
-        shl rax, 1
-        cmp rdi, rax
-        jae .loop
-    push rax
-    push rdi
-    mov rdi, VectorInt_size
-    call malloc
-    pop rdi
-    mov [rax + sz], rdi
-    mov rdx, rax
-    pop rax
-    mov [rdx + alignSize], rax
-    push rdx
-    mov rdi, rax
-    shl rdi, 2
-    call malloc
-    pop rdx
-    mov [rdx + elem], rax
-    mov rax, rdx
-
-    mov rcx, [rax + sz]
-    shl rcx, 2
-    cmp rcx, 0
-    je .size_zero
-    mov rdx, [rax + elem]
-    .loop_set
-        mov dword [rdx + rcx - 4], 0
-        sub rcx, 4
-        jnz .loop_set
-
-    .size_zero
-    ret
-
-copyElem:
-    push rdi
-    mov [rdi + alignSize], rsi
-    mov rdi, rsi
-    shl rdi, 2
-    call malloc
-    pop rdi
-
-    mov rcx, [rdi + sz]
-    shl rcx, 2
-    cmp rcx, 0
-    je .size_zero
-    mov rdx, [rdi + elem]
-    .loop_copy
-        mov esi, [rdx + rcx - 4]
-        mov [rax + rcx - 4], esi
-        sub rcx, 4
-        jnz .loop_copy
-    .size_zero
-
-    push rdi
-    push rax
-    mov rdi, [rdi + elem]
-    call free
-    pop rax
-    pop rdi
-    mov [rdi + elem], rax
-    ret
-
-pushBack:
-    mov rax, [rdi + alignSize]
-    cmp [rdi + sz], rax
-    jne .push_back
-    ;align size
-        push rsi
-        mov rsi, [rdi + alignSize]
-        shl rsi, 1
-        call copyElem
-        pop rsi
-    .push_back
-    mov rax, [rdi + sz]
-    mov rdx, [rdi + elem]
-    mov [rdx + 4*rax], esi
-    inc qword [rdi + sz]
-    ret
-
-popBack:
-    dec qword [rdi + sz]
-    mov rax, [rdi + sz]
-    shl rax, 2
-    cmp rax, [rdi + alignSize]
-    ja .not_copy
-        mov rsi, [rdi + alignSize]
-        shr rsi, 1
-        call copyElem
-    .not_copy
-    ret
-
-deleteVector:
-    push rdi
-    mov rdi, [rdi + elem]
-    call free
-    pop rdi
-    call free
-    ret
+BASE equ 100000000
 
 %macro element 3;to vec index
     push rbp
@@ -260,8 +158,7 @@ biSign:
     .sign_done
     ret
 
-add:
-    push rbx
+addData:
     length r9, rdi
     length rax, rsi
     cmp r9, rax
@@ -272,8 +169,8 @@ add:
     cmp r8, r9
     je .not_push
         push rsi
+        xor rsi, rsi
         .loop_push
-            xor rsi, rsi
             call pushBack
             inc r8
             cmp r8, r9
@@ -284,14 +181,17 @@ add:
     xor r8, r8
     mov rcx, r9
     xor rax, rax;carry
+    mov r11, BASE
+    mov r9, [rdi + vec]
+    mov r9, [r9 + elem]
+    mov r10, [rsi + vec]
+    mov r10, [r10 + elem]
     .loop
-        element r9, rdi, r8
-        element rbx, rsi, r8
-        add rax, r9
-        add rax, r8
+        add rax, [r9 + 4*r8]
+        add rax, [r10 + 4*r8]
         xor rdx, rdx
-        div BASE
-        setElement rdi, r8, rdx
+        div r11
+        mov [r9 + 4*r8], rdx
         inc r8
         cmp r8, rcx
         ja .loop
@@ -300,15 +200,62 @@ add:
         mov rsi, rax
         call pushBack
     .done
-    pop rbx
+    ret
+
+subData:
+    length rcx, rsi
+    xor r8, r8
+    xor rax, rax;carry
+    mov r9, [rdi + vec]
+    mov r9, [r9 + elem]
+    mov r10, [rsi + vec]
+    mov r10, [r10 + elem]
+    .loop
+        imul rax, -1
+        add rax, [r9 + 4*r8]
+        sub rax, [r10 + 4*r8]
+        jns .pos_carry
+            add rax, BASE
+        .pos_carry
+        mov [r9 + 4*r8], rax
+        inc r8
+        cmp r8, rcx
+        ja .loop
+    cmp rax, 0
+
+    je .done
+        mov rsi, rax
+        call pushBack
+    .done
+
+    .pop_back_zeroes
+        call back
+        cmp rax, 0
+        je .break
+        length rax, rdi
+        cmp rax, 1
+        je .break
+        call popBack
+        jmp .pop_back_zeroes
+    .break
     ret
 
 biAdd:
     mov rax, [rsi + sign]
     cmp rax, [rdi + sign]
     jne .not_eq_sign
-
+        call addData
+        jmp .done
     .not_eq_sign
+
+    .done
     ret
+
 biSub:
+    push rbx
+    length rcx, rsi
+    xor r8, r8
+    xor rax, rax
+    .loop
+    pop rbx
     ret
