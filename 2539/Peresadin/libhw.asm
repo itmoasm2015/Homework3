@@ -286,10 +286,18 @@ biAdd:
     ret
 
 biSub:
-    push rbx
-    length rcx, rsi
-    xor r8, r8
-    xor rax, rax
-    .loop
-    pop rbx
+    push rdi
+    push rsi
+    xchg rdi, rsi
+    call biSign
+    cmp rax, 0
+    je .zero
+        mov rsi, [rsp]
+        xor qword [rsi + sign], 1
+        mov rsi, [rsp]
+        mov rdi, [rsp + 8]
+        call biAdd
+        mov rsi, [rsp]
+        xor qword [rsi + sign], 1
+    .zero
     ret
