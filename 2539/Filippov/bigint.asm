@@ -284,6 +284,7 @@ ensureCapacity:
     mpush rdi, rcx
     xor rdi, rdi
     mov edi, [%1 + 1]
+
     lea rcx, [%1 + rdi * 4 + 5]
 %%while_zero:
     cmp dword [rcx], 0
@@ -370,6 +371,8 @@ biFromString:
     mov byte [rax], -1
     inc rcx
 .positive_number:
+    cmp byte [rdi + rcx], 0
+    je .error_occurred
     mov r9, rcx
     xor r10, r10
 .count_zeroes:

@@ -79,6 +79,8 @@ int main() {
         BigInt aa = biFromString("-0000000001234567890123456789032981028302137");
         biToString(aa, out, 100);
         printf("%s\n", out);
+        BigInt x = biFromString("-");
+        assert(!x);
         printf("All tests passed\n");
         printf("============================\n");
     }
