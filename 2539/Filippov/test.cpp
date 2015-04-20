@@ -84,7 +84,7 @@ int main() {
     }
     {
         printf("============================\n");
-        printf("Starting second group of tests\n");
+        printf("Starting third group of tests\n");
         BigInt a = biFromInt(6);
         BigInt b = biFromString("000000000000006");
         assert(biCmp(a, b) == 0);

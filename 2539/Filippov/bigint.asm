@@ -299,26 +299,6 @@ ensureCapacity:
     mpop rdi, rcx
 %endmacro
 
-%macro reverseBigInt 1
-    xor rdi, rdi
-    mov edi, [%1 + 1]
-    lea r8, [%1 + 9]
-    lea r9, [%1 + rdi * 4 + 5]
-%%process_reverse:
-    cmp r8, r9
-    jge %%finish
-    xor r10, r10
-    xor r11, r11
-    mov r10d, [r8]
-    mov r11d, [r9]
-    mov [r9], r10d
-    mov [r8], r11d
-    inc r8
-    dec r9
-    jmp %%process_reverse
-%%finish:
-%endmacro
-
 ; BigInt biFromInt(int64_t number);
 ; number -- RDI
 ; возвращает RAX
