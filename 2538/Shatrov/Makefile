@@ -39,4 +39,4 @@ libhw.a: $(AOBJ)
 	ar rcs $@ $^
 
 main:  $(COBJ) $(CXXOBJ) libhw.a
-	g++ -O2 -g -m64 $^  -o $@
+	g++ -O0 -g -m64 $^  -o $@

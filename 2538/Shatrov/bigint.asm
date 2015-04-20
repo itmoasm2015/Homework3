@@ -1,4 +1,4 @@
-default rel
+Default rel
 extern calloc
 extern free
 extern memcpy
@@ -42,15 +42,15 @@ section .text
 	ret
 %endmacro
 
-	;; allocates memory aligned on 16 bytes
+	;; allocates %1 qwords aligned on 16 bytes
 	;; result in Res
 %macro alloc16 1
 	push rbp
 	push Arg1
 	push Arg2
 	mov rbp, rsp
-	mov Arg1, 16
-	mov Arg2, %1
+	mov Arg1, %1
+	mov Arg2, 8	;qword in bytes
 	and rsp, ~15	; align the stack (substracts 0 or 8 bytes)
 	call calloc
 	test Res, Res
@@ -79,9 +79,9 @@ biFromInt:
 	xor r12, r12
 	mov r12, Arg1		;save input
 	
-	alloc16 25
-	mov Arg1, Res		;TODO: AAA! initial size
-	mov Arg2, 1	;first time we alloc a bit more to avoid multiple expands of vector
+	alloc16 4		;we need 25 bytes for structure, allocate bit more 8*4 = 32 bytes
+	mov Arg1, Res
+	mov Arg2, 4	;first time we alloc a bit more to avoid multiple expands of vector
 	call newVec
 	mov qword [Res + bigint.size], 1 ;initial size
 	
@@ -95,7 +95,8 @@ biFromInt:
 	neg r12			;make positive
 
 	.sign_set:
-	mov [Res + bigint.data], r12 ;r13 is vector pointer
+	mov r14, [Res + bigint.data]
+	mov [r14], r12 
 	end
 
 
@@ -106,16 +107,20 @@ biFromString:
 	mov r12, Arg1		;save string ptr
 	mov Arg1, 0
 	call biFromInt
-
+	mov r13, Res		;save pointer to new bigint
+	
 	cmp byte [r12], 0	;empty string
-	jz .all_done
-
-	mov byte [Res + bigint.sign], 1 ;'+'
+	jz .bad_string
+	
+	mov byte [r13 + bigint.sign], 1 ;'+'
 	cmp byte [r12], '-'
 	jne .sign_done
-	mov byte [Res + bigint.sign], 0
+	mov byte [r13 + bigint.sign], 0
 	inc r12
 	.sign_done:
+
+	cmp byte [r12], 0	;only sign
+	jz .bad_string
 
 	
 	.skip_leading_zeros:
@@ -127,7 +132,9 @@ biFromString:
 		jmp .skip_leading_zeros
 	.skipped:
 
-	mov Arg1, Res
+	
+
+	mov Arg1, r13
 	xor rbx, rbx
 	.loop:
 		mov bl, byte [r12]
@@ -151,12 +158,13 @@ biFromString:
 	end
 
 	.bad_string:
-	mov Arg1, Res
+	mov Arg1, r13
 	call biDelete 
 	xor Res, Res
 	end
 biDelete:
 	begin
+	
 	mov r12, Arg1
 	mov Arg1, [Arg1 + bigint.data]
 	call free		;free vector
@@ -164,9 +172,22 @@ biDelete:
 	call free		;free struc
 	end
 
+;; checks, if expand needed and then calls expandVec 
+%macro expandMacro 0
+	push r12
+	mov r12, [Arg1 + bigint.capacity]
+	cmp r12, Arg2
+	jge %%capacity_done
+	call expandVec
+%%capacity_done:	
+	pop r12
+	
+%endmacro
+	
 ;;Arg1 -> bigInt1
 ;;Arg2 -> bigInt2
-;;res: bigInt1 += bigInt2 
+;;res: bigInt1 += bigInt2
+	;;99999999999998254453826689864975371015899162139204353147713404176611766899472027257533822162302867909554436481760123527761640816640
 biAdd:
 	begin
 
@@ -183,13 +204,13 @@ biAdd:
 	inc r12			;space for carry
 	push Arg2
 	mov Arg2, r12
-	call expandVec
+	expandMacro
 	pop Arg2
 	dec r12			;size of bigint2
 
 	
-	lea r13, [Arg1 + bigint.data] ;vector1 pointer
-	lea r14, [Arg2 + bigint.data] ;vector2 pointer
+	mov r13, [Arg1 + bigint.data] ;vector1 pointer
+	mov r14, [Arg2 + bigint.data] ;vector2 pointer
 	mov r8, 1		      ;size counter
 	
 	clc
@@ -209,12 +230,17 @@ biAdd:
 		inc r8
 	 	jc .carry
 	.done:
+	cmp [Arg1 + bigint.size], r8
+	jge .size_done
 	mov [Arg1 + bigint.size], r8 ;update size
+	.size_done:
 	end
 	
 	.sub:			;b1 -= -b2
 	xor byte [Arg2 + bigint.sign], 1
+	push Arg2
 	call biSub
+	pop Arg2
 	xor byte [Arg2 + bigint.sign], 1 ;change sign back
 	
 	end
@@ -231,11 +257,11 @@ biAddInt:
 	inc r12
 	push Arg2
 	mov Arg2, r12
-	call expandVec
+	expandMacro
 	pop Arg2
 	dec r12
 	
-	lea Arg1, [Arg1 + bigint.data]
+	mov Arg1, [Arg1 + bigint.data]
 	xor r13, r13
 	mov r15, 1
 	add [Arg1], Arg2
@@ -268,17 +294,17 @@ biMulInt:
 	inc r12
 	push Arg2
 	mov Arg2, r12
-	call expandVec
+	expandMacro
 	pop Arg2
 	dec r12
 
-	lea Arg1, [Arg1 + bigint.data]
+	mov Arg1, [Arg1 + bigint.data]
 	xor r13, r13
 	.loop:
 		mov rax, [Arg1]
 		mul Arg2	;rdx:rax = rax * arg2
 		add rax, r13	;add carried part from previous multiplication
-		adc rdx, 0	
+		adc rdx, 0
 		mov [Arg1], rax
 		lea Arg1, [Arg1 + 8]
 		mov r13, rdx	;save carried part
@@ -322,9 +348,9 @@ biSub:
 	jmp .reverse_sub
 
 	.simple_sub:
-		mov r12, [Arg1 + bigint.size]
-		lea r13, [Arg1 + bigint.data] ;vector1 pointer
-		lea r14, [Arg2 + bigint.data] ;vector2 pointer
+		mov r12, [Arg2 + bigint.size]
+		mov r13, [Arg1 + bigint.data] ;vector1 pointer
+		mov r14, [Arg2 + bigint.data] ;vector2 pointer
 	
 		clc
 		.loop:
@@ -336,38 +362,182 @@ biSub:
 			jnz .loop
 
 		jnc .done
-		.carry:
+		.borrow:
 			sbb qword [r13], 0
 			lea r13, [r13 + 8]
 			inc r8
-			jc .carry
+			jc .borrow
 		.done:
+		;;update size
+		mov r14, [Arg1 + bigint.size] 
+		mov r13, [Arg1 + bigint.data]
+		lea r13, [r13 + r14 * 8 - 8]
+		.decrease_size:
+			cmp qword [r13], 0
+			jnz .decrease_done
+			lea r13, [r13 - 8]
+			dec qword [Arg1 + bigint.size]
+			cmp qword [Arg1 + bigint.size], 1
+			jg .decrease_size
+		.decrease_done:
+		end
 	
 	.reverse_sub:
-		mov r12, Arg1
-		mov r13, Arg2
+		mov r12, Arg1	;save *b1
 		mov Arg1, Arg2
 		call biCpy	; tmp = b2
 		mov Arg1, Res
 		mov Arg2, r12
 		mov r14, Res	;save tmp pointer
 		call biSub	;tmp -= b1
+		;;b1 = tmp 
 		mov r15, [r14 + bigint.size]
-		
-	end
+		mov [r12 + bigint.size], r15
+		xor byte [r12 + bigint.sign], 1 ;change sign
+		mov r15, [r14 + bigint.capacity]
+		mov [r12 + bigint.capacity], r15
+		mov r13, [r12 + bigint.data]
+		mov r15, [r14 + bigint.data]
+		mov [r12 + bigint.data], r15 ;update data
+
+		push rbp
+		mov rbp, rsp
+		and rsp, ~15	;align stack
+		mov Arg1, r13
+		call free 	;free old data
+		mov rsp, rbp
+		pop rbp
+	
+		end
 	
 	.add:			;b1 += -b2
 	xor byte [Arg2 + bigint.sign], 1
 	call biAdd
 	xor byte [Arg2 + bigint.sign], 1 ;change sign back
 	end
-	
-biMul:	ret
 
+
+;;Arg1 -> bigInt1
+;;Arg2 -> bigInt2
+;;res: bigInt1 += bigInt2
+biMul:
+	begin
+	
+	mov r11, [Arg1 + bigint.size]
+	mov r12, [Arg2 + bigint.size]
+	add r11, r12
+
+	mov r12, Arg1
+	mov r13, Arg2
+	push r11
+	mov Arg1, 0
+	call biFromInt		;temporary bigint
+	pop r11
+	mov Arg2, r13
+	mov r8, Res		;tmp ptr
+	mov Arg1, Res
+	;; increase capacity of tmp  (b1.size + b2.size + 1)
+	inc r11			;space for carry
+	mov Arg2, r11
+	push r11
+	push r8
+	expandMacro
+	pop r8
+	pop r11
+	dec r11
+	mov Arg2, r13
+	mov Arg1, r12		;restore Arg1
+
+	;; set sign
+	cmp byte [Arg2 + bigint.sign], 0 ; if '-' change sign
+	jnz .sign_set
+	xor byte [Arg1 + bigint.sign], 1
+
+	.sign_set:
+	mov [r8 + bigint.size], r11 ;set size
+	
+	mov r13, [Arg1 + bigint.data] ;vector1 pointer
+	mov r14, [Arg2 + bigint.data] ;vector2 pointer
+	mov r15, [r8 + bigint.data]   ;vector3(tmp) pointer
+	mov r11, 0		      ;i
+
+	.loop1:
+		lea r9, [r13 + r11 * 8]
+		mov r9, [r9] 	; b1[i]
+		mov r10, 0	; j
+		xor r12, r12
+		clc
+		.loop2:
+			lea rcx, [r15 + r11 * 8]
+			lea rcx, [rcx + r10 * 8]
+			mov rax, [r14 + r10 * 8] ;b2[j]
+			mul r9			 ;b1[i] * b2[j]
+			add rax, [rcx]		 ;+= c[i + j]
+			adc rdx, 0
+			add rax, r12 ; add carried part
+			adc rdx, 0
+			mov r12, rdx ; save carried part
+			
+			mov [rcx], rax
+			
+			inc r10
+			cmp r10, [Arg2 + bigint.size]
+			jne .loop2
+		.carry:
+			lea rcx, [r15 + r11 * 8]
+			lea rcx, [rcx + r10 * 8]
+			mov rax, [rcx] ;c[i + j]
+			add rax, r12 ; add carried part
+			mov r12, 0
+			adc r12, 0 ; save carried part
+			mov [rcx], rax 
+			inc r10
+			cmp r12, 0
+			jnz .carry
+		
+			
+		inc r11
+		cmp r11, [r8 + bigint.size]
+		jne .loop1
+	;;update size
+		mov r14, [r8 + bigint.size] 
+		mov r13, [r8 + bigint.data]
+		lea r13, [r13 + r14 * 8 - 8]
+		.decrease_size:
+			cmp qword [r13], 0
+			jnz .decrease_done
+			lea r13, [r13 - 8]
+			dec qword [r8 + bigint.size]
+			cmp qword [r8 + bigint.size], 1
+			jg .decrease_size
+		.decrease_done:
+	;; b1 = tmp
+	mov r11, [r8 + bigint.size]
+	mov [Arg1 + bigint.size], r11
+	mov r11, [r8 + bigint.capacity]
+	mov [Arg1 + bigint.capacity], r11
+	mov r8, [r8 + bigint.data]
+	mov r9, [Arg1 + bigint.data]
+	mov [Arg1 + bigint.data], r8 ;b1.data = tmp.data
+	
+	mov Arg1, r9
+	mov rbp, rsp
+	and rsp, ~15		;align stack
+	call free		;free old data
+	mov rsp, rbp
+	end
+
+;; Arg1 -> bigint1
+;; Res = 0, if b1 == 0
+;;       1, if b1 > 0
+;;      -1, if b1 < 0
 %macro biSignMacro 1
 	cmp qword [%1 + bigint.size], 1
 	jg %%not_zero
-	cmp qword [%1 + bigint.data], 0
+	push r12
+	mov r12, [%1 + bigint.data]
+	cmp qword [r12], 0
+	pop r12
 	jnz %%not_zero
 	xor Res, Res
 	jmp %%end
@@ -382,8 +552,22 @@ biMul:	ret
 	mov Res, -1
 %%end
 %endmacro
+
+
+;; Arg1 -> bigint1
+;; Res = 0, if b1 == 0
+;;       1, if b1 > 0
+;;      -1, if b1 < 0
+biSign:
+	begin
+	biSignMacro Arg1
+	end
 	
-	
+;; Arg1 -> bigint1
+;; Arg2 -> bigint2
+;; Res = 0, if b1 == b2
+;;       1, if b1 > b2
+;;      -1, if b1 < b2
 biCmp:
 	begin
 
@@ -397,34 +581,36 @@ biCmp:
 	;; signs equal
 	mov r13, [Arg1 + bigint.size]
 	cmp r13, [Arg2 + bigint.size]
-	jl .smaller
-	jg .bigger		
+	jb .below
+	ja .above		
 
 	;; size equal
 
-	mov r15, [Arg1 + bigint.size]
-	lea r13, [Arg1 + bigint.data + r15 * 8 - 8]
-	lea r14, [Arg2 + bigint.data + r15 * 8 - 8]
+	mov r14, [Arg1 + bigint.data]
+	mov r15, [Arg2 + bigint.data]
+	lea r14, [r14 + r13 * 8 - 8]
+	lea r15, [r15 + r13 * 8 - 8]
 	
 
 	.loop:
-		mov rbx, [r13]
-		cmp rbx, [r14]
-		jg .bigger
-		jl .smaller
-		lea r13, [r13 - 8]
+		mov rbx, [r14]
+		mov r9, [r15]
+		cmp rbx, r9
+		ja .above
+		jb .below
 		lea r14, [r14 - 8]
-		dec r15
+		lea r15, [r15 - 8]
+		dec r13
 		jnz .loop
 	;; bigints are equal
 	xor Res, Res
 	end
 	
-	.smaller:		;answer depends on sign
+	.below:		;answer depends on sign
 		cmp r12, 0	;check sign
 		jl .greater	;'-'
 		jg .lower	;'+'
-	.bigger
+	.above
 		cmp r12, 0
 		jl .lower
 		jg .greater
@@ -433,29 +619,6 @@ biCmp:
 	end
 	
 	.lower:
-	mov Res, -1
-	end
-
-	
-
-;;Arg1 - ptr to bigint
-biSign:
-	begin
-
-	cmp qword [Arg1 + bigint.size], 1
-	jg .not_zero
-	cmp qword [Arg1 + bigint.data], 0
-	jnz .not_zero
-	xor Res, Res
-	end
-	
-	.not_zero:
-	cmp byte [Arg1 + bigint.sign], 0
-	jz .negative
-	mov Res, 1
-	end
-	
-	.negative:
 	mov Res, -1
 	end
 	
@@ -472,25 +635,30 @@ biDivInt:
 	push Arg1
 
 	mov r12, [Arg1 + bigint.size]
-	lea r13, [Arg1 + bigint.data + r12 * 8 - 8] 
+	mov r13, [Arg1 + bigint.data]
+	lea r13, [r13 + r12 * 8 - 8] ; pointer on the last element
 	xor rdx, rdx
 
 	.loop:
 		mov rax, [r13]
 		div Arg2	;rax = rdx:rax / arg2, rdx = rdx:rax % arg2
 		mov [r13], rax
-		cmp rax, 0
-		jnz .size_ok
-			dec qword [Arg1 + bigint.size] ;size decreased
-		.size_ok:
 		sub r13, 8
 		dec r12
 		jnz .loop
 
-	cmp qword [Arg1 + bigint.size], 0
-	jz .ok
-		inc qword [Arg1 + bigint.size]
-	.ok:
+	;;update size
+	mov r14, [Arg1 + bigint.size] 
+	mov r13, [Arg1 + bigint.data]
+	lea r13, [r13 + r14 * 8 - 8]
+	.decrease_size:
+		cmp qword [r13], 0
+		jnz .decrease_done
+		lea r13, [r13 - 8]
+		dec qword [Arg1 + bigint.size]
+		cmp qword [Arg1 + bigint.size], 1
+		jg .decrease_size
+	.decrease_done:
 	;;Arg3 == rdx, so remainder is already here
 	pop Arg1
 	end
@@ -502,20 +670,23 @@ biCpy:
 	begin
 
 	mov r12, Arg1
-	alloc16 25
+	alloc16 4		;alloc struc
 	mov Arg1, Res
 	mov r13, [r12 + bigint.size]
 	mov Arg2, r13
-	call newVec
+	call newVec		;alloc space for data
 	mov r14, Res		;save ptr on new bigint
 	
-	mov r15, rsp
+	mov rbp, rsp
 	and rsp, ~15		;align the stack
-	lea Arg1,[Res + bigint.data]
-	lea Arg2, [r12 + bigint.data] ;memcpy(void *dest,const void *src,size_t num)
+	mov Arg1,[Res + bigint.data]
+	mov Arg2, [r12 + bigint.data] ;memcpy(void *dest,const void *src,size_t num)
 	lea Arg3, [r13 * 8]	;size in bytes
 	call memcpy	
-	mov rsp, r15		;restore stack pointer
+	mov rsp, rbp		;restore stack pointer
+	mov [r14 + bigint.size], r13
+	mov bl, byte [r12 + bigint.sign]
+	mov byte [r14 + bigint.sign], bl
 	mov Res, r14
 	
 	end
@@ -553,7 +724,8 @@ biToString:
 		call biDivInt
 		add Arg3, '0'
 		push Arg3
-		cmp qword [Arg1 + bigint.data], 0
+		biSignMacro Arg1
+		cmp Res, 0
 		jnz .loop
 
 	.print:
@@ -577,14 +749,6 @@ biToString:
 	
 	end
 
-	
-getFirstInt:
-	begin
-	mov Arg2, 11
-	call biAddInt
-	mov Res, [Arg1 + bigint.data]
-	end
-
 
 ;; Arg1 - bigint ptr	
 ;; Arg2 - size of new vector in qwords
@@ -594,7 +758,6 @@ newVec:
 	
 	lea Arg3, [Arg2 * 2]	;initial capacity = size * 2
 	mov r13, Arg3		;save capacity in qwords 
-        lea Arg3, [Arg3 * 8]	;qword -> bytes
 	alloc16 Arg3
         mov [Arg1 + bigint.size], Arg2
 	mov [Arg1 + bigint.capacity], r13
@@ -603,34 +766,29 @@ newVec:
 	
 	end
 
-;; increases capacity if it less than Arg2
+;; increases capacity if to Arg2
 ;; Arg1 - bigint ptr (saved)
-;; Arg2 - size 
+;; Arg2 - size, must be greater than current capacity
 expandVec:
 	begin
 	push Arg1
 	
-	mov r12, [Arg1 + bigint.capacity]
-	cmp r12, Arg2
-	jge .capacity_done
-
 	mov r13, [Arg1 + bigint.data] ;save previous data ptr
 	;; here we need to allocate more memory for vector
-	mov Arg3, [Arg1 + bigint.size] ;save previous size
-	call newVec
-	
-	mov r15, rsp
+	mov r14, [Arg1 + bigint.size] ;save previous size
+	call newVec		      ;Arg2 was set by input
+
+	mov r12, rsp
 	and rsp, ~15		;align the stack
 	mov Arg1, [Arg1 + bigint.data] ;memcpy(void *dest,const void *src,size_t num)
 	mov Arg2, r13
-	lea Arg3, [Arg3 * 8]	;size in bytes
+	lea Arg3, [r14 * 8]	;size in bytes
 	call memcpy
 	
 	mov Arg1, r13
 	call free		;free previous data
 	
-	mov rsp, r15		;restore stack pointer
-	.capacity_done:
+	mov rsp, r12		;restore stack pointer
 
 	pop Arg1
 	end
