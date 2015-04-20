@@ -42,10 +42,10 @@ int main() {
         printf("%d\n", biSign(e));
         printf("%d\n", biSign(f));
         printf("All tests passed\n");
-        printf("===========================\n");
+        printf("============================\n");
     }
     {
-        printf("===========================\n");
+        printf("============================\n");
         printf("Starting second group of tests\n");
         BigInt a = biFromString("6");
         biToString(a, out, 100);
@@ -79,6 +79,21 @@ int main() {
         BigInt aa = biFromString("-0000000001234567890123456789032981028302137");
         biToString(aa, out, 100);
         printf("%s\n", out);
+        printf("All tests passed\n");
+        printf("============================\n");
+    }
+    {
+        printf("============================\n");
+        printf("Starting second group of tests\n");
+        BigInt a = biFromInt(6);
+        BigInt b = biFromString("000000000000006");
+        assert(biCmp(a, b) == 0);
+        BigInt c = biFromInt(6);
+        BigInt d = biFromString("07");
+        assert(biCmp(c, d) == -1);
+        BigInt e = biFromString("55555555555555555555555555556");
+        BigInt f = biFromString("55555555555555555555555555555");
+        assert(biCmp(e, f) == 1);
         printf("All tests passed\n");
         printf("============================\n");
     }

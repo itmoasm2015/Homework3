@@ -11,7 +11,9 @@ global biFromInt
 global biFromString
 global biToString
 global biDelete
+global biCmp
 global biSign
+global bi
 global biAdd
 global biSub
 global biMul
@@ -28,7 +30,7 @@ DEFAULT_CAPACITY  equ 2
 ;       1 , если число положительное
 ; Следующие 4 байта -- длина длинного числа
 ; Следующие 4 байта -- вместимость длинного числа, капасити, то есть сколько цифр
-; мы можем в этом длинной числе хранить. Изначально вместимость равна 2
+; мы можем в этом длинном числе хранить. Изначально вместимость равна 2
 ; Следующие группы по 4 байта -- цифры числа
 ; Одна цифра -- число от 0 до BASE - 1
 ; Число хранится перевернутым, то есть x = digits[0] * BASE^0 + digits[1]*BASE^1 + ...
@@ -565,7 +567,56 @@ biMul:
 biDivRem:
     ret
 
+; int biCmp(BigInt a, BigInt b);
+; a -- RDI
+; b -- RSI
+; результат в RAX
+; сравнивает два длинных числа
+; возвращает 0, если a = b, < 0, если a < b, > 0, если a > b
 biCmp:
+    xor r8, r8
+    xor r9, r9
+
+    mov r8b, byte [rdi]
+    mov r9b, byte [rsi]
+    cmp r8, r9
+    jl .below
+    jg .above
+
+    mov r8d, [rdi + 1]
+    mov r9d, [rsi + 1]
+    cmp r8, r9
+    jl .below
+    jg .above
+
+    lea r8, [rdi + r8 * 4 + 5]
+    lea r9, [rsi + r9 * 4 + 5]
+.compare_digits:
+    lea r10, [rdi + 5]
+    cmp r8, r10
+    je .equal
+    
+    xor r10, r10
+    xor r11, r11
+    mov r10d, [r8]
+    mov r11d, [r9]
+    cmp r10, r11
+    jl .below
+    jg .above
+    
+    sub r8, 4
+    sub r9, 4
+    jmp .compare_digits        
+.below:
+    mov rax, -1
+    jmp .finish
+.above:
+    mov rax, 1
+    jmp .finish
+.equal:
+    mov rax, 0
+    jmp .finish
+.finish:
     ret
 
 section .data
