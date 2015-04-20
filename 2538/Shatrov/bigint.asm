@@ -260,7 +260,8 @@ biAddInt:
 	expandMacro
 	pop Arg2
 	dec r12
-	
+
+	;mov [Arg1 + bigint.size], r12 ;size was increased in expand
 	mov Arg1, [Arg1 + bigint.data]
 	xor r13, r13
 	mov r15, 1
@@ -497,20 +498,20 @@ biMul:
 		
 			
 		inc r11
-		cmp r11, [r8 + bigint.size]
+		cmp r11, [Arg1 + bigint.size]
 		jne .loop1
 	;;update size
-		mov r14, [r8 + bigint.size] 
-		mov r13, [r8 + bigint.data]
-		lea r13, [r13 + r14 * 8 - 8]
-		.decrease_size:
-			cmp qword [r13], 0
-			jnz .decrease_done
-			lea r13, [r13 - 8]
-			dec qword [r8 + bigint.size]
-			cmp qword [r8 + bigint.size], 1
-			jg .decrease_size
-		.decrease_done:
+	mov r14, [r8 + bigint.size] 
+	mov r13, [r8 + bigint.data]
+	lea r13, [r13 + r14 * 8 - 8]
+	.decrease_size:
+		cmp qword [r13], 0
+		jnz .decrease_done
+		lea r13, [r13 - 8]
+		dec qword [r8 + bigint.size]
+		cmp qword [r8 + bigint.size], 1
+		jg .decrease_size
+	.decrease_done:
 	;; b1 = tmp
 	mov r11, [r8 + bigint.size]
 	mov [Arg1 + bigint.size], r11
@@ -766,7 +767,7 @@ newVec:
 	
 	end
 
-;; increases capacity if to Arg2
+;; increases capacity to Arg2, size not changed
 ;; Arg1 - bigint ptr (saved)
 ;; Arg2 - size, must be greater than current capacity
 expandVec:
@@ -789,8 +790,8 @@ expandVec:
 	call free		;free previous data
 	
 	mov rsp, r12		;restore stack pointer
-
 	pop Arg1
+	mov [Arg1 + bigint.size], r14 ;restore size
 	end
  
 
