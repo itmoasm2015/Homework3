@@ -4,6 +4,7 @@ section .text
 
 extern malloc
 extern free
+extern strlen
 extern printf
 
 global biFromInt
@@ -156,7 +157,7 @@ ensureCapacity:
 ; вызывает ensureCapacity, которая, если надо, увеличивает вместимость
 ; и потом просто записывает в конец новую цифру
 %macro pushBack 2    
-    mpush rdi, rsi, rdx
+    mpush rdi, rsi, rdx, rcx
 
     xor rdi, rdi
     mov edi, [%1 + 1]           ; RDI -- размер числа
@@ -174,7 +175,7 @@ ensureCapacity:
     inc rdi                     ; увеличиваем на один RDI -- размер числа
     mov [%1 + 1], edi           ; и изменяем размер в указателе, конец
 
-    mpop rdi, rsi, rdx
+    mpop rdi, rsi, rdx, rcx
 %endmacro
 
 ; переводит int в строку длиной ровно 9 символов (дополняет нулями)
@@ -195,14 +196,14 @@ ensureCapacity:
     cmp r8, 0
     je %%get_string
 
-    push rax
+    mpush rax, rcx
     mov rax, r8
     xor rdx, rdx
     mov r9, 10
     div r9
     mov r8, rax
     mov r9, rdx
-    pop rax
+    mpop rax, rcx
 
     push r9
 
@@ -230,8 +231,8 @@ ensureCapacity:
     lea r9, [rax + rdx]
     push r11
     xor r11, r11
-    mov r11d, [r9]
-    mov [r9 + r8], r11d
+    mov r11b, byte [r9]
+    mov byte [r9 + r8], r11b
     pop r11
     dec rdx
     jmp %%loop
@@ -278,6 +279,45 @@ ensureCapacity:
     pop r12
 %endmacro
 
+%macro deleteZeroesFromBigInt 1
+    mpush rdi, rcx
+    xor rdi, rdi
+    mov edi, [%1 + 1]
+    lea rcx, [%1 + rdi * 4 + 5]
+%%while_zero:
+    cmp dword [rcx], 0
+    jne %%change_size
+    sub rcx, 4
+    dec rdi
+%%change_size:
+    cmp rdi, 0
+    jg %%all_is_ok
+    mov rdi, 1
+%%all_is_ok:
+    mov [%1 + 1], edi
+    mpop rdi, rcx
+%endmacro
+
+%macro reverseBigInt 1
+    xor rdi, rdi
+    mov edi, [%1 + 1]
+    lea r8, [%1 + 9]
+    lea r9, [%1 + rdi * 4 + 5]
+%%process_reverse:
+    cmp r8, r9
+    jge %%finish
+    xor r10, r10
+    xor r11, r11
+    mov r10d, [r8]
+    mov r11d, [r9]
+    mov [r9], r10d
+    mov [r8], r11d
+    inc r8
+    dec r9
+    jmp %%process_reverse
+%%finish:
+%endmacro
+
 ; BigInt biFromInt(int64_t number);
 ; number -- RDI
 ; возвращает RAX
@@ -314,15 +354,16 @@ biFromInt:
     mpop rax, rdx
     
     cmp r10, BASE               ; если R10 = BASE, мы закончили строить цифру в системе счисления BASE
-    je .before_push_back
+    je .push_back
     imul r9, r10                ; R9 * R10 -- то, что надо прибавить к текущей цифре
     add r8, r9                  ; R8 += R9 -- увеличиваем текущую цифру
     imul r10, 10                ; степень десятки увеличивается
     jmp .process_digits
-.before_push_back:
-    mov r11, r9                 ; запоминаем перенос, а после этого делаем push_back
 .push_back:
+    mov r11, r9                 ; запоминаем перенос, а после этого делаем push_back
+    mpush r11
     pushBack rax, r8            ; добавляем в конец RAX цифру R8
+    mpop r11
     mov r10, 10                 ; степень десятки равна 1
     mov r8, r11                 ; R8 = R11 -- пишем в новую цифру запомненный перенос
     jmp .process_digits    
@@ -334,7 +375,89 @@ biFromInt:
 .all_is_done:
     ret
 
+; BigInt biFromString(char const *s);
+; s -- RDI
+; ответ в RAX
+; делает большое число по строке (строка удовлетворяет ^-?\d+$)
+; если строка некорректна, возвращает 0
 biFromString:
+    createBigInt
+    mov byte [rax], 1
+    xor rcx, rcx
+    cmp byte [rdi], '-'
+    jne .positive_number
+    mov byte [rax], -1
+    inc rcx
+.positive_number:
+    mov r9, rcx
+    xor r10, r10
+.count_zeroes:
+    cmp byte [rdi + r9], '0'
+    jne .not_zero_digit
+    inc r9
+    inc r10
+    jmp .count_zeroes
+.not_zero_digit:
+    cmp byte [rdi + r9], 0
+    jne .number_is_not_zero
+    mov byte [rax], 0
+    jmp .finish
+.number_is_not_zero:
+    mpush rax, rdx
+    xor rdx, rdx
+    mov rax, r10
+    mov r10, BASE_LENGTH
+    div r10
+    imul rax, BASE_LENGTH
+    add rcx, rax
+    mpop rax, rdx
+
+    mpush rax, rdi, rcx 
+    xor rax, rax
+    call strlen
+    mov r8, rax
+    mpop rax, rdi, rcx
+    lea rdx, [rdi + r8 - 1]
+    add rcx, rdi
+    xor r8, r8
+    mov r10, 1
+.process_digits:
+    cmp rdx, rcx
+    jl .finally
+    
+    cmp byte [rdx], '0'
+    jl .error_occurred
+    cmp byte [rdx], '9'
+    jg .error_occurred
+    xor r9, r9
+    mov r9b, byte [rdx]
+    sub r9, '0'
+    dec rdx
+
+    cmp r10, BASE
+    je .push_back
+    imul r9, r10
+    add r8, r9
+    imul r10, 10
+    jmp .process_digits
+.push_back:
+    mov r11, r9
+    mpush r11
+    pushBack rax, r8
+    mpop r11
+    mov r10, 10
+    mov r8, r11
+    
+    jmp .process_digits
+.finally:
+    cmp r8, 0
+    je .finish
+    pushBack rax, r8
+    jmp .finish
+.error_occurred:
+    callFree rax
+    xor rax, rax
+.finish:
     ret
 
 ; void biToString(BigInt bi, char *buffer, size_t limit);
@@ -361,6 +484,7 @@ biToString:
     xor r8, r8
     mov r8d, [rdi + 1]
     lea r9, [rdi + r8 * 4 + 5]
+
 .write_digits:
     cmp rdx, 0  
     je .add_zero
@@ -371,6 +495,7 @@ biToString:
     xor r12, r12
     mov r12d, [r9]
     intToStr r12
+    
     mov r11, rcx
     mpop rcx, rdx, r8, r9, rdi, rsi, r12
 
