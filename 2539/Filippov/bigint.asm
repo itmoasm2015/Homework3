@@ -11,13 +11,12 @@ global biFromInt
 global biFromString
 global biToString
 global biDelete
-global biCmp
 global biSign
-global bi
 global biAdd
 global biSub
 global biMul
 global biDivRem
+global biCmp
 
 BASE              equ 1000000000
 BASE_LENGTH       equ 9
