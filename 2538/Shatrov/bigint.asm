@@ -13,7 +13,6 @@ global biCmp
 global biSign
 global biDivRem
 global biToString
-global getFirstInt		;debug function
 
 section .text
 
@@ -261,7 +260,6 @@ biAddInt:
 	pop Arg2
 	dec r12
 
-	;mov [Arg1 + bigint.size], r12 ;size was increased in expand
 	mov Arg1, [Arg1 + bigint.data]
 	xor r13, r13
 	mov r15, 1
