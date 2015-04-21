@@ -186,7 +186,6 @@ biDelete:
 ;;Arg1 -> bigInt1
 ;;Arg2 -> bigInt2
 ;;res: bigInt1 += bigInt2
-	;;99999999999998254453826689864975371015899162139204353147713404176611766899472027257533822162302867909554436481760123527761640816640
 biAdd:
 	begin
 
@@ -198,6 +197,10 @@ biAdd:
 	
 	;;signs is equal
 	mov r12, [Arg2 + bigint.size]
+	cmp r12, [Arg1 + bigint.size]
+	jge .max_in_r12
+	mov r12, [Arg1 + bigint.size]
+	.max_in_r12:
 	
 	;; increase capacity
 	inc r12			;space for carry
@@ -205,9 +208,9 @@ biAdd:
 	mov Arg2, r12
 	expandMacro
 	pop Arg2
-	dec r12			;size of bigint2
-
 	
+	mov r12,[Arg2 + bigint.size]
+
 	mov r13, [Arg1 + bigint.data] ;vector1 pointer
 	mov r14, [Arg2 + bigint.data] ;vector2 pointer
 	mov r8, 1		      ;size counter
