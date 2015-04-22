@@ -78,3 +78,16 @@ TEST(correctness, vector_get_set_rand)
 	vectorDelete(v);
 }
 
+TEST(correctness, vector_pop_back) {
+	Vector v;
+	v = vectorNew(0);
+	for (int i = 0; i < MAX_SIZE; i++) {
+		vectorPushBack(v, i + 1);
+		EXPECT_EQ(vectorBack(v),   i + 1);
+	}
+	for (int i = MAX_SIZE - 1; i >= 0; i--) {
+		EXPECT_EQ(vectorBack(v),   i + 1);
+		vectorPopBack(v);
+	}
+	vectorDelete(v);
+}
