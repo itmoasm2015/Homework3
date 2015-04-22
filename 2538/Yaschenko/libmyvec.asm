@@ -13,6 +13,7 @@ global vectorSize
 global vectorPushBack
 global vectorBack
 global vectorCapacity
+global vectorPopBack
 
 %assign	DEFAULT_CAPACITY	8
 %assign ELEM_SIZE		4
