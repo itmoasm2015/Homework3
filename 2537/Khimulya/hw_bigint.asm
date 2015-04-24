@@ -56,22 +56,24 @@ endstruc
 
 ; returns 0 if given bigint is positive and -1 otherwise
 ;
-; corrupts r8, r9
+; corrupts r11
 ;
 ; @arg %1 address of bigint
 ;
 ; @return %2 64-bit representation of 0 or -1
 %macro  SIGN 2
-        mov     r8, [%1 + bigint.len]
-        mov     r9, [%1 + bigint.data]
-        mov     r9, [r9 + r8 - 8]
-        test    r9, [MSB]             ; last number
+        push    rax
+        mov     rax, [%1 + bigint.len]
+        mov     r11, [%1 + bigint.data]
+        mov     r11, [r11 + rax - 8]
+        test    r11, [MSB]             ; last number
         jnz     %%neg
         mov     %2, 0
         jmp     %%done
      %%neg:
-        mov     %2, MINUS1_64
+        mov     %2, [MINUS1_64]
      %%done:
+        pop     rax
 %endmacro
 
 ; computes maximum of two general purpose registers
@@ -89,6 +91,42 @@ endstruc
     %%second:
         mov     %1, %3
     %%done:
+%endmacro
+
+; Shotrens length of bigint with %1 address
+; by reducing len property of struc by insignificant quadwords amount.
+; Assume most significant quadword is insignificant if it's 0 or -1
+; and next quadword's most significant bit is 0 or 1, respectly.
+;
+; @arg %1 address of bigint to be shorten
+; corrupts rax, rcx, rdx
+%macro  BI_SHORTEN 1
+        mov     rcx, [%1 + bigint.len]
+        sub     rcx, 16                         ; next after most significant quadword
+        mov     rdx, [%1 + bigint.data]
+        .loop3:
+                mov     rax, [rdx + rcx + 8]
+                cmp     rax, 0
+                jne     %%neg                   ; let's try luck with negative sign
+                mov     rax, [rdx + rcx]
+                test    rax, [MSB]
+                jz      %%continue              ; only way to continue if MSB is 0
+                jmp     %%done
+
+            %%neg:
+                cmp     rax, [MINUS1_64]
+                jne     %%done                  ; most significant quadword neither 0 nor -1
+                mov     rax, [rdx + rcx]
+                test    rax, [MSB]
+                jz      %%done                  ; only way to continue if MSB is 1
+
+            %%continue:
+                sub     rcx, 8
+                cmp     rcx, -8
+                jne     .loop3
+        %%done:
+        add     rcx, 16
+        mov     [%1 + bigint.len], rcx
 %endmacro
 
 section .rodata
@@ -151,31 +189,86 @@ biSign:
         ret
 
 ;void biAdd(BigInt dst, BigInt src);
+; Performs addition in two's compliment.
+; Extends dst.size and src.size to max(dst.size, src.size) + 8 bytes
+; by pushing 0 or -1 quadwords for positive and negative numbers, respectly.
+; So arithmetic overflow will never happen.
+; In the end reduce number length by dropping not significant quadwords.
 biAdd:
-        mov     rdx, [rdi + bigint.len]
-        MAX     rcx, rdx, [rsi + bigint.len]
-        add     rcx, 8
-        NEW_BI  r8, rax                     ; let's allocate memory for the biggest number possible
+        push    r13                         ; System V AMD64 ABI routine
+        push    r12                         ; rdi and rsi may be swapped later, remember dest
+        push    rdi                         ; stack: r13, r12, dest
 
         mov     rdx, [rdi + bigint.len]
         cmp     rdx, [rsi + bigint.len]
         jae     .done_swap
         xchg    rdi, rsi
      .done_swap:                            ; now the longest number in rdi
-        mov     rcx, [rsi + bigint.len]
-        shr     rcx, 3                      ; number of iterations for loop1
-        mov     rbx, [rdi + bigint.data]
-        mov     rdx, [rsi + bigint.data]
-        clc
-        .loop1:
-                mov     r9, [rbx]
-                adc     r9, [rdx]
-                mov     [rax], r9
-                add     rbx, 8
-                add     rdx, 8
-                add     rax, 8
-                loop    .loop1
+        mov     rcx, [rdi + bigint.len]
+        add     rcx, 8                      ; allocate memory for the biggest number possible
+        push    rdi
+        push    rsi                         ; stack: r13, r12, dest, greater, less
+        call    malloc                      ; which is max(len(dst), len(src)) + 1
+        mov     r8, rax
+        pop     rsi
+        pop     rdi
+        push    r8                          ; stack: r13, r12, dest, result.data
 
+        mov     r12, [rdi + bigint.data]    ; pointer to greater
+        mov     r13, [rsi + bigint.data]    ; pointer to less
+        mov     rcx, [rsi + bigint.len]
+        clc
+        lahf
+        .loop1:                             ; first loop until less number ends
+                sahf                        ; restore carry flag
+                mov     r9, [r12]
+                adc     r9, [r13]
+                mov     [r8], r9
+                lahf                        ; save carry flag
+
+                add     r8, 8
+                add     r12, 8
+                add     r13, 8
+                sub     rcx, 8
+                jnz     .loop1
+
+        SIGN    rsi, r10                    ; assume the rest of less number quadwords either 0 or -1
+        mov     rcx, [rdi + bigint.len]
+        sub     rcx, [rsi + bigint.len]
+        jz      .loop2_end
+        .loop2:                             ; second loop until greater number ends
+                sahf
+                mov     r9, [r12]
+                adc     r9, r10
+                mov     [r8], r9
+                lahf
+
+                add     r8, 8
+                add     r12, 8
+                sub     rcx, 8
+                jnz     .loop2
+
+    .loop2_end:
+        SIGN    rdi, r9                    ; now add greater[greater.size] to less[less.size]
+        sahf
+        adc     r9, r10                    ; i.e. greater and less signs and carry
+        mov     [r8], r9
+
+        ; replace dst data with new one
+        mov     rax, [rdi + bigint.len]    ; max(dst.size, src.size)
+        add     rax, 8
+        mov     rdi, [rsp + 8]             ; stack: r13, r12, dst, result.data
+        mov     [rdi + bigint.len], rax
+        mov     rdi, [rdi + bigint.data]
+        call    free
+        pop     r8                         ; stack: r13, r12, dst
+        pop     rdi                        ; stack: r13, r12
+        mov     [rdi + bigint.data], r8
+
+        BI_SHORTEN rdi
+
+        pop     r12                         ; System V AMD64 ABI routine
+        pop     r13
         ret
 
 ;void biSub(BigInt dst, BigInt src);
