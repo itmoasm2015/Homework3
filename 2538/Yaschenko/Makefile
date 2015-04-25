@@ -3,7 +3,11 @@ ASFLAGS = -f elf64
 
 CFLAGS = -Wall -I./include -L. -std=c++11
 
-all: libhw.a main tests
+# Explicit rule to include vector
+libhw.a: libhw.o libmyvec.o
+	ar rcs $@ $^
+
+all: libhw.a tests main
 
 # Debug flags
 debug: CFLAGS += -g
@@ -16,10 +20,6 @@ main: main.cpp libhw.a
 
 tests: gtest-all.o gtest_main.o libmyvec.o libhw.o tests.o
 	$(CC) $^ -o $@ $(CFLAGS) -lstdc++ -lpthread
-
-# Explicit rule to include vector
-libhw.a: libhw.o libmyvec.o
-	ar rcs $@ $^
 
 # Clean up
 .PHONY: clean clean_obj clean_lib
