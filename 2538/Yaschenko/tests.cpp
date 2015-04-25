@@ -16,7 +16,7 @@ namespace {
 
 }
 
-TEST(correctness, vector_size)
+TEST(vector, size)
 {
 	Vector v;
 	for (size_t sz = 1; sz < MAX_SIZE; sz *= 10) {
@@ -26,7 +26,7 @@ TEST(correctness, vector_size)
 	}
 }
 
-TEST(correctness, vector_push_back)
+TEST(vector, push_back)
 {
 	Vector v;
 	v = vectorNew(0);
@@ -38,7 +38,7 @@ TEST(correctness, vector_push_back)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_get_default)
+TEST(vector, get_default)
 {
 	Vector v;
 	v = vectorNew(MAX_SIZE);
@@ -48,7 +48,7 @@ TEST(correctness, vector_get_default)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_set_get_const)
+TEST(vector, set_get_const)
 {
 	Vector v;
 	v = vectorNew(MAX_SIZE);
@@ -61,7 +61,7 @@ TEST(correctness, vector_set_get_const)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_get_set_rand)
+TEST(vector, set_get_rand)
 {
 	Vector v;
 	v = vectorNew(MAX_SIZE);
@@ -78,7 +78,7 @@ TEST(correctness, vector_get_set_rand)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_pop_back) {
+TEST(vector, pop_back) {
 	Vector v;
 	v = vectorNew(0);
 	for (int i = 0; i < MAX_SIZE; i++) {
