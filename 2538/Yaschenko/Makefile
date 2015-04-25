@@ -3,7 +3,7 @@ ASFLAGS = -f elf64
 
 CFLAGS = -Wall -I./include -L.
 
-all: libhw.a main test_vector
+all: libhw.a main tests
 
 # Debug flags
 debug: CFLAGS += -g
@@ -14,7 +14,7 @@ debug: all
 main: main.cpp libhw.a
 	$(CC) $(CFLAGS) $^ -o $@ -lhw -lstdc++
 
-test_vector: gtest-all.o gtest_main.o libmyvec.o test_vector.o
+tests: gtest-all.o gtest_main.o libmyvec.o tests.o
 	$(CC) $^ -o $@ $(CFLAGS) -lstdc++ -lpthread
 
 # Explicit rule to include vector
@@ -25,7 +25,7 @@ libhw.a: libhw.o libmyvec.o
 .PHONY: clean clean_obj clean_lib
 
 clean: clean_obj clean_lib
-	rm -f test_vector
+	rm -f tests
 	rm -f main
 
 clean_obj:
