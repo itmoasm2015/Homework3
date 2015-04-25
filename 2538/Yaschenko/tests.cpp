@@ -1,19 +1,19 @@
 #include "gtest.h"
 
 #include "myvec.h"
+#include "bigint.h"
 
 #include <iostream>
 #include <cassert>
 #include <cstdlib>
 #include <vector>
 #include <utility>
+#include <climits>
 
 using std::cout;
 
 namespace {
-
 	int const MAX_SIZE = 1e6;
-
 }
 
 TEST(vector, size)
@@ -90,4 +90,40 @@ TEST(vector, pop_back) {
 		vectorPopBack(v);
 	}
 	vectorDelete(v);
+}
+
+TEST(bigint, to_string_int) {
+	const size_t BUF_SIZE = 256;
+	BigInt b;
+	char x[BUF_SIZE], y[BUF_SIZE];
+
+	std::vector<int> test_ints { 0 , -1, 1, 5, 999, -5643, 123456789, -876478, INT_MAX, INT_MIN };
+	for (auto i : test_ints) {
+		b = biFromInt(i);
+		biToString(b, x, BUF_SIZE);
+
+		sprintf(y, "%d", i);
+
+		EXPECT_STREQ(x, y);
+	}
+
+	biDelete(b);
+}
+
+TEST(bigint, to_string_long_long) {
+	const size_t BUF_SIZE = 256;
+	BigInt b;
+	char x[BUF_SIZE], y[BUF_SIZE];
+
+	std::vector<long long> test_long_longs { 0LL, -1LL, 1LL, 234567654345678LL, -5297682377823095LL, LLONG_MIN, LLONG_MAX };
+	for (auto i : test_long_longs) {
+		b = biFromInt(i);
+		biToString(b, x, BUF_SIZE);
+
+		sprintf(y, "%lld", i);
+
+		EXPECT_STREQ(x, y);
+	}
+
+	biDelete(b);
 }
