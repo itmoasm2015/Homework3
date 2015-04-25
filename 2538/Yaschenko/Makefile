@@ -1,7 +1,7 @@
 ASM = yasm
 ASFLAGS = -f elf64
 
-CFLAGS = -Wall -I./include -L.
+CFLAGS = -Wall -I./include -L. -std=c++11
 
 all: libhw.a main tests
 
@@ -14,7 +14,7 @@ debug: all
 main: main.cpp libhw.a
 	$(CC) $(CFLAGS) $^ -o $@ -lhw -lstdc++
 
-tests: gtest-all.o gtest_main.o libmyvec.o tests.o
+tests: gtest-all.o gtest_main.o libmyvec.o libhw.o tests.o
 	$(CC) $^ -o $@ $(CFLAGS) -lstdc++ -lpthread
 
 # Explicit rule to include vector
@@ -36,7 +36,7 @@ clean_lib:
 
 # Recipes
 %.o: %.cc
-	$(CC) $(CFLAGS) -c $^ -o $@ -std=c++11
+	$(CC) $(CFLAGS) -c $^ -o $@
 
 %.o: %.cpp
 	$(CC) $(CFLAGS) -c $^ -o $@
