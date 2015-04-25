@@ -202,8 +202,10 @@ biToString:
 	push	rsi
 	push	rdx
 
-; RCX holds number of already written bytes.
+;; RCX holds number of already written bytes.
+;; Dec RDX to reserve space for terminator.
 	xor	rcx, rcx
+	dec	rdx
 
 	check_limits rcx, rdx
 
@@ -219,6 +221,15 @@ biToString:
 	save_regs
 	vector_back [rdi + Bigint.vector]
 	restore_regs
+
+.check_zero:
+	cmp	rax, 0
+	jne	.non_zero
+
+	write_byte rsi, rcx, '0'
+	jmp	.done
+
+.non_zero:
 
 	push	rbx
 	push	rdx
@@ -308,6 +319,7 @@ biToString:
 	jge	.cur_digit
 
 .done:
+	write_byte rsi, rcx, 0
 	pop	rdx
 	pop	rsi
 	pop	rdi
