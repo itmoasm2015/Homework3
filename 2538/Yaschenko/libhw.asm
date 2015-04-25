@@ -7,6 +7,7 @@ extern vectorNew
 extern vectorPushBack
 extern vectorDelete
 extern vectorSize
+extern vectorBack
 
 global biFromInt
 global biFromString
@@ -54,15 +55,16 @@ biNew:
 
 	ret
 
-
-%macro push_back 2
-	push	rdi
-	push	rsi
+;; Pushes %2 to vector %1.
+%macro vector_push_back 2
 	mov	rdi, %1
 	mov	rsi, %2
 	call	vectorPushBack
-	pop	rsi
-	pop	rdi
+%endmacro
+
+%macro vector_back 1
+	mov	rdi, %1
+	call	vectorBack
 %endmacro
 
 ;; BigInt biFromInt(int64_t x);
@@ -99,7 +101,7 @@ biFromInt:
 
 	mov	r8,	[rsp]
 	push	rax
-	push_back	[r8 + Bigint.vector], rdx
+	vector_push_back	[r8 + Bigint.vector], rdx
 	pop	rax
 	mov	rdi, rax
 
@@ -108,7 +110,7 @@ biFromInt:
 	jmp	.div_loop
 
 .zero:
-	push_back	[r8 + Bigint.vector], 0
+	vector_push_back	[r8 + Bigint.vector], 0
 
 .done:
 	pop	rax
@@ -128,6 +130,7 @@ biDelete:
 	call	free
 	ret
 
+
 ;; void biToString(BigInt bi, char *buffer, size_t limit);
 ;;
 ;; Generate a decimal string representation from a Bigint BI.
@@ -137,44 +140,87 @@ biDelete:
 ;;	* RSI: pointer to destination buffer.
 ;;	* RDX: max number of chars.
 biToString:
+
+;; Writes byte %3 to [%1 + %2].
+%macro write_byte 3
+	mov	byte [%1 + %2], %3
+	inc	%2
+%endmacro
+
+;; Increments %1 and jumps to .done if %1 >= %2.
+%macro check_limits 2
+	cmp	%1, %2
+	jge	.done
+%endmacro
+
+%macro save_regs 0
+	push	rdi
+	push	rsi
+	push	rcx
+	push	rdx
+%endmacro
+
+%macro restore_regs 0
+	pop	rdx
+	pop	rcx
+	pop	rsi
+	pop	rdi
+%endmacro
+
 	push	rdi
 	push	rsi
 	push	rdx
 
+; RCX holds number of already written bytes.
 	xor	rcx, rcx
 
-	cmp	rcx, rdx
-	jge	.done
+	check_limits rcx, rdx
 
-	cmp	[rdi + Bigint.sign], SIGN_MINUS
+	cmp	qword [rdi + Bigint.sign], SIGN_MINUS
 	jne	.first_digit
 
-	mov	byte [rsi + rcx], '-'
-	inc	rcx
+	write_byte rsi, rcx, '-'
+	check_limits rcx, rdx
 
 ;; stack: | LIMIT | *BUFFER | *BIGINT | ...
 
 .first_digit:
-	push	rcx
-	call	vectorBack
+	save_regs
+	vector_back [rdi + Bigint.vector]
+	restore_regs
 
-	
+	push	rbx
 
+	push	rdx
 
+%assign	i 100000000
+%rep	9
+	mov	rbx, i
+	xor	rdx, rdx
+	div	rbx
+	add	rax, 48
+
+	;write_byte rsi, rcx, rax
+	mov	[rsi + rcx], al
+	inc	rcx
+
+	mov	rax, rdx
+
+	mov	rdx, [rsp]
+	check_limits rcx, rdx
+%assign i i/10
+%endrep
+	pop	rdx
+	pop	rbx
 
 .digit_loop:
-	call	vectorSize
-
-	cmp	rax, 2
 
 .done:
+	pop	rdx
+	pop	rsi
+	pop	rdi
+
 	ret
-
-
-;; Writes char %2 to buffer %1.
-%macro write_to_buf 2
-
-%endmacro
 
 
 
