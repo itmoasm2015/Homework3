@@ -244,7 +244,11 @@ biToString:
 	mov	rax, rdx
 
 	mov	rdx, [rsp]
+
+; "Pop" regs for proper check_limits work
+	add	rsp, 16
 	check_limits rcx, rdx
+	sub	rsp, 16
 
 	cmp	rax, 0
 	jg	.first_digit_loop
@@ -287,7 +291,10 @@ biToString:
 	mov	rax, rdx
 
 	mov	rdx, [rsp]
+; "Pop" regs for proper check_limits work
+	add	rsp, 16
 	check_limits rcx, rdx
+	sub	rsp, 16
 
 	cmp	r9, 0
 	jg	.cur_digit_loop
