@@ -8,6 +8,7 @@ extern vectorPushBack
 extern vectorDelete
 extern vectorSize
 extern vectorBack
+extern vectorGet
 
 global biFromInt
 global biFromString
@@ -65,6 +66,17 @@ biNew:
 %macro vector_back 1
 	mov	rdi, %1
 	call	vectorBack
+%endmacro
+
+%macro vector_size 1
+	mov	rdi, %1
+	call	vectorSize
+%endmacro
+
+%macro vector_get 2
+	mov	rdi, %1
+	mov	rsi, %2
+	call	vectorGet
 %endmacro
 
 ;; Divides given reg by 10
@@ -212,8 +224,7 @@ biToString:
 	push	rdx
 
 	mov	rbx, BASE / 10
-;%assign	i BASE/10
-;%rep	BASE_LEN
+
 .first_digit_loop:
 	xor	rdx, rdx
 	div	rbx
@@ -237,14 +248,57 @@ biToString:
 
 	cmp	rax, 0
 	jg	.first_digit_loop
-;%assign i i/10
-;%endrep
+
 .first_digit_done:
 	pop	rdx
 	pop	rbx
 
-.digit_loop:
+.rest_digits:
+	save_regs
+	vector_size [rdi + Bigint.vector]
+	mov	r8, rax
+	restore_regs
 
+	sub	r8, 2
+	cmp	r8, 0
+	jl	.done
+.cur_digit:
+	save_regs
+	vector_get [rdi + Bigint.vector], r8
+	restore_regs
+
+	push	rbx
+	push	rdx
+
+	mov	rbx, BASE / 10
+
+	mov	r9, BASE_LEN
+.cur_digit_loop:
+	dec	r9
+	xor	rdx, rdx
+	div	rbx
+
+	add	rax, 48
+
+	write_byte rsi, rcx, al
+
+	div10	rbx
+
+	mov	rax, rdx
+
+	mov	rdx, [rsp]
+	check_limits rcx, rdx
+
+	cmp	r9, 0
+	jg	.cur_digit_loop
+
+.cur_digit_done:
+	pop	rdx
+	pop	rbx
+
+	dec	r8
+	cmp	r8, 0
+	jge	.cur_digit
 
 .done:
 	pop	rdx
