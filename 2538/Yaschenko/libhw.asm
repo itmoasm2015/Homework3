@@ -67,6 +67,25 @@ biNew:
 	call	vectorBack
 %endmacro
 
+;; Divides given reg by 10
+;; (RAX, RDX and RCX are reserved)
+%macro div10 1
+	push	rax
+	push	rdx
+	push	rcx
+
+	xor	rdx, rdx
+	mov	rax, %1
+	mov	rcx, 10
+	idiv	rcx
+	mov	%1, rax
+
+	pop	rcx
+	pop	rdx
+	pop	rax
+%endmacro
+
+
 ;; BigInt biFromInt(int64_t x);
 ;;
 ;; Creates a BigInt from 64-bit signed integer.
@@ -190,30 +209,42 @@ biToString:
 	restore_regs
 
 	push	rbx
-
 	push	rdx
 
-%assign	i 100000000
-%rep	9
-	mov	rbx, i
+	mov	rbx, BASE / 10
+;%assign	i BASE/10
+;%rep	BASE_LEN
+.first_digit_loop:
 	xor	rdx, rdx
 	div	rbx
+
+	cmp	rax, 0
+	je	.skip_write
+
 	add	rax, 48
 
 	;write_byte rsi, rcx, rax
 	mov	[rsi + rcx], al
 	inc	rcx
 
+.skip_write:
+	div10	rbx
+
 	mov	rax, rdx
 
 	mov	rdx, [rsp]
 	check_limits rcx, rdx
-%assign i i/10
-%endrep
+
+	cmp	rax, 0
+	jg	.first_digit_loop
+;%assign i i/10
+;%endrep
+.first_digit_done:
 	pop	rdx
 	pop	rbx
 
 .digit_loop:
+
 
 .done:
 	pop	rdx
