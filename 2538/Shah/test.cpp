@@ -6,6 +6,7 @@
 #include <random>
 #include <iostream>
 #include <ctime>
+#include <assert.h>
 
 using namespace std;
 using namespace boost::multiprecision;
@@ -37,6 +38,11 @@ long long randInt()
 void test_cmp()
 {
     printf("=============TESTING CMP==============\n");
+    BigInt bi1 = biFromInt(0xffffffffll);
+    BigInt bi2 = biFromInt(0xffffffffll);
+    BigInt bi5 = biFromInt(0xffffffffll + 0xffffffffll);
+    biAdd(bi1, bi2);
+    assert(biCmp(bi1, bi5) == 0);
     for (int lp = 0; lp < TEST_COUNT; lp++)
     {
         long long i1 = randInt();
