@@ -317,7 +317,9 @@ biAdd:
                 mov qword [rsi + sign], 0
                 jmp .done
             .res_zero
+                push rdi
                 call subData
+                pop rdi
                 mov qword [rdi + sign], 1
                 jmp .done
         .a_more_b
