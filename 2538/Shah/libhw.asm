@@ -429,14 +429,14 @@ biSign:
 ; return -1 = 1st < 2nd
 ;         1 = 1st > 2nd
 ;         0 = 1st = 2nd
-%macro biCmpUnsigned 0
+biCmpUnsigned:
     PUSH_REGS
     mov rax, [rdi + SIZE]
     mov r9, [rsi + SIZE]
     sub rax, r9
     cmp rax, 0
-    jg %%greater_un
-    jl %%less_un
+    jg .greater_un
+    jl .less_un
 
     ; r10 - i
     ; r11 - j
@@ -451,33 +451,33 @@ biSign:
     shl r11, 3
     add r11, r13
 
-%%cmp_loop:
+.cmp_loop:
     sub r10, 8
     sub r11, 8
     mov rbx, [r10]
     mov rdx, [r11]
     cmp rbx, rdx
-    ja %%greater_un
-    jb %%less_un
+    ja .greater_un
+    jb .less_un
     dec r9
-    jnz %%cmp_loop
+    jnz .cmp_loop
 
-    jmp %%equals
-%%equals:
+    jmp .equals
+.equals:
     mov rax, 0
-    jmp %%end_cmp_un
+    jmp .end_cmp_un
 
-%%greater_un:
+.greater_un:
     mov rax, 1
-    jmp %%end_cmp_un
+    jmp .end_cmp_un
 
-%%less_un:
+.less_un:
     mov rax, -1
-    jmp %%end_cmp_un
+    jmp .end_cmp_un
 
-%%end_cmp_un:
+.end_cmp_un:
     POP_REGS
-%endmacro
+    ret
 
 ; rdi - 1st
 ; rsi - 2nd
@@ -492,7 +492,7 @@ biCmp:
     cmp r8, r9
     jne .diff_signs
 
-    biCmpUnsigned
+    call biCmpUnsigned
 
     cmp r8, 0
     jge .cmp_positive
@@ -584,7 +584,7 @@ biToString:
     mov rbp, rsp
     sub rsp, rax
     mov r14, rbp
-    xor r15, r15
+    xor r9, r9
 
     ; rdi - copy BigInt  
     mov r8, rsp
@@ -596,7 +596,7 @@ biToString:
     mov rbx, 10
     div_long_short
     add rax, '0'
-    inc r15
+    inc r9
     dec r14
     mov byte [r14], al
     jmp .string_loop
@@ -606,7 +606,7 @@ biToString:
     jge .write_str_loop
     xor rdx, rdx
     mov dl, '-'
-    inc r15
+    inc r9
     dec r14
     mov byte [r14], dl
 
@@ -617,7 +617,7 @@ biToString:
     inc r14
     dec r12
     jz .string_end
-    dec r15
+    dec r9
     jnz .write_str_loop
 
 .string_end:
@@ -731,7 +731,7 @@ biToString:
 SUB_LESS_FLAG equ 1
 %macro sub_long_long 0
     PUSH_REGS
-    biCmpUnsigned
+    call biCmpUnsigned
     xor rcx, rcx
     ; if unsigned 1st < 2nd
     ; then increase size of 1st to size of 2nd
@@ -825,11 +825,11 @@ biAdd:
 
 .diff_signs:
     sub_long_long
-    biTrim
-    isZeroFast
     jmp .add_end
 
 .add_end:
+    biTrim
+    isZeroFast
     POP_REGS
     ret
 

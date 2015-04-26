@@ -946,6 +946,8 @@ biCmp:
         mov r12d, [rdi] ; r12 = (abs(a)-abs(b)).sign
         neg r12d        ; r12 = -(abs(a)-abs(b)).sign
         mov [rdi], r12d ; rdi = -(abs(a)-abs(b))
+        mov eax, -1     ;
+        mov [rsi], eax  ; load b.sign
         jmp %%finish
         %%continue4:
 
