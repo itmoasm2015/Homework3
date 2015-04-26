@@ -7,6 +7,8 @@ extern vectorNew
 extern vectorPushBack
 extern vectorDelete
 extern vectorSize
+extern vectorBack
+extern vectorGet
 
 global biFromInt
 global biFromString
@@ -54,16 +56,47 @@ biNew:
 
 	ret
 
-
-%macro push_back 2
-	push	rdi
-	push	rsi
+;; Pushes %2 to vector %1.
+%macro vector_push_back 2
 	mov	rdi, %1
 	mov	rsi, %2
 	call	vectorPushBack
-	pop	rsi
-	pop	rdi
 %endmacro
+
+%macro vector_back 1
+	mov	rdi, %1
+	call	vectorBack
+%endmacro
+
+%macro vector_size 1
+	mov	rdi, %1
+	call	vectorSize
+%endmacro
+
+%macro vector_get 2
+	mov	rdi, %1
+	mov	rsi, %2
+	call	vectorGet
+%endmacro
+
+;; Divides given reg by 10
+;; (RAX, RDX and RCX are reserved)
+%macro div10 1
+	push	rax
+	push	rdx
+	push	rcx
+
+	xor	rdx, rdx
+	mov	rax, %1
+	mov	rcx, 10
+	idiv	rcx
+	mov	%1, rax
+
+	pop	rcx
+	pop	rdx
+	pop	rax
+%endmacro
+
 
 ;; BigInt biFromInt(int64_t x);
 ;;
@@ -99,7 +132,7 @@ biFromInt:
 
 	mov	r8,	[rsp]
 	push	rax
-	push_back	[r8 + Bigint.vector], rdx
+	vector_push_back	[r8 + Bigint.vector], rdx
 	pop	rax
 	mov	rdi, rax
 
@@ -108,7 +141,7 @@ biFromInt:
 	jmp	.div_loop
 
 .zero:
-	push_back	[r8 + Bigint.vector], 0
+	vector_push_back	[r8 + Bigint.vector], 0
 
 .done:
 	pop	rax
@@ -128,6 +161,7 @@ biDelete:
 	call	free
 	ret
 
+
 ;; void biToString(BigInt bi, char *buffer, size_t limit);
 ;;
 ;; Generate a decimal string representation from a Bigint BI.
@@ -137,44 +171,160 @@ biDelete:
 ;;	* RSI: pointer to destination buffer.
 ;;	* RDX: max number of chars.
 biToString:
+
+;; Writes byte %3 to [%1 + %2].
+%macro write_byte 3
+	mov	byte [%1 + %2], %3
+	inc	%2
+%endmacro
+
+;; Increments %1 and jumps to .done if %1 >= %2.
+%macro check_limits 2
+	cmp	%1, %2
+	jge	.done
+%endmacro
+
+%macro save_regs 0
+	push	rdi
+	push	rsi
+	push	rcx
+	push	rdx
+%endmacro
+
+%macro restore_regs 0
+	pop	rdx
+	pop	rcx
+	pop	rsi
+	pop	rdi
+%endmacro
+
 	push	rdi
 	push	rsi
 	push	rdx
 
+;; RCX holds number of already written bytes.
+;; Dec RDX to reserve space for terminator.
 	xor	rcx, rcx
+	dec	rdx
 
-	cmp	rcx, rdx
-	jge	.done
+	check_limits rcx, rdx
 
-	cmp	[rdi + Bigint.sign], SIGN_MINUS
+	cmp	qword [rdi + Bigint.sign], SIGN_MINUS
 	jne	.first_digit
 
-	mov	byte [rsi + rcx], '-'
-	inc	rcx
+	write_byte rsi, rcx, '-'
+	check_limits rcx, rdx
 
 ;; stack: | LIMIT | *BUFFER | *BIGINT | ...
 
 .first_digit:
-	push	rcx
-	call	vectorBack
+	save_regs
+	vector_back [rdi + Bigint.vector]
+	restore_regs
 
-	
+.check_zero:
+	cmp	rax, 0
+	jne	.non_zero
 
+	write_byte rsi, rcx, '0'
+	jmp	.done
 
+.non_zero:
 
-.digit_loop:
-	call	vectorSize
+	push	rbx
+	push	rdx
 
-	cmp	rax, 2
+	mov	rbx, BASE / 10
+
+.first_digit_loop:
+	xor	rdx, rdx
+	div	rbx
+
+	cmp	rax, 0
+	je	.skip_write
+
+	add	rax, 48
+
+	;write_byte rsi, rcx, rax
+	mov	[rsi + rcx], al
+	inc	rcx
+
+.skip_write:
+	div10	rbx
+
+	mov	rax, rdx
+
+	mov	rdx, [rsp]
+
+; "Pop" regs for proper check_limits work
+	add	rsp, 16
+	check_limits rcx, rdx
+	sub	rsp, 16
+
+	cmp	rax, 0
+	jg	.first_digit_loop
+
+.first_digit_done:
+	pop	rdx
+	pop	rbx
+
+.rest_digits:
+	save_regs
+	vector_size [rdi + Bigint.vector]
+	mov	r8, rax
+	restore_regs
+
+	sub	r8, 2
+	cmp	r8, 0
+	jl	.done
+.cur_digit:
+	save_regs
+	vector_get [rdi + Bigint.vector], r8
+	restore_regs
+
+	push	rbx
+	push	rdx
+
+	mov	rbx, BASE / 10
+
+	mov	r9, BASE_LEN
+.cur_digit_loop:
+	dec	r9
+	xor	rdx, rdx
+	div	rbx
+
+	add	rax, 48
+
+	write_byte rsi, rcx, al
+
+	div10	rbx
+
+	mov	rax, rdx
+
+	mov	rdx, [rsp]
+; "Pop" regs for proper check_limits work
+	add	rsp, 16
+	check_limits rcx, rdx
+	sub	rsp, 16
+
+	cmp	r9, 0
+	jg	.cur_digit_loop
+
+.cur_digit_done:
+	pop	rdx
+	pop	rbx
+
+	dec	r8
+	cmp	r8, 0
+	jge	.cur_digit
 
 .done:
+	write_byte rsi, rcx, 0
+	pop	rdx
+	pop	rsi
+	pop	rdi
+
 	ret
-
-
-;; Writes char %2 to buffer %1.
-%macro write_to_buf 2
-
-%endmacro
 
 
 

@@ -15,8 +15,8 @@ global vectorBack
 global vectorCapacity
 global vectorPopBack
 
-%assign	DEFAULT_CAPACITY	8
-%assign ELEM_SIZE		4
+%assign DEFAULT_CAPACITY 8
+%assign ELEM_SIZE        4
 
 ;; Round up to the next highest power of 2.
 ;; See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
@@ -165,7 +165,11 @@ vectorGet:
 	jge	.out_of_bounds
 
 	mov	rax, [rdi + Vector.data]
-	mov	rax, [rax + rsi * ELEM_SIZE]
+	push	rbx
+	mov	rbx, [rax + rsi * ELEM_SIZE]
+	xor	rax, rax
+	mov	eax, ebx
+	pop	rbx
 
 	ret
 .out_of_bounds:

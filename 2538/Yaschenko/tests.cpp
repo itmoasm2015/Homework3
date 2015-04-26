@@ -1,22 +1,22 @@
 #include "gtest.h"
 
 #include "myvec.h"
+#include "bigint.h"
 
 #include <iostream>
 #include <cassert>
 #include <cstdlib>
 #include <vector>
 #include <utility>
+#include <climits>
 
 using std::cout;
 
 namespace {
-
 	int const MAX_SIZE = 1e6;
-
 }
 
-TEST(correctness, vector_size)
+TEST(vector, size)
 {
 	Vector v;
 	for (size_t sz = 1; sz < MAX_SIZE; sz *= 10) {
@@ -26,7 +26,7 @@ TEST(correctness, vector_size)
 	}
 }
 
-TEST(correctness, vector_push_back)
+TEST(vector, push_back)
 {
 	Vector v;
 	v = vectorNew(0);
@@ -38,7 +38,7 @@ TEST(correctness, vector_push_back)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_get_default)
+TEST(vector, get_default)
 {
 	Vector v;
 	v = vectorNew(MAX_SIZE);
@@ -48,7 +48,7 @@ TEST(correctness, vector_get_default)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_set_get_const)
+TEST(vector, set_get_const)
 {
 	Vector v;
 	v = vectorNew(MAX_SIZE);
@@ -61,7 +61,7 @@ TEST(correctness, vector_set_get_const)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_get_set_rand)
+TEST(vector, set_get_rand)
 {
 	Vector v;
 	v = vectorNew(MAX_SIZE);
@@ -78,7 +78,7 @@ TEST(correctness, vector_get_set_rand)
 	vectorDelete(v);
 }
 
-TEST(correctness, vector_pop_back) {
+TEST(vector, pop_back) {
 	Vector v;
 	v = vectorNew(0);
 	for (int i = 0; i < MAX_SIZE; i++) {
@@ -90,4 +90,40 @@ TEST(correctness, vector_pop_back) {
 		vectorPopBack(v);
 	}
 	vectorDelete(v);
+}
+
+TEST(bigint, to_string_int) {
+	const size_t BUF_SIZE = 256;
+	BigInt b;
+	char x[BUF_SIZE], y[BUF_SIZE];
+
+	std::vector<int> test_ints { 0 , -1, 1, 5, 999, -5643, 123456789, -876478, INT_MAX, INT_MIN };
+	for (auto i : test_ints) {
+		b = biFromInt(i);
+		biToString(b, x, BUF_SIZE);
+
+		sprintf(y, "%d", i);
+
+		EXPECT_STREQ(x, y);
+	}
+
+	biDelete(b);
+}
+
+TEST(bigint, to_string_long_long) {
+	const size_t BUF_SIZE = 256;
+	BigInt b;
+	char x[BUF_SIZE], y[BUF_SIZE];
+
+	std::vector<long long> test_long_longs { 0LL, -1LL, 1LL, 234567654345678LL, -5297682377823095LL, LLONG_MIN, LLONG_MAX };
+	for (auto i : test_long_longs) {
+		b = biFromInt(i);
+		biToString(b, x, BUF_SIZE);
+
+		sprintf(y, "%lld", i);
+
+		EXPECT_STREQ(x, y);
+	}
+
+	biDelete(b);
 }

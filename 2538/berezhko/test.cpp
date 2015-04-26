@@ -139,18 +139,20 @@ void test3() {
 
 void test4() {
     cout << "Cmp ... ";
-    for (int t = 0; t < 100; t++) {
+    for (int t = 0; t < 1000; t++) {
         int len1 = rand() % 1000 + 1;
         int len2 = rand() % 1000 + 1;
         genBigIntAsString(s1, len1);
         BigInt a = biFromString(s1);
         genBigIntAsString(s2, len2);
-        BigInt b = biFromString(s2);
+        BigInt b = biFromString("0");
 
         aa = stringToBigInteger(s1);
         bb = stringToBigInteger(s2);
 
-        assert(biCmp(a, b) == aa.compareTo(bb));
+
+
+       // assert(biCmp(a, b) == aa.compareTo(bb));
 
         biDelete(a);
         biDelete(b);
@@ -232,6 +234,81 @@ void test8() {
     cout << " OK\n";
 }
 
+void test9() {
+    cout << "Saving test1 ... ";
+    for (int t = 0; t < 1000; t++) {
+        int len1 = rand() % 1000 + 1;
+        int len2 = rand() % 1000 + 1;
+        genBigIntAsString(s1, len1);
+        BigInt a = biFromString(s1);
+        BigInt a2 = biFromString(s1);;
+        genBigIntAsString(s2, len2);
+        BigInt b = biFromString(s2);
+        BigInt b2 = biFromString(s2);
+        biAdd(a, b);
+        biSub(a, b);
+        assert(biCmp(a, a2) == 0);
+        assert(biCmp(b, b2) == 0);
+    }
+    cout << " OK\n";
+}
+
+void test10() {
+    cout << "Saving test2 ... ";
+    for (int t = 0; t < 1000; t++) {
+        int len1 = rand() % 1000 + 1;
+        int len2 = rand() % 1000 + 1;
+        genBigIntAsString(s1, len1);
+        BigInt a = biFromString(s1);
+        BigInt a2 = biFromString(s1);;
+        genBigIntAsString(s2, len2);
+        BigInt b = biFromString(s2);
+        BigInt b2 = biFromString(s2);
+        biMul(a, b);
+        assert(biCmp(b, b2) == 0);
+        biMul(b, a2);
+        assert(biCmp(b, a) == 0);
+    }
+    cout << " OK\n";
+}
+
+void test11() {
+    cout << "Int operations test ... ";
+    for (int t = 0; t < 1000; t++) {
+        int64_t i1 = genInt() / 2ll;
+        int64_t i2 = genInt() / 2ll;
+        BigInt bi1 = biFromInt(i1);
+        BigInt bi2 = biFromInt(i2);
+        BigInt bi3 = biFromInt(i1+i2);
+        BigInt bi4 = biFromInt(i1-i2);
+        biAdd(bi1, bi2);
+        assert(biCmp(bi1, bi3) == 0);
+        biMul(bi2, biFromInt(2ll));
+        biSub(bi1, bi2);
+        assert(biCmp(bi1, bi4) == 0);
+    }
+    cout << " OK\n";
+}
+
+void testFail() {
+    cout << "Test from mail ... ";
+    BigInt bi1, bi2, bi3, bi4, bi5;
+    bi1 = biFromInt(2ll);
+    bi2 = biFromInt(-123ll);
+    bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    biSub(bi1, bi2);
+    assert(biCmp(bi2, bi3) == 0);
+
+
+    bi1 = biFromInt(0xffffffffll);
+    bi2 = biFromInt(0xffffffffll);
+    bi5 = biFromInt(0xffffffffll + 0xffffffffll);
+    biAdd(bi1, bi2);
+    assert(biCmp(bi1, bi5) == 0);
+    cout << " OK\n";
+}
+
 int main() {
     srand(time(NULL));
     test1();
@@ -242,5 +319,9 @@ int main() {
     test6();
     test7();
     test8();
+    test9();
+    test10();
+    test11();
+    testFail();
     return 0;
 }

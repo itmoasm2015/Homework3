@@ -3,4 +3,5 @@
 *.a
 
 # executables
-test_vector
+tests
+main
