@@ -26,9 +26,10 @@ section .text
 
 ;; Bigint stores digits with 1e9 base.
 %assign	BASE		1000000000
-%assign BASE_LEN	9
-%assign SIGN_PLUS	1
-%assign SIGN_MINUS	-1
+%assign	BASE_LEN	9
+%assign	SIGN_PLUS	1
+%assign	SIGN_MINUS	-1
+%assign	SIGN_ZERO	0
 
 struc Bigint
 	.vector		resq	1
@@ -52,7 +53,7 @@ biNew:
 
 	pop	rdx
 	mov	[rax + Bigint.vector], rdx
-	mov	qword [rax + Bigint.sign], SIGN_PLUS
+	mov	qword [rax + Bigint.sign], SIGN_ZERO
 
 	ret
 
@@ -77,6 +78,27 @@ biNew:
 	mov	rdi, %1
 	mov	rsi, %2
 	call	vectorGet
+%endmacro
+
+%macro bigint_set_sign 2
+	mov	%1, %2
+%endmacro
+
+
+;; Pushes given set of registers on stack.
+%macro mpush 1-*
+	%rep	%0
+	push	%1
+	%rotate	1
+	%endrep
+%endmacro
+
+;; Pops given set of registers from stack in reversed order.
+%macro mpop 1-*
+	%rep	%0
+	%rotate -1
+	pop	%1
+	%endrep
 %endmacro
 
 ;; Divides given reg by 10
@@ -113,11 +135,12 @@ biFromInt:
 	push	rax
 	mov	r8, rax
 
+	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_PLUS
 	cmp	rdi, 0
 	jge	.zero_check
 
 .negative:
-	mov	qword [r8 + Bigint.sign], SIGN_MINUS
+	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_MINUS
 	neg	rdi
 
 .zero_check:
@@ -141,7 +164,9 @@ biFromInt:
 	jmp	.div_loop
 
 .zero:
+;; TODO: don't push back 0 if bigint is zero.
 	vector_push_back	[r8 + Bigint.vector], 0
+	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_ZERO
 
 .done:
 	pop	rax
@@ -327,4 +352,86 @@ biToString:
 	ret
 
 
+;; int biCmp(BigInt a, BigInt b);
+;;
+;; Compares two Bigints.
+;; Takes:
+;;	* RDI: pointer to first Bigint.
+;;	* RSI: pointer to secont Bigint.
+;; Returns:
+;;	* RAX: -1 if a < b
+;; 	        0 if a = b
+;;	        1 if a > b
+biCmp:
+	mov		rax, [rdi + Bigint.sign]
+	mov		rdx, [rsi + Bigint.sign]
+	cmp		rax, rdx
+	jl		.less
+	jg		.greater
 
+	cmp		rax, SIGN_ZERO
+	je		.equal
+
+	push		rax
+
+	mpush		rdi, rsi
+	vector_size	[rsi + Bigint.vector]
+	mov		rdx, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi
+	vector_size	[rdi + Bigint.vector]
+	mpop		rdi, rsi
+
+	cmp		rax, rdx
+	jg		.greater_abs
+	jl		.less_abs
+
+.equal_size:
+	mov		rcx, rax
+	dec		rcx
+.digit_loop:
+	mpush		rdi, rsi, rcx
+	vector_get	[rsi + Bigint.vector], rcx
+	mov		rdx, rax
+	mpop		rdi, rsi, rcx
+
+	mpush		rdi, rsi, rcx, rdx
+	vector_get	[rdi + Bigint.vector], rcx
+	mpop		rdi, rsi, rcx, rdx
+
+	cmp		rax, rdx
+	jg		.greater_abs
+	jl		.less_abs
+
+	dec		rcx
+	cmp		rcx, 0
+	jl		.equal
+	jmp		.digit_loop
+
+.greater_abs:
+	pop		rax
+	cmp		rax, 1
+	je		.greater
+	jmp		.less
+
+.less_abs:
+	pop		rax
+	cmp		rax, -1
+	je		.less
+	jmp		.greater
+
+.equal:
+	mov		rax, 0
+	jmp		.done
+
+.greater:
+	mov		rax, 1
+	jmp		.done
+
+.less:
+	mov		rax, -1
+	jmp		.done
+
+.done:
+	ret
