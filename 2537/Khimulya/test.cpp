@@ -139,3 +139,32 @@ TEST(correctness, fromStringMalformed) {
     bi = biFromString("0000000000000-9223372036854775807");
     ASSERT_EQ(bi, (void*)NULL);
 }
+
+TEST(correctness, biCmp) {
+    BigInt bi1 = biFromInt(0xffffffffll);
+    BigInt bi2 = biFromInt(0xffffffffll);
+    BigInt bi3 = biFromInt(0xffffffffll + 0xffffffffll);
+    biAdd(bi1, bi2);
+    ASSERT_EQ(biCmp(bi1, bi3), 0);
+    biDelete(bi1);
+    biDelete(bi2);
+    biDelete(bi3);
+
+    bi1 = biFromString("1111111111111111111111111111111111111111111111111");
+    bi2 = biFromString("1111111111111111111111111111111111111111111111111");
+    ASSERT_EQ(biCmp(bi1, bi2), 0);
+    biDelete(bi1);
+    biDelete(bi2);
+
+    bi1 = biFromString("1111111111111111111111111111111111111111111111111");
+    bi2 = biFromString("11111111111111111111111");
+    ASSERT_GT(biCmp(bi1, bi2), 0);
+    biDelete(bi1);
+    biDelete(bi2);
+
+    bi1 = biFromString("111111111111111111111111");
+    bi2 = biFromString("1111111111111111111111111111111111111111111111111");
+    ASSERT_LT(biCmp(bi1, bi2), 0);
+    biDelete(bi1);
+    biDelete(bi2);
+}

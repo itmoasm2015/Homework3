@@ -279,11 +279,12 @@ biFromString:
                 cmp     al, 0
                 jne     .loop2
         dec     rsi
-        lea     rax, [rcx * 8 - 8]              ; and multiplying result by 8
+        mov     rax, rcx
         mov     rcx, 18
         xor     rdx, rdx
-        div     rcx                             ; then dividing by 18 (10-base digits per quadword)
-        add     rax, 8
+        div     rcx
+        lea     rax, [rax * 8]                  ; and multiplying result by 8
+        add     rax, 8                          ; then dividing by 18 (10-base digits per quadword)
 
         push    rdi                             ; begin of significant data
         push    rsi                             ; end of string
@@ -469,6 +470,22 @@ biDivRem:
         ret
 
 ;int biCmp(BigInt a, BigInt b);
+; return biSign(biSub(copy(a), b))
 biCmp:
+        push    rsi
+        COPY_BI rdi, rax
+        mov     rdi, rax
+        pop     rsi
+
+        push    rdi
+        call    biSub
+        mov     rdi, [rsp]
+        call    biSign
+        pop     rdi
+
+        push    rax
+        call    biDelete
+        pop     rax
+
         ret
 
