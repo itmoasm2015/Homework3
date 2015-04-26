@@ -101,13 +101,12 @@ TEST(bigint, to_string_int) {
 	for (auto i : test_ints) {
 		b = biFromInt(i);
 		biToString(b, x, BUF_SIZE);
+		biDelete(b);
 
 		sprintf(y, "%d", i);
 
 		EXPECT_STREQ(x, y);
 	}
-
-	biDelete(b);
 }
 
 TEST(bigint, to_string_long_long) {
@@ -119,11 +118,11 @@ TEST(bigint, to_string_long_long) {
 	for (auto i : test_long_longs) {
 		b = biFromInt(i);
 		biToString(b, x, BUF_SIZE);
+		biDelete(b);
 
 		sprintf(y, "%lld", i);
 
 		EXPECT_STREQ(x, y);
 	}
-
-	biDelete(b);
 }
+
