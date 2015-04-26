@@ -584,7 +584,7 @@ biToString:
     mov rbp, rsp
     sub rsp, rax
     mov r14, rbp
-    xor r15, r15
+    xor r9, r9
 
     ; rdi - copy BigInt  
     mov r8, rsp
@@ -596,7 +596,7 @@ biToString:
     mov rbx, 10
     div_long_short
     add rax, '0'
-    inc r15
+    inc r9
     dec r14
     mov byte [r14], al
     jmp .string_loop
@@ -606,7 +606,7 @@ biToString:
     jge .write_str_loop
     xor rdx, rdx
     mov dl, '-'
-    inc r15
+    inc r9
     dec r14
     mov byte [r14], dl
 
@@ -617,7 +617,7 @@ biToString:
     inc r14
     dec r12
     jz .string_end
-    dec r15
+    dec r9
     jnz .write_str_loop
 
 .string_end:

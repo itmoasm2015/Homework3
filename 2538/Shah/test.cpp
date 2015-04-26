@@ -43,6 +43,12 @@ void test_cmp()
     BigInt bi5 = biFromInt(0xffffffffll + 0xffffffffll);
     biAdd(bi1, bi2);
     assert(biCmp(bi1, bi5) == 0);
+    bi1 = biFromInt(2ll);
+    bi2 = biFromInt(-123ll);
+    BigInt bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    biSub(bi1, bi2);
+    assert(biCmp(bi2, bi3) == 0);
     for (int lp = 0; lp < TEST_COUNT; lp++)
     {
         long long i1 = randInt();
