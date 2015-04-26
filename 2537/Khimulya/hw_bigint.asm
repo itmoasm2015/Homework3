@@ -19,7 +19,7 @@ struc   bigint
         .data   resb    8           ; pointer to data, big-endian
 endstruc
 
-; allocates memory for big integer (data and struct)
+; Allocates memory for big integer (data and struct)
 ;
 ; corrupts all registers execpt for callee-saved and %1, %2
 ;
@@ -41,9 +41,9 @@ endstruc
         mov     [rax + bigint.data], %2
 %endmacro
 
-; frees memory of bigit
+; Frees memory of bigit
 ;
-; corrupts all registers execpt for callee-saved
+; corrupts all registers except for callee-saved
 ;
 ; @arg %1 address of bigint struc to be removed
 %macro  DEL_BI 1
@@ -52,6 +52,29 @@ endstruc
         call    free
         pop     rdi
         call    free
+%endmacro
+
+; Copies given bigint and returns new address
+;
+; @arg %1 address of bigint to be copied
+; corrups all registers except for callee-saved and %1
+;
+; @return %2 address of copy
+%macro  COPY_BI 2
+        push    %1
+        mov     rcx, [%1 + bigint.len]
+        NEW_BI  rcx, rdx
+        pop     %1
+        mov     r8, [%1 + bigint.data]
+        %%loop:
+                mov     r9, [r8]
+                mov     [rdx], r9
+
+                add     r8, 8
+                add     rdx, 8
+                sub     rcx, 8
+                jnz     %%loop
+        mov     %2, rax
 %endmacro
 
 ; returns 0 if given bigint is positive and -1 otherwise
@@ -104,7 +127,7 @@ endstruc
         mov     rcx, [%1 + bigint.len]
         sub     rcx, 16                         ; next after most significant quadword
         mov     rdx, [%1 + bigint.data]
-        .loop3:
+        %%loop:
                 mov     rax, [rdx + rcx + 8]
                 cmp     rax, 0
                 jne     %%neg                   ; let's try luck with negative sign
@@ -123,16 +146,93 @@ endstruc
             %%continue:
                 sub     rcx, 8
                 cmp     rcx, -8
-                jne     .loop3
+                jne     %%loop
         %%done:
         add     rcx, 16
         mov     [%1 + bigint.len], rcx
 %endmacro
 
+; Performs negate on given bigint.
+; At first perform not on all quadwords,
+; then add 1 with carry to the least significant quadword
+;
+; @arg %1 address of bigint to negate
+; corrupts rax, rdx, rcx
+%macro  NEGATE 1
+        push    %1
+
+        mov     rcx, [%1 + bigint.len]
+        mov     %1, [%1 + bigint.data]
+        lahf
+        or      ah, 1                       ; set carry flag
+        %%loop:                             ; not and add 1 in single cycle
+                mov     rdx, [%1]
+                not     rdx
+                sahf
+                adc     rdx, 0
+                lahf
+                mov     [%1], rdx
+
+                add     %1, 8
+                sub     rcx, 8
+                jnz     %%loop
+
+        pop     %1
+%endmacro
+
+; Multiplies given bigint with given quadword, result goes to input bigint
+; note: doesn't check for bigint's length, so overflow is possible
+;
+; @arg %1 multiplicand, address of bigint struc
+; @arg %2 multiplier
+; corrupts rdx, rcx, r8, rax, r11
+%macro  MUL_BY_QUAD 2
+        mov     rcx, [%1 + bigint.len]
+        mov     r11, [%1 + bigint.data]
+        xor     rdx, rdx
+        %%loop:
+                mov     r8, rdx             ; old carry
+                mov     rax, [r11]
+                mul     %2
+                add     rax, r8
+                adc     rdx, 0              ; update new carry in case of rax overflow
+                mov     [r11], rax
+
+                add     r11, 8
+                sub     rcx, 8
+                jnz     %%loop
+%endmacro
+
+; Adds given quadword to specified bigint.
+;
+; @arg %1 address of bigint
+; @arg %2 quadword
+; corrupts r8, rdx, rcx
+%macro  ADD_QUAD 2
+        mov     rdx, [%1 + bigint.data]
+        mov     rcx, [%1 + bigint.len]
+        mov     r8, [rdx]
+        add     r8, %2
+        mov     [rdx], r8
+        pushf
+        %%loop:
+                popf
+                mov     r8, [rdx]
+                adc     r8, 0
+                mov     [rdx], r8
+                pushf
+
+                jnc     %%done
+                sub     rcx, 8
+                jnz     %%loop
+    %%done:
+        popf
+%endmacro
+
 section .rodata
         align   8
     MSB:
-        dq      0x8000000000000000  ; only first MSB is true
+        dq      0x8000000000000000  ; only MSB is true
     MINUS1_64:
         dq      0xffffffffffffffff
 
@@ -150,11 +250,85 @@ biFromInt:
         ret
 
 ;BigInt biFromString(char const *s);
-; TODO:
-; lodsb loads next byte from rsi address into al and increments rsi
-; movdqa loads an double quadword integer from xmmN to mem128 and vice versa
-; pmulhw multiplies packed signed integer and stores high result, pmullw stores low result
+; Determines input's length, creates suitable bigint and write number into it.
 biFromString:
+        push    rbx
+
+        mov     al, byte [rdi]                  ; at first handle sign
+        cmp     al, '-'
+        jne     .pos
+        inc     rdi
+        push    0
+        jmp     .neg
+    .pos:
+        push    1
+    .neg:
+
+        mov     rsi, rdi                        ; then omit leading zeros
+        .loop1:
+                lodsb
+                cmp     al, '0'
+                je      .loop1
+        dec     rsi
+
+        mov     rdi, rsi
+        xor     rcx, rcx
+        .loop2:                                 ; estimate length of future bigint
+                inc     rcx                     ; by counting length of input without sign and zeros
+                lodsb
+                cmp     al, 0
+                jne     .loop2
+        dec     rsi
+        lea     rax, [rcx * 8 - 8]              ; and multiplying result by 8
+        mov     rcx, 18
+        xor     rdx, rdx
+        div     rcx                             ; then dividing by 18 (10-base digits per quadword)
+        add     rax, 8
+
+        push    rdi                             ; begin of significant data
+        push    rsi                             ; end of string
+        mov     rdi, rax
+        NEW_BI  rdi, r9
+        mov     rcx, [rax + bigint.len]
+        .loop3:                                 ; init new bigint with zeros
+                mov     qword [r9], 0
+                add     r9, 8
+                sub     rcx, 8
+                jnz     .loop3
+
+        pop     rsi
+        pop     rdi
+        mov     r9, rax                         ; brand new bigint
+        xor     rax, rax
+        mov     rbx, 10
+        .loop4:                                 ; multiply bigint by 10 and then add new digit
+                MUL_BY_QUAD r9, rbx
+                xor     rax, rax
+                mov     al, byte [rdi]
+                sub     al, '0'
+                cmp     rax, 9                  ; if al was less than '0'
+                ja      .fail                   ; overflow occurs and new rax > 9
+                ADD_QUAD r9, rax
+
+                inc     rdi
+                cmp     rsi, rdi
+                jne     .loop4
+
+        pop     rdx
+        test    rdx, 1
+        jnz     .return
+        NEGATE  r9
+
+    .return:
+        BI_SHORTEN r9
+        mov     rax, r9        
+        pop     rbx
+        ret
+
+    .fail:
+        mov     rax, 0
+        pop     rbx             ; sign quadword
+        pop     rbx
         ret
 
 ;void biToString(BigInt bi, char *buffer, size_t limit);
@@ -208,14 +382,14 @@ biAdd:
         add     rcx, 8                      ; allocate memory for the biggest number possible
         push    rdi
         push    rsi                         ; stack: r13, r12, dest, greater, less
-        call    malloc                      ; which is max(len(dst), len(src)) + 1
+        call    malloc
         mov     r8, rax
         pop     rsi
         pop     rdi
         push    r8                          ; stack: r13, r12, dest, result.data
 
-        mov     r12, [rdi + bigint.data]    ; pointer to greater
-        mov     r13, [rsi + bigint.data]    ; pointer to less
+        mov     r12, [rdi + bigint.data]    ; pointer to greater's data
+        mov     r13, [rsi + bigint.data]    ; pointer to less's data
         mov     rcx, [rsi + bigint.len]
         clc
         lahf
@@ -251,7 +425,7 @@ biAdd:
     .loop2_end:
         SIGN    rdi, r9                    ; now add greater[greater.size] to less[less.size]
         sahf
-        adc     r9, r10                    ; i.e. greater and less signs and carry
+        adc     r9, r10                    ; i.e. greater's and less's signs and carry
         mov     [r8], r9
 
         ; replace dst data with new one
@@ -272,7 +446,18 @@ biAdd:
         ret
 
 ;void biSub(BigInt dst, BigInt src);
+; Copies src, negates it and performs addition.
+; Have to do copy in order to handle calls with same dst and src.
 biSub:
+        push    rdi
+        COPY_BI rsi, rax
+        pop     rdi
+        mov     rsi, rax
+        push    rsi
+        NEGATE  rsi
+        call    biAdd
+        pop     rsi
+        DEL_BI  rsi
         ret
 
 ;void biMul(BigInt dst, BigInt src);
