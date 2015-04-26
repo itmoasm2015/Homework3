@@ -607,17 +607,26 @@ biAdd:
 		lea r11, [r11 + 8]
 		inc r12
 		dec r8 ; finish our loop if it's no more to add (no carry and second bigint is finished)
-		jnc .maybe_finish_loop
+		jz .only_carry ; second bigint is finished, maybe it's carry
 		jmp .loop
 
-.maybe_finish_loop:
-	cmp r8, 0
-	je .finish_loop		
-	jmp .loop
+.only_carry:
+	.carry_loop:
+		mov rbx, [r11]
+		adc rbx, 0
+		mov [r11], rbx
+		inc r12
+		lea r11, [r11 + 8]
+		jc .carry_loop
 
 .finish_loop:
+	cmp [arg1 + bigint.size], r12
+	jge .not_incremented
 	mov [arg1 + bigint.size], r12 ; move real size of vector of arg1 in qwords to size field
 	function_end		
+
+.not_incremented:
+	function_end	
 
 ; arg1 - pointer on first bigint
 ; arg2 - pointer on second bigint
