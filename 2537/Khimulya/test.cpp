@@ -162,9 +162,68 @@ TEST(correctness, biCmp) {
     biDelete(bi1);
     biDelete(bi2);
 
+    bi1 = biFromString("-1111111111111111111111111111111111111111111111111");
+    bi2 = biFromString("11111111111111111111111");
+    ASSERT_LT(biCmp(bi1, bi2), 0);
+    biDelete(bi1);
+    biDelete(bi2);
+
     bi1 = biFromString("111111111111111111111111");
     bi2 = biFromString("1111111111111111111111111111111111111111111111111");
     ASSERT_LT(biCmp(bi1, bi2), 0);
+    biDelete(bi1);
+    biDelete(bi2);
+
+    bi1 = biFromString("111111111111111111111111");
+    bi2 = biFromString("-1111111111111111111111111111111111111111111111111");
+    ASSERT_GT(biCmp(bi1, bi2), 0);
+    biDelete(bi1);
+    biDelete(bi2);
+}
+
+namespace {
+    void ASSERT_STR(const char *a, const char *b) {
+        ASSERT_EQ(strlen(a), strlen(b));
+        for (int i = 0; i < strlen(a); i++) {
+            ASSERT_EQ(a[i], b[i]);
+        }
+    }
+}
+
+TEST(correctness, biToString) {
+    const char *input1 = "123456789012345678901234567890123456789012345678901234567890";
+    char str[350];
+    BigInt bi1 = biFromString(input1);
+    biToString(bi1, str, 350);
+    ASSERT_STR(input1, str);
+    biDelete(bi1);
+
+    bi1 = biFromInt(0);
+    biToString(bi1, str, 10);
+    ASSERT_STR("0", str);
+    biDelete(bi1);
+
+    bi1 = biFromString("-0");
+    biToString(bi1, str, 10);
+    ASSERT_STR("0", str);
+    biDelete(bi1);
+
+    bi1 = biFromString(input1);
+    biToString(bi1, str, 10);
+    ASSERT_STR("123456789", str);
+    biDelete(bi1);
+
+    const char *input2 = "-123456789012345678901234567890123456789012345678901234567890";
+    bi1 = biFromString(input2);
+    biToString(bi1, str, 350);
+    ASSERT_STR(input2, str);
+    biDelete(bi1);
+
+    bi1 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215"); // 2**1024 - 1
+    BigInt bi2 = biFromInt(-1ll);
+    biSub(bi1, bi2);
+    biToString(bi1, str, 350);
+    ASSERT_STR("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216", str);
     biDelete(bi1);
     biDelete(bi2);
 }

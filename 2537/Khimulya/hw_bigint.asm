@@ -126,6 +126,8 @@ endstruc
 %macro  BI_SHORTEN 1
         mov     rcx, [%1 + bigint.len]
         sub     rcx, 16                         ; next after most significant quadword
+        cmp     rcx, -8
+        je      %%done                          ; nothing to shorten
         mov     rdx, [%1 + bigint.data]
         %%loop:
                 mov     rax, [rdx + rcx + 8]
@@ -264,6 +266,10 @@ biFromString:
         push    1
     .neg:
 
+        mov     al, byte [rdi]
+        cmp     al, 0
+        je      .fail_                          ; empty string
+
         mov     rsi, rdi                        ; then omit leading zeros
         .loop1:
                 lodsb
@@ -300,6 +306,8 @@ biFromString:
         pop     rsi
         pop     rdi
         mov     r9, rax                         ; brand new bigint
+        cmp     rdi, rsi
+        je      .done                           ; zero
         xor     rax, rax
         mov     rbx, 10
         .loop4:                                 ; multiply bigint by 10 and then add new digit
@@ -315,6 +323,7 @@ biFromString:
                 cmp     rsi, rdi
                 jne     .loop4
 
+    .done:
         pop     rdx
         test    rdx, 1
         jnz     .return
@@ -327,13 +336,103 @@ biFromString:
         ret
 
     .fail:
+        DEL_BI  r9
+    .fail_:
         mov     rax, 0
         pop     rbx             ; sign quadword
         pop     rbx
         ret
 
 ;void biToString(BigInt bi, char *buffer, size_t limit);
+; divides copy(bi) by 10 until it's not a zero
+; least significant remainder appends to buffer each iteration
 biToString:
+        push    r13
+        push    r12
+        push    rbx                     ; stack: routine
+
+        push    rsi                     ; stack: routine, buffer
+        push    rdx                     ; stack: routine, buffer, limit
+        COPY_BI rdi, rdi
+
+        mov     rax, [rdi + bigint.len] ; allocate len / 8 * 19 + 1 bytes for tmp string:
+        shr     rax, 3                  ; maximum 19 characters per quadword
+        mov     rdx, 19                 ; extra byte for sign
+        mul     rdx
+        inc     rax
+        push    rdi                     ; stack: routine, buffer, limit, bi copy
+        mov     rdi, rax
+        call    malloc
+        mov     rbx, rax                ; temporary string
+        xor     r13, r13                ; counter for actually written characters
+
+        pop     rdi                     ; stack: routine, buffer, limit
+        pop     r8                      ; stack: routine, buffer
+        pop     rsi                     ; stack: routine
+        SIGN    rdi, r12                ; check if bigint is negative
+        cmp     r12, 0
+        je      .pos
+        push    1                       ; stack: routine, sign
+        NEGATE  rdi
+        jmp     .neg
+    .pos:
+        push    0                       ; stack: routine, sign
+    .neg:
+
+        mov     r11, 10
+        .loop:
+                mov     r9, [rdi + bigint.data]
+                mov     r10, [rdi + bigint.len]
+                xor     rdx, rdx
+                xor     rcx, rcx            ; let's or each quadword with rcx
+                .div_loop:                  ; when rcx is zero, bigint is zero
+                        mov     rax, [r9 + r10 - 8] ; rdx:rax = next quadword + previous remainder * 2 ** 64
+                        div     r11
+                        mov     [r9 + r10 - 8], rax
+                        or      rcx, rax
+
+                        sub     r10, 8
+                        jnz     .div_loop
+
+                add     rdx, '0'
+                mov     byte [rbx + r13], dl
+                inc     r13
+
+                or      rcx, rcx
+                jnz     .loop
+
+        pop     r9
+        cmp     r9, 0
+        je      .pos_
+        mov     al, '-'
+        mov     byte [rsi], al
+        inc     rsi
+        dec     r8
+    .pos_;
+
+        dec     r8                  ; let's reserve signle byte for '\0'
+        .move_loop:
+                mov     al, byte [rbx + r13 - 1]
+                mov     byte [rsi], al
+                inc     rsi
+
+                dec     r13
+                jz      .done
+                dec     r8
+                jnz     .move_loop
+
+    .done:
+        xor     rax, rax
+        mov     byte [rsi], al          ; end of string
+
+        push    rbx
+        DEL_BI  rdi
+        pop     rdi
+        call    free                ; free temporary string
+
+        pop     rbx
+        pop     r12
+        pop     r13
         ret
 
 ;void biDelete(BigInt bi);
@@ -473,8 +572,7 @@ biDivRem:
 ; return biSign(biSub(copy(a), b))
 biCmp:
         push    rsi
-        COPY_BI rdi, rax
-        mov     rdi, rax
+        COPY_BI rdi, rdi
         pop     rsi
 
         push    rdi
@@ -484,7 +582,7 @@ biCmp:
         pop     rdi
 
         push    rax
-        call    biDelete
+        DEL_BI  rdi
         pop     rax
 
         ret
