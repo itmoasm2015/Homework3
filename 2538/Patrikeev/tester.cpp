@@ -1,4 +1,4 @@
-#include "matrix.h"
+#include "bigint.h"
 #include <cmath>
 #include <iostream>
 #include <stdlib.h>
@@ -9,66 +9,23 @@ typedef unsigned int uint;
 
 #define EPS 1e-6
 
-//common operations
+const int N = 30;
 
-/*bool equals(Matrix a, Matrix b) {
-    unsigned int rowsA = matrixGetRows(a);
-    unsigned int colsA = matrixGetCols(a);
-    unsigned int rowsB = matrixGetRows(b);
-    unsigned int colsB = matrixGetCols(b);
-    if (rowsA != rowsB || colsA != colsB) {
-        return false;
-    }
-    for (unsigned int i = 0; i < rowsA; i++) {
-        for (unsigned int j = 0; j < colsA; j++) {
-            if (fabs(matrixGet(a, i, j) - matrixGet(b, i, j)) > EPS) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-*/
-
-void printMatrix(Matrix m) {
-    if (m == 0) {
-        cout << "Empty matrix" << endl;
-        return;
-    }
-    uint rows = matrixGetRows(m); 
-    uint cols = matrixGetCols(m); 
-    for (uint i = 0; i < rows; i++) {
-        for (uint j = 0; j < cols; j++) {
-            cout << (float) matrixGet(m, i, j) << ' ';
-        }
-        cout << endl;
-    }
-}
-
-void testScale() {
-    int n = 10;
-    int m = 15;
-    Matrix a = matrixNew(n, m);
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            matrixSet(a, i, j, i);
-        }
-    }
-    printMatrix(a);
-
-    Matrix b = matrixScale(a, 10);
-    printMatrix(b);
-    
-    matrixDelete(a);
-    matrixDelete(b);
-}
+char buf[N];
 
 int main() {    
 
-    int n = 3;
-    int m = 3;
-    
-    testScale();
+    BigInt a = biFromString("999999999999999999999999999999999");
+    cout << "AA " << (unsigned long long) a << endl;
+    biToString(a, buf, 30);
+
+    cout << buf << endl;
+
+    for (int i = 0; i < N; i++) {
+        cout << (int) buf[i] << ' ';
+    }
+    cout << endl;
+
 
     return 0;
 }
