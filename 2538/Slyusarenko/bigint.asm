@@ -511,8 +511,8 @@ biCmp:
 	mov r11, [arg1 + bigint.size]
 	mov r10, [arg1 + bigint.size]
 	cmp r11, r10
-	jg .return_one ; size of first bigint > size of second bigint and sign is '+' => return 1
-	jl .return_minus_one ; size of first bigint < size of second bigint and sign is '+' => return -1	
+	ja .return_one ; size of first bigint > size of second bigint and sign is '+' => return 1
+	jb .return_minus_one ; size of first bigint < size of second bigint and sign is '+' => return -1	
 	mov r10, [arg1 + bigint.data]
 	mov r9, [arg2 + bigint.data]
 	lea r10, [r10 + 8 * r11 - 8] ; most significant qword of arg1 is in r10 now
