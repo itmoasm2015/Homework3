@@ -49,17 +49,28 @@ void biDelete(BigInt bi);
 int biSign(BigInt bi);
 
 
+/** return a + b */
+BigInt biAddNew(BigInt a, BigInt b);
+
+
 /** dst += src */
 void biAdd(BigInt dst, BigInt src);
+
+
+/** return a - b */
+BigInt biSubNew(BigInt a, BigInt b);
 
 
 /** dst -= src */
 void biSub(BigInt dst, BigInt src);
 
 
+/** return a * b */
+BigInt biMulNew(BigInt a, BigInt b);
+
+
 /** dst *= src */
 void biMul(BigInt dst, BigInt src);
-
 
 /** Compute quotient and remainder by divising numerator by denominator.
  *  quotient * denominator + remainder = numerator
