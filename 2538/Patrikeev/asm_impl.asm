@@ -631,7 +631,7 @@ biToString:
 
 .loop_reverse:
     cmp     rcx, 0
-    je      .return
+    je      .print_eof
     pop     rax
     dec     rcx
 
@@ -642,8 +642,7 @@ biToString:
     jg      .print_symbol
 
     mov     byte [rsi], 0
-    inc     rsi
-    dec     rdx
+    xor     rdx, rdx
     jmp     .loop_reverse
 
 .print_symbol:
@@ -652,7 +651,295 @@ biToString:
     dec     rdx
     jmp     .loop_reverse
 
+.print_eof:
+    mov     byte [rsi], 0
+
 .return:
+    ret
+
+;void * digsAdd(void * v1, void * v2, int n, int m)
+;
+;Parameters:
+;   1) RDI - summand #1 address
+;   2) RSI - summand #2 address
+;   3) RDX - summand #1 size
+;   4) RCX - summand #2 size
+;Returns:
+;   RAX - address of resulting vector
+;   R9  - size of resulting vector
+digsAdd:
+    mov     rax, rdx
+    cmp     rax, rcx
+    cmovl   rax, rcx
+    inc     rax
+
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    push    rax
+    alloc_N_qwords rax
+    mov     r8, rax
+    pop     rax
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
+
+    push    r12
+
+    xor     r9, r9
+    xor     r10, r10
+.loop:
+    xor     r11, r11
+    xor     r12, r12
+    cmp     r9, rdx
+    jge     .add_second
+    mov     r11, [rdi + r9 * 8]
+
+.add_second:
+    cmp     r9, rcx
+    jge     .add_carry
+    add     r11, [rsi + r9 * 8]
+    adc     r12, 0
+
+.add_carry:
+    add     r11, r10
+    adc     r12, 0
+
+    mov     [r8 + r9 * 8], r11
+    mov     r10, r12
+    inc     r9
+    cmp     r9, rax
+    jne     .loop
+
+.set_size:
+    mov     r9, rax
+    dec     r9
+    mov     r10, [r8 + rax * 8 - 8]
+    cmp     r10, 0
+    cmovg   r9, rax
+
+.return:
+    pop     r12
+    mov     rax, r8
+    ret
+
+;int compareDigs(void * v1, void * v2, int n, int m)
+;
+;Parameters:
+;   1) RDI - 1st vector
+;   2) RSI - 2nd vector
+;   3) RDX - length of 1st vector
+;   4) RCX - length of 2nd vector
+;Returns:
+;   RAX - sign of comparison (v1 - v2) : -1, 0, 1
+compareDigs:
+    cmp     rdx, rcx
+    jne     .diff_lens
+    
+    mov     r9, rdx
+.loop:
+    cmp     r9, 0
+    je      .equals
+    dec     r9
+    mov     rax, [rdi + r9 * 8]
+    mov     r10, [rsi + r9 * 8]
+    cmp     rax, r10
+    jg      .first_gt
+    jl      .second_gt
+    jmp     .loop    
+
+.diff_lens:
+    cmp     rdx, rcx
+    jg      .first_gt
+    jl      .second_gt
+    jmp     .equals
+
+.first_gt:
+    mov     rax, 1
+    ret
+
+.second_gt:
+    mov     rax, (-1)
+    ret
+
+.equals:
+    xor     rax, rax
+    ret
+
+;void digsSub(void * v1, void * v2, int n, int m)
+;
+;Parameters:
+;   1) RDI - 1st vector
+;   2) RSI - 2nd vector
+;   3) RDX - length of 1st vector
+;   4) RCX - length of 2nd vector
+;Returns:
+;   1) RAX - address of resulting vector
+;   2) R9 - size of resulting vector
+;   3) R10 - signum of subtracting (-1 or 1)
+digsSub:
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    call compareDigs
+    mov     r10, rax
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
+
+    cmp     r10, 0
+    jne     .maybe_swap
+    mov     r10, 1
+    jmp     .make_sub
+
+.maybe_swap:
+    cmp     r10, (-1)
+    jne     .make_sub
+    xchg    rdi, rsi
+    xchg    rdx, rcx
+
+.make_sub:
+    mov     rax, rdx
+    cmp     rax, rcx
+    cmovl   rax, rcx
+
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    push    r10
+    push    rax
+    alloc_N_qwords rax
+    mov     r8, rax
+    pop     rax
+    pop     r10
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
+
+    push    r10
+    push    r12
+
+    xor     r9, r9
+    xor     r10, r10
+.loop:
+    xor     r11, r11
+    xor     r12, r12
+
+    mov     r11, [rdi + r9 * 8]
+    cmp     r9, rcx
+    jge     .sub_borrow
+    sub     r11, [rsi + r9 * 8]
+    adc     r12, 0
+.sub_borrow:
+    sub     r11, r10
+    adc     r12, 0
+
+    mov     [r8 + r9 * 8], r11
+    mov     r10, r12
+    inc     r9
+    cmp     r9, rax
+    jne     .loop
+
+    mov     r9, rax
+    mov     rax, r8
+    pop     r12
+    pop     r10
+
+    ret
+
+
+;; dst += src
+; void biAdd(BigInt dst, BigInt src);
+;
+;Parameters:
+;   1) RDI - dst BigInt
+;   2) RSI - src BigInt
+biAdd:
+    mov     rax, [rsi + len]
+    cmp     rax, 0
+    jne     .src_not_zero
+    ret
+.src_not_zero:
+    mov     rax, [rdi + len]
+    cmp     rax, 0
+    jne     .dst_not_zero
+
+    push    rdi
+    push    rsi
+    alloc_N_and_copy_M [rsi + len], [rsi + digs], [rsi + len]
+    pop     rsi
+    pop     rdi
+    mov     [rdi + digs], rax
+    mov     rax, [rsi + len]
+    mov     [rdi + len], rax
+    mov     rax, [rsi + sign]
+    mov     [rdi + sign], rax
+    ret
+.dst_not_zero:
+    mov     rax, [rdi + sign]
+    mov     rdx, [rsi + sign]
+    cmp     rax, rdx
+    jne     .diff_signs
+
+    push    rdi
+    push    rsi
+    mov     rdx, [rdi + len]
+    mov     rcx, [rsi + len]
+    mov     rdi, [rdi + digs]
+    mov     rsi, [rsi + digs]
+    call    digsAdd
+    pop     rsi
+    pop     rdi
+
+    push    rax
+    push    r9
+    push    rdi
+    mov     rdi, [rdi + digs]
+    call    free 
+    pop     rdi
+    pop     r9
+    pop     rax
+
+    mov     [rdi + digs], rax
+    mov     [rdi + len], r9
+    ret
+
+.diff_signs:
+    push    rdi
+    push    rsi
+    mov     rdx, [rdi + len]
+    mov     rcx, [rsi + len]
+    mov     rdi, [rdi + digs]
+    mov     rsi, [rsi + digs]
+    call    digsSub
+    pop     rsi
+    pop     rdi
+
+    push    rax
+    push    r9
+    push    r10
+    push    rdi
+    mov     rdi, [rdi + digs]
+    call    free 
+    pop     rdi
+    pop     r10
+    pop     r9
+    pop     rax
+
+    mov     [rdi + digs], rax
+    mov     [rdi + len], r9
+    mov     rcx, [rdi + sign]
+    imul    rcx, r10
+    mov     [rdi + sign], rcx
+
+    call trimZeros
+
     ret
 
 ;; Get sign of given BigInt.
@@ -663,28 +950,84 @@ biToString:
 ;Returns:
 ;   RAX - sign
 biSign:
-    push    rdi
-    mov     rsi, 10
-    call divLongShort
-    pop     rdi
-
-    push    rax
-    dumpBigInt rdi
-    pop     rax
+    mov     rcx, [rdi + len]
+    cmp     rcx, 0
+    je      .zero
+    mov     rax, [rdi + sign]
     ret
-
-;; dst += src
-; void biAdd(BigInt dst, BigInt src);
-biAdd:
+.zero:
+    xor     rax, rax
     ret
 
 ;; dst -= src
 ; void biSub(BigInt dst, BigInt src);
+;
+;Parameters:
+;   1) RDI - dst
+;   2) RSI - src
 biSub:
+    mov     rax, [rsi + sign]
+    imul    rax, (-1)
+    mov     [rsi + sign], rax
+    push    rax
+    push    rsi
+    call    biAdd
+    pop     rsi
+    pop     rax
+    
+    imul    rax, (-1)
+    mov     [rsi + sign], rax
+    ret
+
+;; Compare two BigInts. Returns sign(a - b)
+; int biCmp(BigInt a, BigInt b)
+;
+;Parameters:
+;   1) RDI - 1st BigInt
+;   2) RSI - 2nd BigInt
+;Returns:
+;   RAX - sign
+biCmp:
+    mov     rax, [rdi + sign]
+    mov     rcx, [rsi + sign]
+    cmp     rax, rcx
+    jne     .diff_signs
+
+    push    rax
+    mov     rdx, [rdi + len]
+    mov     rcx, [rsi + len]
+    mov     rdi, [rdi + digs]
+    mov     rsi, [rsi + digs]
+    call    compareDigs
+    mov     r8, rax
+    pop     rax
+
+    cmp     r8, 0
+    je      .equals
+    imul    rax, r8
+    ret
+
+.diff_signs:
+    cmp     rax, 1
+    je      .first_gt
+    jmp     .second_gt
+
+.first_gt:
+    mov     rax, 1
+    ret
+.second_gt:
+    mov     rax, (-1)
+    ret
+.equals:
+    xor     rax, rax
     ret
 
 ;; dst *= src */
-; void biMul(BigInt dst, BigInt src);
+; void biMul(BigInt dst, BigInt src)
+;
+;Parameters:
+;   1) RDI - dst
+;   2) RSI - src
 biMul:
     ret
 
@@ -692,9 +1035,4 @@ biMul:
 ;;   quotient * denominator + remainder = numerator
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 biDivRem:
-    ret
-
-;; Compare two BitInts. Returns sign(a - b)
-; int biCmp(BigInt a, BigInt b)
-biCmp:
     ret
