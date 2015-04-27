@@ -1,4 +1,3 @@
-
 ASRC:=$(wildcard *.asm)
 CSRC:=$(wildcard *.c)
 CXXSRC:=$(wildcard *.cpp)

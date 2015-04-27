@@ -30,9 +30,11 @@ section .text
 	push r12
 	push r13
 	push r14
+	push r15
 %endmacro
 
 %macro end 0
+	pop r15
 	pop r14
 	pop r13
 	pop r12
@@ -213,7 +215,7 @@ biAdd:
 
 	mov r13, [Arg1 + bigint.data] ;vector1 pointer
 	mov r14, [Arg2 + bigint.data] ;vector2 pointer
-	mov r8, 1		      ;size counter
+	mov r8, 0		      ;size counter
 	
 	clc
 	 .loop:

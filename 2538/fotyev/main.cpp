@@ -56,7 +56,11 @@ void test_pair(const intp& p)
   char str[100000];
   biToString(p.second, str, sizeof(str));
   if(str1 != str)
+  {
+    std::cerr << str << '\n';
+    std::cerr << str1 << '\n';
     abort();
+  }
 }
 
 void add(intp& dst, const intp& src)
@@ -80,6 +84,14 @@ void mul(intp& dst, const intp& src)
   test_pair(dst);
 }
 
+void cmp(intp& lhs, intp& rhs)
+{
+  if(big_integer::compare(lhs.first, rhs.first)
+     != biCmp(lhs.second, rhs.second))
+    abort();
+}
+
+
 void print(const intp& i, std::ostream& out)
 {
   char str[1000];
@@ -98,6 +110,8 @@ void test(const big_integer& n1, const big_integer& n2)
   std::string s1 = to_string(n1), s2 = to_string(n2);
   std::cout << "testing " << s1 << " and " << s2 << '\n';
   intp p1 = from_string(s1), p2 = from_string(s2);
+  std::cout << "cmp" << '\n';
+  cmp(p1, p2);
   std::cout << "add " << p1.second->size << ' ' << p2.second->size << '\n';
   add(p1, p2);
   std::cout << "sub " << p1.second->size << ' ' << p2.second->size << '\n';

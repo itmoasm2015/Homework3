@@ -101,13 +101,12 @@ TEST(bigint, to_string_int) {
 	for (auto i : test_ints) {
 		b = biFromInt(i);
 		biToString(b, x, BUF_SIZE);
+		biDelete(b);
 
 		sprintf(y, "%d", i);
 
 		EXPECT_STREQ(x, y);
 	}
-
-	biDelete(b);
 }
 
 TEST(bigint, to_string_long_long) {
@@ -119,11 +118,31 @@ TEST(bigint, to_string_long_long) {
 	for (auto i : test_long_longs) {
 		b = biFromInt(i);
 		biToString(b, x, BUF_SIZE);
+		biDelete(b);
 
 		sprintf(y, "%lld", i);
 
 		EXPECT_STREQ(x, y);
 	}
+}
 
-	biDelete(b);
+TEST(bigint, cmp_ints) {
+	std::vector<int> test_ints { 0 , -1 };//, 1, 5, 999, 4531, -987152, -5643, 123456789, -876478, INT_MAX, INT_MIN };
+	//std::vector<int> test_ints { INT_MAX, INT_MIN };
+	for (auto i : test_ints) {
+		for (auto j : test_ints) {
+			//i = -1, j = 0;
+			BigInt a = biFromInt(i);
+			BigInt b = biFromInt(j);
+
+			int x = (i < j ? -1 : ((i == j) ? 0 : 1));
+			int y = biCmp(a, b);
+
+			biDelete(a);
+			biDelete(b);
+
+			std::cout << i << ' ' << j << std::endl;
+			ASSERT_EQ(x, y);
+		}
+	}
 }

@@ -1,15 +1,10 @@
 ;; System V calling conv.
 ;; https://en.wikipedia.org/wiki/X86_calling_conventions
-extern abort
+;extern abort
 %macro CALL64 1
-	test rsp, 15
-	jnz %%.bad_align
+	; test rsp, 15
+	; jnz abort
 	call %1
-	jmp %%.ok
-	%%.bad_align:
-        and rsp, ~15
-	call abort
-	%%.ok:
 %endmacro
 
 
