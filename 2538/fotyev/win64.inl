@@ -4,14 +4,9 @@ extern abort
 %macro CALL64 1
 	sub rsp, 32 		; shadow space
 	test rsp, 15
-	jnz %%.bad_align
+	jnz abort
 	call %1
 	add rsp, 32
-	jmp %%.ok
-	%%.bad_align:
-        and rsp, ~15
-	call abort
-	%%.ok:
 %endmacro
 	
 %define Arg1 rcx ;; volatile

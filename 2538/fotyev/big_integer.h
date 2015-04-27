@@ -88,7 +88,7 @@ private:
 
 	// invariant: integer is in normal form, i.e. it has no leading zeroes, if integer is zero then sign is POSITIVE
 	void normalize();
-
+public:
 	bool is_zero() const
 	{
 		return blocks.empty();
