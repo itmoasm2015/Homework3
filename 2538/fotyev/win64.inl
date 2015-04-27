@@ -1,10 +1,10 @@
 ;; win64 calling conv.
 ;; https://en.wikipedia.org/wiki/X86_calling_conventions#Microsoft_x64_calling_convention
-extern abort
+;extern abort
 %macro CALL64 1
 	sub rsp, 32 		; shadow space
-	test rsp, 15
-	jnz abort
+	; test rsp, 15
+	; jnz abort
 	call %1
 	add rsp, 32
 %endmacro

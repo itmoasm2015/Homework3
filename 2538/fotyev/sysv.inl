@@ -1,9 +1,9 @@
 ;; System V calling conv.
 ;; https://en.wikipedia.org/wiki/X86_calling_conventions
-extern abort
+;extern abort
 %macro CALL64 1
-	test rsp, 15
-	jnz abort
+	; test rsp, 15
+	; jnz abort
 	call %1
 %endmacro
 
