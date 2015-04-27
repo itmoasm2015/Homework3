@@ -30,9 +30,11 @@ section .text
 	push r12
 	push r13
 	push r14
+	push r15
 %endmacro
 
 %macro end 0
+	pop r15
 	pop r14
 	pop r13
 	pop r12
