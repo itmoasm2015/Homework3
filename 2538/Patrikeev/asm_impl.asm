@@ -1022,6 +1022,78 @@ biCmp:
     xor     rax, rax
     ret
 
+;BigInt digsMul(void * v1, void * v2, int n, int m)
+;
+;Parameters:
+;   1) RDI - multiplier #1 address
+;   2) RSI - multiplier #2 address
+;   3) RDX - length of #1
+;   4) RCX - length of #2
+;Returns:
+;   1) RAX - address of resulting vector
+;   2) R9 - length of resulting vector
+digsMul:
+    mov     rax, rdx
+    add     rax, rcx
+
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    alloc_N_qwords rax
+    mov     r8, rax
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
+
+    push    r12
+    push    r13
+    mov     r11, rcx
+    mov     r12, rdx
+
+    xor     r9, r9
+.loop_outer:
+    xor     r10, r10
+    xor     r13, r13
+
+.loop_inner:
+    xor     rdx, rdx
+    mov     rax, r13
+    cmp     r10, r11
+    jge     .add_to_ans
+    mov     rax, [rsi + r10 * 8]
+    mov     rcx, [rdi + r9 * 8]
+    mul     rcx
+    add     rax, r13
+    adc     rdx, 0
+
+.add_to_ans:
+    mov     rcx, r9
+    add     rcx, r10
+    add     rax, [r8 + rcx * 8]
+    adc     rdx, 0
+    mov     [r8 + rcx * 8], rax
+    mov     r13, rdx
+
+    inc     r10
+    cmp     r10, r11
+    jl      .loop_inner
+    cmp     r13, 0
+    jne     .loop_inner
+
+    inc     r9
+    cmp     r9, r12
+    jne     .loop_outer
+
+    mov     r9, r11
+    add     r9, r12
+    mov     rax, r8
+
+    pop     r13
+    pop     r12
+    ret
+
 ;; dst *= src */
 ; void biMul(BigInt dst, BigInt src)
 ;
@@ -1029,6 +1101,62 @@ biCmp:
 ;   1) RDI - dst
 ;   2) RSI - src
 biMul:
+    mov     rax, [rdi + len]
+    cmp     rax, 0
+    jnz     .dst_not_zero
+    ret
+.dst_not_zero:
+    mov     rax, [rsi + len]
+    cmp     rax, 0
+    jnz     .src_not_zero
+
+    push    rdi
+    mov     rdi, [rdi + digs]
+    call    free
+    pop     rdi
+
+    mov     qword [rdi + digs], 0
+    mov     qword [rdi + sign], 1
+    mov     qword [rdi + len], 0
+    ret
+
+.src_not_zero:
+    push    rdi
+    push    rsi
+
+    mov     rdx, [rdi + len]
+    mov     rcx, [rsi + len]
+    mov     rdi, [rdi + digs]
+    mov     rsi, [rsi + digs]
+    call    digsMul
+
+    pop     rsi
+    pop     rdi
+
+    push    rax
+    push    r9
+    push    rdi
+    push    rsi
+    mov     rdi, [rdi + digs]
+    call    free 
+    pop     rsi
+    pop     rdi
+    pop     r9
+    pop     rax
+
+    mov     [rdi + digs], rax
+    mov     [rdi + len], r9
+
+    mov     rax, [rdi + sign]
+    mov     rcx, [rsi + sign]
+    imul    rax, rcx
+    mov     [rdi + sign], rax
+
+    push    rdi
+    call    trimZeros
+    pop     rdi
+
+
     ret
 
 ;; Compute quotient and remainder by divising numerator by denominator.

@@ -21,18 +21,16 @@ void printBigInt(BigInt a) {
 
 int main() {    
 
-    // BigInt a = biFromInt(0xffffffffll);
-    // BigInt b = biFromInt(0xffffffffll);
-    // BigInt c = biFromInt(0xffffffffll + 0xffffffffll);
-    BigInt a = biFromString("-123123123");
-    BigInt b = biFromString("12312312312783612873619823619827361982736981723691872369817263918726398123");
-    cout << "a_address = " << (ull) a << endl;
-    cout << "b_address = " << (ull) b << endl;
+    BigInt a = biFromInt(2ll);
+    BigInt b = biFromInt(-123ll);
+    BigInt c = biFromInt(-123ll);
+
+    biAdd(a, b);
+    biSub(a, b);
+
+    cout << biCmp(b, c);
 
     printBigInt(a);
-    printBigInt(b);
-
-    cout << "CMP = " << biCmp(a, b) << endl;
 
     return 0;
 }
