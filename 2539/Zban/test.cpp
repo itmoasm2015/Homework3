@@ -3,7 +3,7 @@
 
 using namespace std;
 
-bool check(bool f, bool print = true) {
+bool check(bool f, bool print = false) {
     if (print) cout << (f ? "OK" : "FAIL") << endl;
     return f;
 }
@@ -93,10 +93,10 @@ void test4() {
     cout << "testing 4 test: " << endl;
     bool ok = 1;
 
-    int n = 4;
+    int n = 1000;
     vector<unsigned long long> v(n);
     for (int i = 0; i < n; i++) {
-        for (int j = 0; j < 64; j++) {
+        for (int j = 0; j < 63; j++) {
             v[i] += ((unsigned long long)(rand() % 2)) << j;
         }
     }
