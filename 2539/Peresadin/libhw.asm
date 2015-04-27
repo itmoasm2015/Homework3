@@ -27,7 +27,9 @@ struc VectorInt
     elem:      resq 1;элементы вектора
 endstruc
 
+TEN equ 10
 BASE equ 100000000
+BASE_LEN equ 8
 
 %macro element 3;to vec index
     push r15
@@ -58,8 +60,7 @@ endstruc
     pop r15
 %endmacro
 
-biFromInt:
-    push rdi
+newBi:
     mov rdi, BigInt_size
     call malloc
     push rax
@@ -68,6 +69,79 @@ biFromInt:
     pop rdx
     mov [rdx + vec], rax
     mov rax, rdx
+    ret
+
+biFromString:
+    push rbx
+    mov rbx, 1
+    cmp byte [rdi], '-' 
+    jne .not_minus
+        xor rbx, rbx
+        inc rdi
+    .not_minus
+    
+    xor rcx, rcx
+    .loop_end_line
+        cmp byte [rdi], '0'
+        jb .error
+        cmp byte [rdi], '9'
+        ja .error
+        inc rdi
+        inc rcx
+        cmp byte [rdi], 0
+        jne .loop_end_line
+    cmp rcx, 0
+    je .error
+    push rdi
+    push rcx
+    call newBi
+    pop rcx
+    pop rdi
+    mov rsi, rax
+    sub rdi, rcx
+    add rcx, rdi
+    .loop_num
+        xor eax, eax
+        mov r8, rcx
+        sub r8, BASE_LEN
+        cmp r8, rdi
+        ja .calc_dig_loop
+            mov r8, rdi
+        .calc_dig_loop
+            mov edx, 10
+            mul edx
+            xor edx, edx
+            mov dl, [r8]
+            sub dl, '0'
+            add eax, edx
+            inc r8
+            cmp r8, rcx
+            jne .calc_dig_loop
+        push rcx
+        push rdi
+        push rsi
+        mov rdi, [rsi + vec]
+        mov esi, eax
+        call pushBack
+        pop rsi
+        pop rdi
+        pop rcx
+        sub rcx, BASE_LEN
+        cmp rcx, rdi
+        ja .loop_num
+    mov rax, rsi
+    mov [rax + sign], rbx
+    pop rbx
+    ret
+
+    .error
+    xor rax, rax
+    pop rbx
+    ret
+
+biFromInt:
+    push rdi
+    call newBi
     pop rdi
 
     cmp rdi, 0
@@ -299,8 +373,14 @@ biAdd:
         je .a_more_b
             cmp rax, -1
             je .res_zero
+                push rdi
+                push rsi
                 xchg rdi, rsi
                 call copyVector
+                mov rdi, [rsp]
+                mov rsi, [rsp + 8]
+                add rsp, 16
+
                 push rax
                 push rdi
                 push rsi
@@ -346,10 +426,10 @@ biSub:
     je .zero
         mov rsi, [rsp]
         xor qword [rsi + sign], 1
-        mov rsi, [rsp]
         mov rdi, [rsp + 8]
         call biAdd
         mov rsi, [rsp]
         xor qword [rsi + sign], 1
     .zero
+    add rsp, 16
     ret
