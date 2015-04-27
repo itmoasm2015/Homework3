@@ -241,7 +241,6 @@ biAddInt:
 	function_start
 	mov r14, [arg1 + bigint.size] ; maybe need to expand
 	inc r14 ; after function size of vector <= size of vector before the function + 1
-	push r14 ; save value of r14 on stack because i want to change it in function
 	push arg2
 	mov arg2, r14
 	check_need_to_expand
@@ -249,26 +248,24 @@ biAddInt:
 	pop arg2 ; restore value of arg2 after expand
 	mov rbx, arg1
 	mov arg1, [arg1 + bigint.data]
-	xor rdx, rdx
+	xor rdx, rdx ; carry
 	.loop:
 		add [arg1], arg2
 		adc rdx, 0 ; carry is in rdx now
 		mov arg2, rdx ; carry is in arg2 now
 		xor rdx, rdx
 		add arg1, 8
-		dec r14
-		cmp r14, 0
+		cmp arg2, 0 ; if carry is 0 then finish cycle
 		jne .loop
 	cmp rdx, 0
 	jne .carry_after_last_iteration	
 	.finish_loop:	
-		pop r14
 		mov arg1, rbx
 		function_end	
 
 	.carry_after_last_iteration:
+		mov [arg1], rdx ; move carry to new qword
 		mov arg1, rbx
-		mov [r13], rdx ; move carry to new qword
 		inc r14 ; increment size of vector in qwords
 		mov [arg1 + bigint.size], r14	
 		function_end
