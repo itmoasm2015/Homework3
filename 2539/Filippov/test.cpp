@@ -99,4 +99,51 @@ int main() {
         printf("All tests passed\n");
         printf("============================\n");
     }
+	{
+		printf("============================\n");
+		printf("Starting fourth group of tests\n");
+		BigInt a = biFromString("2");
+		BigInt b = biFromString("3");
+		/*biAdd(a, b);
+		biToString(a, out, 100);
+		printf("%s\n", out);
+		
+		a = biFromString("0");
+		b = biFromString("0");
+		biAdd(a, b);
+		biToString(a, out, 100);
+		printf("%s\n", out);*/
+		
+		a = biFromString("0");
+		b = biFromString("100");
+		biAdd(a, b);
+		biToString(a, out, 100);
+		printf("%s\n", out);
+		
+		a = biFromString("101");
+		b = biFromString("0");
+		biAdd(a, b);
+		biToString(a, out, 100);
+		printf("%s\n", out);
+
+		a = biFromString("32");
+		b = biFromString("64");
+		biAdd(a, b);
+		biToString(a, out, 100);
+		printf("%s\n", out);
+
+		a = biFromString("-32");
+		b = biFromString("-64");
+		biAdd(a, b);
+		biToString(a, out, 100);
+		printf("%s\n", out);
+
+		a = biFromString("1");
+		b = biFromString("1038210381038021938910838");
+		biAdd(a, b);
+		biToString(a, out, 100);
+		printf("%s\n", out);
+
+		printf("============================\n");			
+	}
 }

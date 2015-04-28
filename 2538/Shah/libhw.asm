@@ -2,7 +2,7 @@ default rel
 
 section .text
 
-extern malloc, free, strlen
+extern malloc, free, strlen, calloc
 
 global biFromInt
 global biFromString
@@ -60,6 +60,8 @@ global biDivRem
 ; int64 size
 ; int64* values
 ; BASE = 2^64
+; digits saved from low to high
+; there aren't zeroes in the end of number
 
 
 ; rdi - size
@@ -90,9 +92,10 @@ global biDivRem
 
 
 ; rdi - BigInt
-; rdx - size
+; rdx - size of copy
+; rdx <= size of rdi
 ; create copy of existing BigInt with rdx < size of rdi
-; memory aligned 16 bytes
+; call memory aligned 16 bytes
 %macro biCreateCopy 0
     PUSH_REGS
     xchg rdi, rdx
@@ -105,6 +108,7 @@ global biDivRem
     mov [rax + SIGN], r8
     mov r8, [rdi + VALUE]
     mov r9, [rax + VALUE]
+    ; copy values from destination
 %%copy_loop:
     mov r10, [r8]
     mov [r9], r10
@@ -128,6 +132,7 @@ global biDivRem
     shl r9, 3
     add r9, [rdi + VALUE]
 
+    ; find fist non-zero digit
 %%trim_loop:
     mov r10, [r9]
     cmp r10, 0
@@ -137,6 +142,7 @@ global biDivRem
     jnz %%trim_loop
 
 %%trim_loop_end:
+    ; r8 - position of first non-zero digit
     inc r8
     ; if there isn't zero in the end of values
     ; return
@@ -156,6 +162,7 @@ global biDivRem
     
     push rax
     mov r9, [rdi + VALUE]
+    ; copy non-zero digits from source to new array
 %%trim_copy_loop:
     mov r10, [r9]
     mov [rax], r10
@@ -226,14 +233,13 @@ biDelete:
 ; BigInt *= rbx
 %macro mul_long_short 0
     PUSH_REGS
-    ; lea rcx, [rdi + 8*SIZE + VALUE]
-    ; mov r9, [rsi + VALUE]
     mov rcx, [rdi + SIZE]
     mov rdi, [rdi + VALUE]
-    ; mov rsi, [rsi + VALUE]
     xor rsi, rsi
     clc
     
+    ; mul each digit to rbx
+    ; and save result
 %%mul_ls_loop:
     mov rax, [rdi]
     mul rbx
@@ -243,7 +249,6 @@ biDelete:
     mov [rdi], rax
 
     add rdi, 8
-    ; add r9, 8
     dec rcx
     jnz %%mul_ls_loop
 
@@ -268,7 +273,6 @@ biDelete:
  ; rdi += rsi
 %macro add_long_short 0
     PUSH_REGS
-    ; lea rcx, [rdi + 8*SIZE + VALUE]
     mov rcx, [rdi + SIZE]
     mov rdi, [rdi + VALUE]
     mov rax, rsi
@@ -293,37 +297,7 @@ biDelete:
 
 ; rdi - BigInt
 ; checks if BigInt is zero
-; by checking all values
-; result =  rax = 0 if zero
-%macro isZeroSlow 0
-    push rcx
-    push r8
-    mov rcx, [rdi + SIZE]
-    mov r8, [rdi + VALUE]
-
-%%is_zero_loop:
-    mov rax, [r8]
-    test rax, rax
-    jnz %%not_zero
-    add r8, 8
-    dec rcx
-    jnz %%is_zero_loop
-
-    xor rax, rax
-    mov [rdi + SIGN], rax
-    jmp %%isZero_end
-    
-%%not_zero:
-    mov rax, 1
-
-%%isZero_end:
-    pop r8
-    pop rcx
-%endmacro
-
-; rdi - BigInt
-; checks if BigInt is zero
-; by checking only last value
+; by checking only last digit
 ; result = rax = 0 if zero
 %macro isZeroFast 0
     push r8
@@ -370,6 +344,7 @@ biFromString:
     mov rsi, [rdi + SIZE]
     mov rax, [rdi + VALUE]
     xor rbx, rbx
+    xor r9, r9
 .loop_zero:
     mov [rax], rbx
     add rax, 8
@@ -396,6 +371,9 @@ biFromString:
     cmp             sil, '0'
     jb              .invalid_char
     cmp             sil, '9'
+    ja              .invalid_char
+    ; r9 - count of digits
+    inc r9
     ; mul number on 10
     mul_long_short
     sub rsi, '0'
@@ -411,7 +389,9 @@ biFromString:
     ret
 
 .end_loop:
-    ; delete unneccessary values
+    ; if there is no digits => return NULL
+    test r9, r9
+    jz .invalid_char
     biTrim
     isZeroFast
     mov rax, rdi
@@ -433,11 +413,13 @@ biCmpUnsigned:
     PUSH_REGS
     mov rax, [rdi + SIZE]
     mov r9, [rsi + SIZE]
+    ; compare size of numbers
     sub rax, r9
     cmp rax, 0
     jg .greater_un
     jl .less_un
 
+    ; size are equals => need loop to check
     ; r10 - i
     ; r11 - j
     ; r12 - end block for i
@@ -455,9 +437,10 @@ biCmpUnsigned:
     sub r10, 8
     sub r11, 8
     mov rbx, [r10]
-    mov rdx, [r11]
-    cmp rbx, rdx
+    sub rbx, [r11]
+    ; digits 1st - digit 2nd > 0 => 1st > 2nd
     ja .greater_un
+    ; digits 1st - digit 2nd < 0 => 1st < 2nd
     jb .less_un
     dec r9
     jnz .cmp_loop
@@ -492,6 +475,7 @@ biCmp:
     cmp r8, r9
     jne .diff_signs
 
+    ; numbers have same sign can compare it
     call biCmpUnsigned
 
     cmp r8, 0
@@ -546,6 +530,19 @@ biCmp:
     dec r9
     jnz %%div_loop
 
+    ; check if last digit is zero
+    ; and decrease size if necessary
+    mov r9, [rdi + SIZE]
+    dec r9
+    jz %%div_ls_end
+    mov r10, r9
+    shl r10, 3
+    add r10, [rdi + VALUE]
+    mov r10, [r10]
+    test r10, r10
+    jnz %%div_ls_end
+    mov [rdi + SIZE], r9
+
 %%div_ls_end:
     mov rax, rdx
     pop rdx
@@ -563,6 +560,7 @@ biToString:
     ; then do some special
     test r12, r12
     jnz .not_zero_string
+    ; if number = 0 print it special
     mov rdi, '0'
     mov byte [rsi], dil
     xor rdi, rdi
@@ -574,9 +572,10 @@ biToString:
     dec rdx
     mov r12, rdx
     mov rdx, [rdi + SIZE]
+    ; create copy of BigInt
+    ; because we had to divide it
     biCreateCopy
     mov r13, [rdi + SIGN]
-    ; work with copy of BigInt
     mov rdi, rax
     mov rax, 20
     mov r14, [rdi + SIZE]
@@ -589,8 +588,10 @@ biToString:
     ; rdi - copy BigInt  
     mov r8, rsp
 
+    ; divide number by 10
+    ; save remainder on stack
 .string_loop:
-    isZeroSlow
+    isZeroFast
     test rax, rax
     jz .write_str 
     mov rbx, 10
@@ -610,6 +611,7 @@ biToString:
     dec r14
     mov byte [r14], dl
 
+    ; write bytes from stack to string
 .write_str_loop:
     mov al, byte [r14]
     mov byte [rsi], al
@@ -652,6 +654,8 @@ biToString:
     mov r9, [rdi + VALUE]
     push rax
 
+    ; copy digits from old place to new
+    ; or set new digit to zero
 %%cap_loop:
     test r8, r8
     jz %%cap_loop_skip
@@ -705,10 +709,17 @@ biToString:
     ; then rax = current 2nd value
     ; else rax = 0
     test r12, r12
-    je %%add_ll_loop_skip
+    jz %%add_ll_loop_check
     mov rax, [r10]
     lea r10, [r10 + 8]
     dec r12
+    jmp %%add_ll_loop_skip
+
+    ; if 2nd summand is over
+    ; then check if no carry => break
+%%add_ll_loop_check:
+    test rdx, rdx
+    jz %%add_ll_end
 
 %%add_ll_loop_skip:
     add rax, rdx
@@ -806,6 +817,7 @@ biAdd:
 
 .add_eq_signs:
     ; rdx = max(size of 1st, size of 2nd)
+    ; without if
     push r9
     mov rdx, [rdi + SIZE]
     mov r9, [rsi + SIZE]
@@ -852,6 +864,7 @@ biSub:
 ; rdi - BigInt
 ; set values to zero
 ; don't touch sign
+; equals memset(digits, 0, sizeof(digits))
 %macro biSetToZero 0
     push rdi
     push rcx
@@ -882,6 +895,8 @@ biMul:
     mov r8, rax
 
     add rdx, [rsi + SIZE]
+    ; it's equals to calloc, but calloc
+    ; works too long
     increaseCapacity
     biSetToZero
 
@@ -908,7 +923,7 @@ biMul:
     xor r13, r13
     ; for i = 0 .. size of 2nd
     ; for j = 0 .. size of 1st
-    ; result[i + j] += 1st[i] * 2nd[j]
+    ; result[i + j] += 1st[i] * 2nd[j] (with carry)
 .loop_i:
     mov rbx, [r8]
     add r8, 8

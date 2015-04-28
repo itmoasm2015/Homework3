@@ -232,11 +232,157 @@ biFromString:
     mov rsi, rcx
     mov rdx, rax
     call biFromSignLenArray
-
     ret
 
 
+; int cmpWithZero(int *a, int size);
+; return 0 if a is array of zeroes and 1 else
+; a in rdi
+; size in rsi
+; result in rax
+cmpWithZero:
+    .while
+        dec rsi
+        mov r8, [rdi + rsi * 8]
+        test r8, r8
+        jz .notOk
+        mov rax, 1
+        ret
+        .notOk
+        test rsi, rsi
+        jnz .while
+        mov rax, 0        
+        ret
+
+
+; void biToString(BigInt a, char *s, size_t limit);
+; a in rdi
+; s in rsi
+; limit in rdx
 biToString:
+    cmp rdx, 1
+    jg .greaterThanOne
+    mov [rsi], byte 0
+    ret
+    .greaterThanOne
+    push rsi
+    push rdx
+    push rdi
+    xor r8, r8
+    mov r8D, [rdi + 4]
+    imul r8, 21
+    mov rdi, r8
+    call malloc ; rax -- ptr to string representation of BigInt
+    pop rdi
+    push rdi
+    push rax
+    call biCopy
+    mov r11, rax ; r11 -- ptr to copy of BigInt
+    pop rax
+    pop rdi    
+    pop rdx
+    pop rsi
+    mov rcx, [r11 + 8]
+
+    push rax
+    push r11
+    push rdi
+    push rsi
+    push rdx
+    mov rdi, rcx
+    xor rsi, rsi
+    mov esi, [r11 + 4]
+    call cmpWithZero
+    pop rdx
+    pop rsi
+    pop rdi
+    pop r11
+    test rax, rax
+    pop rax
+    jnz .notZero
+    mov [rsi], byte '0'
+    mov [rsi + 1], byte 0
+    mov rdi, r11
+    call biDelete
+    ret
+    .notZero
+
+    mov r9D, [rdi]
+    cmp r9D, -1
+    jne .isPositive
+    mov [rsi], byte '-'
+    inc rsi
+    dec rdx
+    .isPositive
+
+    ; r9 -- counter to pos in rax
+    xor r9, r9
+    .while
+        push rax
+        push r11
+        push rdi
+        push rsi
+        push rdx
+        mov rdi, rcx
+        xor rsi, rsi
+        mov esi, [r11 + 4]
+        call cmpWithZero
+        pop rdx
+        pop rsi
+        pop rdi
+        pop r11
+        test rax, rax
+        pop rax
+        jz .break
+        
+        push rcx
+        push rax
+        push r11
+        push rdi
+        push rsi
+        push rdx
+        mov rdi, rcx
+        xor rsi, rsi
+        mov esi, [r11 + 4]
+        mov rdx, 10
+        call divThisOnShort
+        mov r8, rdx
+        pop rdx
+        pop rsi
+        pop rdi
+        pop r11
+        pop rax
+        pop rcx
+
+        push rcx
+        mov rcx, r8
+        add cl, '0'
+        mov [rax + r9], cl
+        pop rcx
+   
+        inc r9
+        jmp .while
+    .break
+
+    .while2
+        cmp rdx, 1
+        je .break2
+        dec r9
+        push rdx
+        mov dl, [rax + r9]
+        mov [rsi], dl
+        inc rsi
+        pop rdx
+        dec rdx
+        test r9, r9
+        jz .break2
+        jmp .while2
+    .break2
+    mov [rsi], byte 0
+    
+
+    mov rdi, r11
+    call biDelete
     ret
 
 
@@ -249,6 +395,7 @@ biDelete:
     pop rdi
     call free
     ret
+
 
 ; int biSign(BigInt a);
 ; return sign of a
@@ -455,7 +602,7 @@ subUnsigned:
 
 
 ; void mulThisOnShort(int64_t *a, int size, int64_t x);
-; it consider that a is big enough to contain result
+; it is considered that a is big enough to contain result
 ; a in rdi
 ; size in esi
 ; x in rdx
@@ -470,11 +617,32 @@ mulThisOnShort:
         mov rax, [rdi + r8 * 8]
         mov qword [rdi + r8 * 8], rdx
         mul rcx
-        adc [rdi + r8 * 8], rax
+        add [rdi + r8 * 8], rax
         adc rdx, 0
         inc r8
         jmp .while
     .break
+    ret
+
+
+; void divThisOnShort(int64_t *a, int size, int64_t x);
+; a in rdi
+; size in esi
+; x in rdx
+; remainder at rdx!
+divThisOnShort:
+    mov rcx, rdx
+
+    xor r8, r8
+    mov r8D, esi
+    xor rdx, rdx
+    .while
+        dec r8
+        mov rax, [rdi + r8 * 8]
+        div rcx
+        mov [rdi + r8 * 8], rax
+        test r8, r8
+        jnz .while
     ret
 
 

@@ -8,7 +8,7 @@ all: test
 	ar rcs libhw.a libhw.o
 
 test: $(OBJS)
-	g++ $(CXXFLAGS) -o $@ $^
+	g++ $(CXXFLAGS) -o $@ $^ -lgmp
 
 libhw.o: libhw.asm
 	yasm libhw.asm $(YASM_FLAGS) -o libhw.o
