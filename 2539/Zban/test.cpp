@@ -144,9 +144,48 @@ void test4() {
     cout << "test 4 is finished" << endl;
 }
 
+void test5() {
+    cout << "testing 5 test: " << endl;
+    bool ok = 1;
+
+    BigInt a, b, c;
+    a = biFromInt(0);
+    b = biFromString("0");
+    ok &= check(biCmp(a, b) == 0);
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromInt(5);
+    b = biFromString("5");
+    ok &= check(biCmp(a, b) == 0);
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromInt(-777777777777777777);
+    b = biFromString("-777777777777777777");
+    ok &= check(biCmp(a, b) == 0);
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromInt(-777777777777777777);
+    b = biFromString("777777777777777777");
+    c = biFromString("-0000000000000000000");
+    biAdd(a, b);
+    ok &= check(biCmp(a, c) == 0);
+    ok &= check(biCmp(b, c) == 1);
+    biDelete(a);
+    biDelete(b);
+    biDelete(c);
+
+
+    check(ok, 1);
+    cout << "test 5 is finished" << endl;    
+}
+
 int main() {
     test1();
     test2();
     test3();
     test4();
+    test5();
 }

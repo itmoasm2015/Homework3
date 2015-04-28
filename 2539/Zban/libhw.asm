@@ -1,6 +1,7 @@
 section .text
 
 extern malloc
+extern calloc
 extern free
 
 global biFromInt
@@ -122,7 +123,116 @@ biCopy:
     ret
 
 
+; BigInt biFromString(char *a);
+; a in rdi
+; result in rax
 biFromString:
+    mov r11, 1 ; sign
+    mov r10, 0 ; len of string
+
+    cmp byte [rdi], '-'
+    jne .isPositive
+    mov r11, -1
+    inc rdi
+.isPositive
+    mov r8, 0
+    .while
+        mov al, [rdi + r10]
+        test al, al
+        jz .break
+        cmp al, '0'
+        jl .isBad
+        cmp al, '9'
+        jg .isBad
+        cmp al, '1'
+        jl .isZero
+        inc r8
+        .isZero
+        inc r10
+        jmp .while
+        .isBad
+        mov rax, 0
+        ret
+    .break
+
+    cmp r8, 0
+    jne .isNotZero
+        mov rdi, 0
+        call biFromInt
+        ret
+    .isNotZero
+
+    push r10
+    push r11
+
+    push rdi
+    mov rdi, r10
+    shr rdi, 4 ; if number consist of x digits then it will be packed in x / 16 + 1 longs
+    inc rdi
+    mov rcx, rdi
+    push rcx
+    mov rsi, 8
+    call calloc ; rax now -- array of longs
+    pop rcx ; len of array of longs
+    pop rdi
+    mov r8, rdi ; ptr to string
+
+    xor r9, r9 ; counter
+    .while2
+        mov dl, [r8 + r9]
+        test dl, dl
+        jz .break2
+
+        push r8
+        push r9
+        push rcx
+        push rax
+        mov rdi, rax
+        mov rsi, rcx
+        mov rdx, 10
+        call mulThisOnShort
+        pop rax
+        pop rcx 
+        pop r9
+        pop r8
+
+        push r8
+        push r9
+        push rcx
+        push rax
+        mov rdi, rax
+        mov rsi, rcx
+        xor rdx, rdx
+        mov dl, [r8 + r9]
+        sub dl, '0'
+        call addShortToThis
+        pop rax
+        pop rcx 
+        pop r9
+        pop r8
+
+        inc r9
+        jmp .while2
+    .break2
+
+    pop r11
+    pop r10
+
+    .while3
+        cmp rcx, 1
+        je .break3
+        mov rdi, [rax + rcx * 8 - 8]
+        cmp rdi, 0
+        jne .break3
+        dec rcx
+        jmp .while3
+    .break3
+
+    mov rdi, r11
+    mov rsi, rcx
+    mov rdx, rax
+    call biFromSignLenArray
+
     ret
 
 
@@ -338,6 +448,53 @@ subUnsigned:
         jmp .while2
     .while2End
     ret
+
+
+; void mulThisOnShort(int64_t *a, int size, int64_t x);
+; it consider that a is big enough to contain result
+; a in rdi
+; size in esi
+; x in rdx
+mulThisOnShort:
+    mov rcx, rdx
+
+    xor r8, r8
+    xor rdx, rdx
+    .while
+        cmp r8D, esi
+        je .break
+        mov rax, [rdi + r8 * 8]
+        mov qword [rdi + r8 * 8], rdx
+        mul rcx
+        adc [rdi + r8 * 8], rax
+        adc rdx, 0
+        inc r8
+        jmp .while
+    .break
+    ret
+
+
+; void addShortToThis(int64_t *a, int size, int64_t x);
+; it consider that a is big enough to contain result
+; a in rdi
+; size in esi
+; x in rdx
+addShortToThis:
+    xor r8, r8
+    .while
+        cmp r8D, esi
+        je .break
+        clc
+        mov rax, [rdi + r8 * 8]
+        mov qword [rdi + r8 * 8], rdx
+        adc [rdi + r8 * 8], rax
+        mov rdx, 0
+        adc rdx, 0
+        inc r8
+        jmp .while
+    .break
+    ret
+
 
 ; BigInt biAddNew(BigInt a, BigInt b) return a + b;
 ; a in rdi
