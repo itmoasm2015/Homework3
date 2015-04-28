@@ -238,6 +238,47 @@ void test6() {
     cout << "test 6 is finished" << endl;
 }
 
+void test7() {
+    cout << "testing 7 test: " << endl;
+    bool ok = 1;
+
+    BigInt a;
+    char c[1000];
+    a = biFromInt(0);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "0");
+    biDelete(a);
+
+    a = biFromInt(5);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "5");
+    biDelete(a);
+
+    a = biFromInt(123);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "123");
+    biDelete(a);
+
+    a = biFromInt(-777);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "-777");
+    biDelete(a);
+
+    a = biFromString("100000000000000000000");
+    biToString(a, c, 1000);
+    ok &= check((string)c == "100000000000000000000");
+    biDelete(a);
+
+
+    a = biFromString("43425452362856925692456924562568246836516062562");
+    biToString(a, c, 1000);
+    ok &= check((string)c == "43425452362856925692456924562568246836516062562");
+    biDelete(a);
+
+    check(ok, 1);
+    cout << "test 7 is finished" << endl;    
+}
+
 int main() {
     test1();
     test2();
@@ -245,4 +286,5 @@ int main() {
     test4();
     test5();
     test6();
+    test7();
 }
