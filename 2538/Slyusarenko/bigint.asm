@@ -249,16 +249,18 @@ biAddInt:
 	mov rbx, arg1
 	mov arg1, [arg1 + bigint.data]
 	xor rdx, rdx ; carry
+	xor r13, r13
 	.loop:
 		add [arg1], arg2
 		adc rdx, 0 ; carry is in rdx now
 		mov arg2, rdx ; carry is in arg2 now
 		xor rdx, rdx
+		inc r13
 		add arg1, 8
 		cmp arg2, 0 ; if carry is 0 then finish cycle
 		jne .loop
-	cmp rdx, 0
-	jne .carry_after_last_iteration	
+	cmp r13, r14
+	jg .carry_after_last_iteration	
 	.finish_loop:	
 		mov arg1, rbx
 		function_end	
@@ -509,7 +511,7 @@ biCmp:
 	cmp r14, -1
 	je .sign_is_minus
 	mov r11, [arg1 + bigint.size]
-	mov r10, [arg1 + bigint.size]
+	mov r10, [arg2 + bigint.size]
 	cmp r11, r10
 	ja .return_one ; size of first bigint > size of second bigint and sign is '+' => return 1
 	jb .return_minus_one ; size of first bigint < size of second bigint and sign is '+' => return -1	
@@ -608,6 +610,7 @@ biAdd:
 		jmp .loop
 
 .only_carry:
+	jnc .finish_loop ; no carry
 	.carry_loop:
 		mov rbx, [r11]
 		adc rbx, 0
@@ -656,16 +659,34 @@ biSub:
 		mov r13, [arg1 + bigint.data]
 		mov r12, [arg2 + bigint.data]
 		mov r11, [arg1 + bigint.size] ; loop can't have more than r11 iterations, because arg1 > arg2 and it won't be carry after r11 iterations
+		mov rcx, [arg2 + bigint.size]
 		.loop:
 			mov r10, [r12]
 			lea r12, [r12 + 8]
 			sbb [r13], r10
 			lea r13, [r13 + 8]
+			dec rcx
+			jz .only_carry ; second argument is finished, it's only carry now
 			dec r11
-			jnz .loop
-		cmp r15, -1
-		je .was_swap ; if it was swap then i must do some other things then if it wasn't swap
-		jmp .change_size_of_arg1 ; if it wasn't swap then we must do nothing, but change size of arg1, because everything is already done
+			jnz .loop	
+
+		.after_carry:	
+			cmp r15, -1
+			je .was_swap ; if it was swap then i must do some other things then if it wasn't swap
+			jmp .change_size_of_arg1 ; if it wasn't swap then we must do nothing, but change size of arg1, because everything is already done
+
+.only_carry:
+	jnc .after_carry ; no carry
+	dec r11 ; from the last iteration of loop
+	jz .after_carry
+	.carry_loop:	
+		mov rcx, 0
+		adc rcx, 0 ; carry
+		sbb [r13], rcx
+		lea r13, [r13 + 8]
+		dec r11
+		jz .after_carry
+		jmp .carry_loop		
 
 .was_swap:
 	mov cl, 1

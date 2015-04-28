@@ -6,26 +6,31 @@
 using namespace std;
 
 typedef unsigned int uint;
+typedef unsigned long long ull;
 
 #define EPS 1e-6
 
-const int N = 30;
+const int N = 500;
 
 char buf[N];
 
+void printBigInt(BigInt a) {
+    biToString(a, buf, N);
+    cout << buf << endl;
+}
+
 int main() {    
 
-    BigInt a = biFromString("999999999999999999999999999999999");
-    cout << "AA " << (unsigned long long) a << endl;
-    biToString(a, buf, 30);
+    BigInt a = biFromInt(2ll);
+    BigInt b = biFromInt(-123ll);
+    BigInt c = biFromInt(-123ll);
 
-    cout << buf << endl;
+    biAdd(a, b);
+    biSub(a, b);
 
-    for (int i = 0; i < N; i++) {
-        cout << (int) buf[i] << ' ';
-    }
-    cout << endl;
+    cout << biCmp(b, c);
 
+    printBigInt(a);
 
     return 0;
 }
