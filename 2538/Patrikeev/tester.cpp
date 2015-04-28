@@ -21,14 +21,11 @@ void printBigInt(BigInt a) {
 
 int main() {    
 
-    BigInt a = biFromInt(2ll);
-    BigInt b = biFromInt(-123ll);
-    BigInt c = biFromInt(-123ll);
+    BigInt a = biFromInt(123LL);
+    BigInt b = biFromString("18446744073709551616");
+    printBigInt(a);
 
-    biAdd(a, b);
-    biSub(a, b);
-
-    cout << biCmp(b, c);
+    biMul(a, b);
 
     printBigInt(a);
 

@@ -1156,11 +1156,101 @@ biMul:
     call    trimZeros
     pop     rdi
 
+    ret
+
+;pair<void*, void*> digsDiv(void * v1, void * v2, int n, int m)
+;
+;Parameters:
+;   1) RDI - address of numerator digs vector
+;   2) RSI - address of remainder digs vector
+;   3) RDX - size of #1
+;   4) RCX - size of #2
+;Returns:
+;   1) RAX - address of quotient resulting vector
+;   2) RDX - address of remainder resulting vector
+digsDiv:
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    mov     rax, [rdi + len]
+    alloc_N_qwords rax
+    mov     r8, rax
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
+
+    mov     r9, [rsi + rcx * 8 - 8]
+    inc     r9
+    
+    push    rdx
+    mov     rdx, 1
+    xor     rax, rax
+    div     r9
+    mov     r9, rax
+    pop     rdx
+
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    push    r8
+    push    r9
+    xor     rdi, rdi
+    call    biFromInt
+    pop     r9
+    pop     r8
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
 
     ret
 
 ;; Compute quotient and remainder by divising numerator by denominator.
 ;;   quotient * denominator + remainder = numerator
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+;
+;Parameters:
+;   1) RDI - quotient address-holder
+;   2) RSI - remainder address-holder
+;   3) RDX - numerator BigInt
+;   4) RCX - denominator BigInt
 biDivRem:
+    push    rdi
+    push    rsi
+    mov     rdi, rdx
+    mov     rsi, rcx
+    
+    mov     rax, [rsi + len]
+    cmp     rax, 0
+    jne     .denom_not_zero
+
+    pop     rsi
+    pop     rdi
+    mov     qword [rdi], 0
+    mov     qword [rsi], 0
+    ret
+
+.denom_not_zero:
+    mov     rax, [rdi + len]
+    cmp     rax, 0
+    jne     .numer_not_zero
+
+    xor     rdi, rdi
+    call    biFromInt
+    pop     rsi
+    mov     [rsi], rax
+
+    xor     rdi, rdi
+    call    biFromInt
+    pop     rdi
+    mov     [rdi], rax
+    ret
+
+.numer_not_zero:
+    ;TODO: write digsDiv
+
+.return:
     ret
