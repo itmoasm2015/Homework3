@@ -6,6 +6,7 @@ YASM_FLAGS=-f elf64 -g dwarf2
 
 all: test
 	ar rcs libhw.a libhw.o
+
 test: $(OBJS)
 	g++ $(CXXFLAGS) -o $@ $^
 
