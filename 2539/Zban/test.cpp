@@ -20,7 +20,8 @@ string genRandNumber(int len) {
 }
 
 void test1() {
-    cout << "testing 1 test: " << endl;
+    cout << "test 1: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a, b, c;
@@ -44,11 +45,11 @@ void test1() {
     biDelete(a);
 
     check(ok, 1);
-    cout << "test 1 is finished" << endl;
 }
 
 void test2() {
-    cout << "testing 2 test: " << endl;
+    cout << "test 2: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a, b, c;
@@ -62,11 +63,11 @@ void test2() {
     biDelete(c);
 
     check(ok, 1);
-    cout << "test 2 is finished" << endl;
 }
 
 void test3() {
-    cout << "testing 3 test: " << endl;
+    cout << "test 3: ";
+    cout.flush();
     bool ok = 1;
 
     int n = 100;
@@ -97,11 +98,11 @@ void test3() {
     }
 
     check(ok, 1);
-    cout << "test 3 is finished" << endl;
 }
 
 void test4() {
-    cout << "testing 4 test: " << endl;
+    cout << "test 4: ";
+    cout.flush();
     bool ok = 1;
 
     int n = 1000;
@@ -152,11 +153,11 @@ void test4() {
     }
 
     check(ok, 1);
-    cout << "test 4 is finished" << endl;
 }
 
 void test5() {
-    cout << "testing 5 test: " << endl;
+    cout << "test 5: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a, b, c;
@@ -190,11 +191,11 @@ void test5() {
 
 
     check(ok, 1);
-    cout << "test 5 is finished" << endl;    
 }
 
 void test6() {
-    cout << "testing 6 test: " << endl;
+    cout << "test 6: ";
+    cout.flush();
     bool ok = 1;
 
     int n = 100;
@@ -243,11 +244,11 @@ void test6() {
     }
 
     check(ok, 1);
-    cout << "test 6 is finished" << endl;
 }
 
 void test7() {
-    cout << "testing 7 test: " << endl;
+    cout << "test 7: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a;
@@ -284,11 +285,11 @@ void test7() {
     biDelete(a);
 
     check(ok, 1);
-    cout << "test 7 is finished" << endl;    
 }
 
 void test8() {
-    cout << "testing 8 test: " << endl;
+    cout << "test 8: ";
+    cout.flush();
     bool ok = 1;
     
     const int sz = 10000;
@@ -326,7 +327,6 @@ void test8() {
     biDelete(a);
 
     check(ok, 1);
-    cout << "test 8 is finished" << endl; 
 }
 
 int main() {
