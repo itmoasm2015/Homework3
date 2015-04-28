@@ -344,6 +344,7 @@ biFromString:
     mov rsi, [rdi + SIZE]
     mov rax, [rdi + VALUE]
     xor rbx, rbx
+    xor r9, r9
 .loop_zero:
     mov [rax], rbx
     add rax, 8
@@ -370,6 +371,9 @@ biFromString:
     cmp             sil, '0'
     jb              .invalid_char
     cmp             sil, '9'
+    ja              .invalid_char
+    ; r9 - count of digits
+    inc r9
     ; mul number on 10
     mul_long_short
     sub rsi, '0'
@@ -385,6 +389,9 @@ biFromString:
     ret
 
 .end_loop:
+    ; if there is no digits => return NULL
+    test r9, r9
+    jz .invalid_char
     biTrim
     isZeroFast
     mov rax, rdi
