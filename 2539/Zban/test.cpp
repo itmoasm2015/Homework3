@@ -186,11 +186,11 @@ void test6() {
     cout << "testing 6 test: " << endl;
     bool ok = 1;
 
-    int n = 63;
+    int n = 100;
     vector<string> v(n);
     for (int i = 0; i < n; i++) {
         if (rand() % 2) v[i] += "-";
-        for (int j = 0; j < 100; j++) {
+        for (int j = 0; j < 1000; j++) {
             v[i] += (char)('0' + rand() % 10);
         }
     }

@@ -384,8 +384,8 @@ cmpUnsigned:
 ; len of array in r8!
 ; sign to multiply in r11!
 subUnsigned:
-    mov r11, 1
     call cmpUnsigned
+    mov r11, 1
     cmp rax, 0
     jne .isNotZero
         mov rdi, 0
@@ -403,9 +403,11 @@ subUnsigned:
     push rsi
     push rdx
     push rcx
+    push r11
     mov rdi, rsi
     imul rdi, 8
     call malloc
+    pop r11
     pop rcx
     pop rdx
     pop rsi
