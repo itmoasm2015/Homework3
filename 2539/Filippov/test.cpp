@@ -7,7 +7,7 @@ const size_t INF = 1e9;
 int main() {
     srand(239017);
     char out[MAX_SIZE];
-    /*{
+    {
         printf("=========================\n");
         printf("Starting first group of tests\n");
         BigInt a = biFromInt(6);
@@ -99,7 +99,7 @@ int main() {
         printf("All tests passed\n");
         printf("============================\n");
     }
-	{*/
+	{
 		printf("============================\n");
 		printf("Starting fourth group of tests\n");
 		BigInt a = biFromString("2");
@@ -145,5 +145,5 @@ int main() {
 		printf("%s\n", out);
 
 		printf("============================\n");			
-	//}
+	}
 }
