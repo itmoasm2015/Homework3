@@ -182,10 +182,67 @@ void test5() {
     cout << "test 5 is finished" << endl;    
 }
 
+void test6() {
+    cout << "testing 6 test: " << endl;
+    bool ok = 1;
+
+    int n = 63;
+    vector<string> v(n);
+    for (int i = 0; i < n; i++) {
+        if (rand() % 2) v[i] += "-";
+        for (int j = 0; j < 100; j++) {
+            v[i] += (char)('0' + rand() % 10);
+        }
+    }
+
+    BigInt sum = biFromInt(0);
+    for (int i = 0; i < n; i++) {
+        BigInt x = biFromString(v[i].c_str());
+        biAdd(sum, x);
+        biDelete(x);
+    }
+    vector<BigInt> l(n), r(n);
+    l[0] = biFromString(v[0].c_str());
+    r[n - 1] = biFromString(v[n - 1].c_str());
+    for (int i = 1; i < n; i++) {
+        BigInt x = biFromString(v[i].c_str());
+        l[i] = biAddNew(x, l[i - 1]);
+        biDelete(x);
+    }
+    for (int i = n - 2; i >= 0; i--) {
+        BigInt x = biFromString(v[i].c_str());
+        r[i] = biAddNew(x, r[i + 1]);
+        biDelete(x);
+    }
+    
+    for (int i = 0; i + 1 < n; i++) {
+        BigInt x;
+        x = biAddNew(l[i], r[i + 1]);
+        ok &= check(biCmp(x, sum) == 0);
+        biDelete(x);
+        x = biSubNew(sum, r[i + 1]);
+        ok &= check(biCmp(x, l[i]) == 0);
+        biDelete(x);
+        x = biSubNew(sum, l[i]);
+        ok &= check(biCmp(x, r[i + 1]) == 0);
+        biDelete(x);
+    }
+
+    biDelete(sum);
+    for (int i = 0; i < n; i++) {
+        biDelete(l[i]);
+        biDelete(r[i]);
+    }
+
+    check(ok, 1);
+    cout << "test 6 is finished" << endl;
+}
+
 int main() {
     test1();
     test2();
     test3();
     test4();
     test5();
+    test6();
 }

@@ -296,6 +296,7 @@ addUnsigned:
     push rdx
     push rcx
     lea rdi, [rsi + 1]
+    imul rdi, 8
     call malloc
     pop rcx
     pop rdx
@@ -403,6 +404,7 @@ subUnsigned:
     push rdx
     push rcx
     mov rdi, rsi
+    imul rdi, 8
     call malloc
     pop rcx
     pop rdx
