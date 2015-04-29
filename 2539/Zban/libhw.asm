@@ -302,6 +302,10 @@ biToString:
     jnz .notZero
     mov [rsi], byte '0'
     mov [rsi + 1], byte 0
+    push r11
+    mov rdi, rax
+    call free
+    pop r11
     mov rdi, r11
     call biDelete
     ret
@@ -379,7 +383,11 @@ biToString:
         jmp .while2
     .break2
     mov [rsi], byte 0
-    
+
+    push r11
+    mov rdi, rax
+    call free
+    pop r11    
 
     mov rdi, r11
     call biDelete
@@ -776,6 +784,10 @@ biSub:
     ret
 
 
+; BigInt biMulNew(BigInt a, BigInt b) return a * b;
+; a in rdi
+; b in rsi
+; result in rax
 biMulNew:
     ret
 
