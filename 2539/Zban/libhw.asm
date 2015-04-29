@@ -498,6 +498,99 @@ addUnsigned:
     .while2End
     ret
 
+; int64_t* mulUnsigned(int64_t *a, int len_a, int64_t *b, int len_b);
+; a in rdi
+; len_a in rsi
+; b in rdx
+; len_b in rcx
+; result in rax
+; len of array in r8!
+; for i = 0; i < len_a; i++
+;   for j = 0; i + j < len_a + len_b; j++
+;     c[i + j] += carry
+;     carry = ^overflow
+;     c[i + j] += a[i] * b[j] mod base
+;     carry = a[i] * b[j] div base + ^overflow
+mulUnsigned:
+    cmp rsi, rcx
+    jnl .aIsBigger
+    xchg rdi, rdx
+    xchg rsi, rcx
+.aIsBigger
+    push rbx
+    mov rbx, rdx
+
+    push rdi
+    push rsi
+    push rbx
+    push rcx
+    mov r8, 0
+    add r8D, esi
+    add r8D, ecx
+    mov rdi, r8
+    mov rsi, 8
+    call calloc
+    pop rcx
+    pop rbx
+    pop rsi
+    pop rdi
+    ; rax -- result array
+    ; r8 -- i
+    ; r9 -- j
+
+    xor r8, r8
+    .whileI
+        cmp r8, rsi
+        je .breakI
+
+        xor r9, r9
+        xor rdx, rdx
+        .whileJ
+            mov r10, rsi
+            add r10, rcx
+            sub r10, r8
+            cmp r9, r10
+            je .breakJ
+            mov r10, r9
+            add r10, r8
+            add [rax + 8 * r10], rdx
+            pushf
+            xor rdx, rdx
+            push rax
+            mov rax, [rdi + r8 * 8]
+            mov r11, 0
+            cmp r9, rcx
+            jnl .r9IsZero
+            mov r11, [rbx + r9 * 8]
+            .r9IsZero
+            mul r11
+            mov r11, rax       
+            pop rax
+            add [rax + 8 * r10], r11
+            adc rdx, 0
+            popf
+            adc rdx, 0
+
+            inc r9
+            jmp .whileJ
+        .breakJ
+        inc r8
+        jmp .whileI
+    .breakI    
+
+    lea r8, [rsi + rcx]
+    .while2
+        cmp r8, 1
+        je .while2End
+        cmp qword [rax + r8 * 8 - 8], 0
+        jne .while2End
+        dec r8
+        jmp .while2
+    .while2End
+
+
+    pop rbx
+    ret
 
 ; int cmpUnsigned(int64_t *a, int len_a, int64_t *b, int len_b)
 cmpUnsigned:
@@ -789,6 +882,48 @@ biSub:
 ; b in rsi
 ; result in rax
 biMulNew:
+    cmp dword [rdi], 0
+    jnz .aIsNotZero
+    mov rdi, 0
+    call biFromInt
+    ret
+.aIsNotZero
+    cmp dword [rsi], 0
+    jnz .bIsNotZero
+    mov rdi, 0
+    call biFromInt
+    ret
+.bIsNotZero
+
+    push rdi
+    push rsi
+    mov rdi, 16
+    call malloc
+    pop rsi
+    pop rdi
+
+    mov r8D, [rdi]
+    mov [rax], r8D
+    mov r8D, [rsi]
+    mov r9D, [rax]
+    imul r9D, r8D
+    mov [rax], r9D
+    
+    xor rcx, rcx
+    mov ecx, [rsi + 4]
+    mov rdx, [rsi + 8]
+
+    xor rsi, rsi
+    mov esi, [rdi + 4]
+    mov rdi, [rdi + 8]
+
+    push rax
+    call mulUnsigned
+    mov r9, rax
+    pop rax
+    mov [rax + 4], r8
+    mov [rax + 8], r9
+
     ret
 
 
