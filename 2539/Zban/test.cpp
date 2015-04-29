@@ -1,11 +1,22 @@
 #include <bits/stdc++.h>
 #include "bigint.h"
+#include <gmpxx.h>
 
 using namespace std;
 
 bool check(bool f, bool print = false) {
     if (print) cout << (f ? "OK" : "FAIL") << endl;
     return f;
+}
+
+string genRandNumber(int len) {
+    string res = "";
+    if (rand() % 2) res += "-";
+    res += (char)('1' + rand() % 9);
+    for (int j = 1; j < len; j++) {
+        res += (char)('0' + rand() % 10);
+    }
+    return res;
 }
 
 void test1() {
@@ -189,10 +200,7 @@ void test6() {
     int n = 100;
     vector<string> v(n);
     for (int i = 0; i < n; i++) {
-        if (rand() % 2) v[i] += "-";
-        for (int j = 0; j < 1000; j++) {
-            v[i] += (char)('0' + rand() % 10);
-        }
+        v[i] = genRandNumber(1000);
     }
 
     BigInt sum = biFromInt(0);
@@ -238,6 +246,89 @@ void test6() {
     cout << "test 6 is finished" << endl;
 }
 
+void test7() {
+    cout << "testing 7 test: " << endl;
+    bool ok = 1;
+
+    BigInt a;
+    char c[1000];
+    a = biFromInt(0);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "0");
+    biDelete(a);
+
+    a = biFromInt(5);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "5");
+    biDelete(a);
+
+    a = biFromInt(123);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "123");
+    biDelete(a);
+
+    a = biFromInt(-777);
+    biToString(a, c, 1000);
+    ok &= check((string)c == "-777");
+    biDelete(a);
+
+    a = biFromString("100000000000000000000");
+    biToString(a, c, 1000);
+    ok &= check((string)c == "100000000000000000000");
+    biDelete(a);
+
+
+    a = biFromString("43425452362856925692456924562568246836516062562");
+    biToString(a, c, 1000);
+    ok &= check((string)c == "43425452362856925692456924562568246836516062562");
+    biDelete(a);
+
+    check(ok, 1);
+    cout << "test 7 is finished" << endl;    
+}
+
+void test8() {
+    cout << "testing 8 test: " << endl;
+    bool ok = 1;
+    
+    const int sz = 10000;
+    char c[sz];
+
+    BigInt a;
+    a = biFromInt(0);
+    mpz_class a2 = 0;
+
+    for (int it = 0; it < 1000; it++) {
+        string s = genRandNumber(1000);
+        BigInt b = biFromString(s.c_str());
+
+        if (rand() % 2) {
+            if (rand() % 2) {
+                biAdd(a, b);
+            } else {
+                biAdd(b, a);
+                swap(a, b);
+            }
+            a2 += mpz_class(s);
+        } else {
+            biSub(a, b);
+            a2 -= mpz_class(s);
+        }
+
+        biToString(a, c, sz);
+        string c1 = c;
+        string c2 = a2.get_str();
+        ok &= check(c1 == c2);
+
+        biDelete(b);
+    }
+
+    biDelete(a);
+
+    check(ok, 1);
+    cout << "test 8 is finished" << endl; 
+}
+
 int main() {
     test1();
     test2();
@@ -245,4 +336,6 @@ int main() {
     test4();
     test5();
     test6();
+    test7();
+    test8();
 }
