@@ -753,8 +753,7 @@ compareDigs:
 .diff_lens:
     cmp     rdx, rcx
     jg      .first_gt
-    jl      .second_gt
-    jmp     .equals
+    jmp     .second_gt
 
 .first_gt:
     mov     rax, 1
@@ -828,7 +827,6 @@ digsSub:
     xor     r9, r9
     xor     r10, r10
 .loop:
-    xor     r11, r11
     xor     r12, r12
 
     mov     r11, [rdi + r9 * 8]
@@ -908,6 +906,8 @@ biAdd:
 
     mov     [rdi + digs], rax
     mov     [rdi + len], r9
+
+    call    trimZeros
     ret
 
 .diff_signs:
@@ -939,7 +939,6 @@ biAdd:
     mov     [rdi + sign], rcx
 
     call trimZeros
-
     ret
 
 ;; Get sign of given BigInt.
@@ -966,6 +965,11 @@ biSign:
 ;   1) RDI - dst
 ;   2) RSI - src
 biSub:
+    mov     rax, [rsi + len]
+    cmp     rax, 0
+    jne     .src_not_zero
+    ret
+.src_not_zero:
     mov     rax, [rsi + sign]
     imul    rax, (-1)
     mov     [rsi + sign], rax
