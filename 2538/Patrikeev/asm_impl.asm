@@ -746,8 +746,8 @@ compareDigs:
     mov     rax, [rdi + r9 * 8]
     mov     r10, [rsi + r9 * 8]
     cmp     rax, r10
-    jg      .first_gt
-    jl      .second_gt
+    ja      .first_gt
+    jb      .second_gt
     jmp     .loop    
 
 .diff_lens:
