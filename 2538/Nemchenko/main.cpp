@@ -19,6 +19,7 @@ void printbBigNum(void* x) {
 
 int main() {
     int64_t t = 1ULL << 63;
+    cout << t << endl;
     printbBigNum(biFromInt(t));
     
     return 0;

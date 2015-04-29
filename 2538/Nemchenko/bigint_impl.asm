@@ -45,10 +45,12 @@ DEFAULT_SIZE equ 10
     mov rdi, %1
     add rdi, 2     ; for storing capacity, size, sign. 12 bytes + 4b padding
     mov rsi, 8
-    call calloc 
 
-    imul rdi, 8
-    mov [rax], rdi ; set capacity = (%1 + 2) * 8
+    push rdi
+    call calloc 
+    pop rdi
+
+    mov [rax], rdi ; set capacity = %1 + 2
 
     pop rsi
     pop rdi
@@ -65,7 +67,7 @@ DEFAULT_SIZE equ 10
     add  %1, 4            ; %1 refer to size
     mov  ecx, dword [%1]  ; rcx = size
     imul rcx, 8           ; rcx = size * 8
-    add  rcx, 8           ; skip sign field and padding 4 bytes
+    add  rcx, 12          ; skip size, sign field and padding 4 bytes
     inc  dword [%1]       ; size++
 
     add %1, rcx           ; %1 refer to last free position in digits
@@ -79,6 +81,20 @@ DEFAULT_SIZE equ 10
 biFromInt:
     allocate_memory DEFAULT_SIZE
     push_back rax, rdi
+    push rax
+    add rax, 8             ; rax refer to field "sign"
+    cmp rdi, 0
+    je .end                ; x == 0 -> sign = 0
+    jg .greater_0
+
+    mov [rax], dword -1    ; x < 0  -> sign = -1
+    jmp .end
+
+    
+    .greater_0:
+        mov [rax], dword 1 ; x > 0  -> sign = 1
+    .end:
+    pop rax
     ret
 
 ; BigInt biFromString(char const *s);
@@ -90,11 +106,14 @@ biToString:
     ret
 
 ; void biDelete(BigInt bi);
+; pointer to bi saved in rdi, free will be called with this pointer
 biDelete:
+    call free
     ret
 
 ; int biSign(BigInt bi);
 biSign:
+    mov rax, [rdi + 8]    
     ret
 
 ; void biAdd(BigInt dst, BigInt src);
@@ -115,5 +134,6 @@ biDivRem:
 
 ; int biCmp(BigInt a, BigInt b);
 biCmp:
+    
     ret
 
