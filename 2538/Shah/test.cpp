@@ -147,6 +147,19 @@ void test_add(bool adding)
     printf("====== TESTING %s ======\n", adding ? "ADDING" : "SUBTRACT" );
     char str[100500];
     size_t str_size = 100500;
+    mpz_int mi1 = 1;
+    for (int i = 0; i < 1024; i++)
+    {
+        mi1 *= 2;
+    }
+    // 2^1024 - (2^1024 - 1) == 1 ?
+    mpz_int mi2 = mi1;
+    BigInt b1 = biFromString(mi1.str().c_str());
+    BigInt b2 = biFromString(mi2.str().c_str());
+    BigInt b3 = biFromString("1");
+    biSub(b2, b3);
+    biSub(b1, b2);
+    assert(biCmp(b1, b3) == 0);
     for (int lp = 0; lp < TEST_COUNT; lp++)
     {
         mpz_int var = randBig();
