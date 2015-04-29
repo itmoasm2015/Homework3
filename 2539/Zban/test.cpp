@@ -20,7 +20,8 @@ string genRandNumber(int len) {
 }
 
 void test1() {
-    cout << "testing 1 test: " << endl;
+    cout << "test 1: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a, b, c;
@@ -44,11 +45,11 @@ void test1() {
     biDelete(a);
 
     check(ok, 1);
-    cout << "test 1 is finished" << endl;
 }
 
 void test2() {
-    cout << "testing 2 test: " << endl;
+    cout << "test 2: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a, b, c;
@@ -62,11 +63,11 @@ void test2() {
     biDelete(c);
 
     check(ok, 1);
-    cout << "test 2 is finished" << endl;
 }
 
 void test3() {
-    cout << "testing 3 test: " << endl;
+    cout << "test 3: ";
+    cout.flush();
     bool ok = 1;
 
     int n = 100;
@@ -97,11 +98,11 @@ void test3() {
     }
 
     check(ok, 1);
-    cout << "test 3 is finished" << endl;
 }
 
 void test4() {
-    cout << "testing 4 test: " << endl;
+    cout << "test 4: ";
+    cout.flush();
     bool ok = 1;
 
     int n = 1000;
@@ -152,11 +153,11 @@ void test4() {
     }
 
     check(ok, 1);
-    cout << "test 4 is finished" << endl;
 }
 
 void test5() {
-    cout << "testing 5 test: " << endl;
+    cout << "test 5: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a, b, c;
@@ -190,11 +191,11 @@ void test5() {
 
 
     check(ok, 1);
-    cout << "test 5 is finished" << endl;    
 }
 
 void test6() {
-    cout << "testing 6 test: " << endl;
+    cout << "test 6: ";
+    cout.flush();
     bool ok = 1;
 
     int n = 100;
@@ -243,11 +244,11 @@ void test6() {
     }
 
     check(ok, 1);
-    cout << "test 6 is finished" << endl;
 }
 
 void test7() {
-    cout << "testing 7 test: " << endl;
+    cout << "test 7: ";
+    cout.flush();
     bool ok = 1;
 
     BigInt a;
@@ -284,11 +285,11 @@ void test7() {
     biDelete(a);
 
     check(ok, 1);
-    cout << "test 7 is finished" << endl;    
 }
 
-void test8() {
-    cout << "testing 8 test: " << endl;
+void test8(int test, int cnt, int iters, int len) {
+    cout << "test " << test << ": ";
+    cout.flush();
     bool ok = 1;
     
     const int sz = 10000;
@@ -298,11 +299,13 @@ void test8() {
     a = biFromInt(0);
     mpz_class a2 = 0;
 
-    for (int it = 0; it < 1000; it++) {
-        string s = genRandNumber(1000);
+    for (int it = 0; it < iters; it++) {
+        string s = genRandNumber(len);
         BigInt b = biFromString(s.c_str());
 
-        if (rand() % 2) {
+        //int o = rand() % cnt;
+        int o = (it > 0) * (1 + (test == 10));
+        if (o == 0) {
             if (rand() % 2) {
                 biAdd(a, b);
             } else {
@@ -310,9 +313,14 @@ void test8() {
                 swap(a, b);
             }
             a2 += mpz_class(s);
-        } else {
+        }
+        if (o == 1) {
             biSub(a, b);
             a2 -= mpz_class(s);
+        }
+        if (o == 2) {
+            biMul(a, b);
+            a2 *= mpz_class(s);
         }
 
         biToString(a, c, sz);
@@ -326,7 +334,67 @@ void test8() {
     biDelete(a);
 
     check(ok, 1);
-    cout << "test 8 is finished" << endl; 
+}
+
+void test9() {
+    cout << "test 9: ";
+    cout.flush();
+    bool ok = 1;
+
+    const int mx = 10000;
+    char c[mx];
+
+    BigInt a, b;
+    a = biFromInt(0);
+    b = biFromInt(0);
+    biMul(a, b);
+    biToString(a, c, mx);
+    ok &= check((string)c == "0");
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromInt(2);
+    b = biFromInt(3);
+    biMul(a, b);
+    biToString(a, c, mx);
+    ok &= check((string)c == "6");
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromString("-100000");
+    b = biFromString("100000");
+    biMul(a, b);
+    biToString(a, c, mx);
+    ok &= check((string)c == "-10000000000");
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromString("-100000000000000000000");
+    b = biFromString("-100000000000000000000");
+    biMul(a, b);
+    biToString(a, c, mx);
+    ok &= check((string)c == "10000000000000000000000000000000000000000");
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromString("543534651454354353461464534");
+    b = biFromString("986825976248623595236852396");
+    biMul(a, b);
+    biToString(a, c, mx);
+    ok &= check((string)c == "536374113046398593484849759421413903658458498546923464");
+    biDelete(a);
+    biDelete(b);
+
+    a = biFromString("-10000000000000000000000000000000000000000");
+    b = biFromString("-10000000000000000000000000000000000000001");
+    biMul(a, b);
+    biToString(a, c, mx);
+    ok &= check((string)c == "100000000000000000000000000000000000000010000000000000000000000000000000000000000");
+    biDelete(a);
+    biDelete(b);
+    
+
+    check(ok, 1);
 }
 
 int main() {
@@ -337,5 +405,7 @@ int main() {
     test5();
     test6();
     test7();
-    test8();
+    test8(8, 2, 1000, 1000);
+    test9();
+    test8(10, 3, 100, 100);
 }
