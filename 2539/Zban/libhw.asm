@@ -112,7 +112,7 @@ biCopy:
     mov rsi, [rax + 8] ; ptr to new data
 
     xor rcx, rcx
-    mov ecx, [eax + 4] ; rcx -- counter copying data
+    mov ecx, [rax + 4] ; rcx -- counter copying data
     .while
         dec rcx
         mov r8, [rdi + rcx * 8]
@@ -618,7 +618,7 @@ cmpUnsigned:
         mov r10, [rdx + r8 * 8]
         cmp r9, r10
         je .equals2 ; if a[i] != b[i] then we know which is less
-            jl .aIsLess2
+            jb .aIsLess2
                 mov rax, 1
                 ret
             .aIsLess2
