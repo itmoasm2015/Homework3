@@ -792,7 +792,7 @@ biAddNew:
 .aIsNotZero
     cmp dword [rsi], 0
     jnz .bIsNotZero
-    call biCopy if b is zero return a
+    call biCopy ; if b is zero return a
     ret
 .bIsNotZero
     mov r8D, [rdi]
