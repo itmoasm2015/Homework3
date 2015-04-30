@@ -462,6 +462,18 @@ void test12() {
     check(ok, 1);
 }
 
+void test13() {
+    cout << "test 13: ";
+    cout.flush();
+    bool ok = 1;
+
+    BigInt a = biFromInt(3);
+    ok &= check(biCmp(a, a) == 0);
+    biDelete(a);
+
+    check(ok, 1);
+}
+
 int main() {
     test1();
     test2();
@@ -475,5 +487,6 @@ int main() {
     test8(10, 3, 100, 100);
     //test11();
     test12(); 
+    test13();
     return 0;
 }

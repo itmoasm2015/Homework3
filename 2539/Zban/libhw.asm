@@ -862,6 +862,25 @@ biAdd:
 ; b in rsi
 ; result in rax
 biSubNew:
+
+    xor r8, r8
+    cmp rdi, rsi ; next step I am going to do -- multiply b on -1. so, if a = b, then I need to copy a to another temporary BigInt
+    jne .areNotEqual
+    mov r8, 1 ; flag if a is copied
+    push r8
+    push rdi
+    push rsi
+    call biCopy
+    pop rsi
+    pop rdi
+    pop r8
+    mov rdi, rax ; a now is copied
+    .areNotEqual
+    push rdi
+    push rsi
+    push r8
+
+
     mov r8D, [rsi]
     imul r8D, -1 ; we are changing b bigInt
     mov [rsi], r8D
@@ -872,6 +891,17 @@ biSubNew:
     pop rsi
     imul r8D, -1 ; so we should return sign of b
     mov [rsi], r8D
+
+    pop r8
+    pop rsi
+    pop rdi
+    push rax
+    cmp r8, 1 ; if we copied a, then
+    jne .areNotEqual2
+    call biDelete ; we need to delete it
+    .areNotEqual2
+    pop rax
+
     ret
 
 
