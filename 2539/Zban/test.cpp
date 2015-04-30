@@ -397,6 +397,61 @@ void test9() {
     check(ok, 1);
 }
 
+void test11() {
+    cout << "test 11: ";
+    cout.flush();
+    bool ok = 1;
+
+    BigInt a, b;
+    a = biFromInt(1);
+    b = biFromInt(0);
+    BigInt c, d;
+    biDivRem(&c, &d, a, b);
+    ok &= check(c == 0 && d == 0);
+    biDelete(a);
+    biDelete(b);
+    
+    check(ok, 1);
+}
+
+void test12() {
+    cout << "test 12: ";
+    cout.flush();
+    bool ok = 1;
+
+    BigInt bi1, bi2, bi3, bi4, bi5;
+    bi1 = biFromInt(2ll);
+    bi2 = biFromInt(-123ll);
+    bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    biSub(bi1, bi2);
+    ok &= check(biCmp(bi2, bi3) == 0);
+    biDelete(bi1);
+    biDelete(bi2);
+    biDelete(bi3);
+
+    bi1 = biFromInt(0xffffffffll);
+    bi2 = biFromInt(0xffffffffll);
+    bi5 = biFromInt(0xffffffffll + 0xffffffffll);
+    biAdd(bi1, bi2);
+    ok &= check(biCmp(bi1, bi5) == 0);
+    biDelete(bi1);
+    biDelete(bi2);
+    biDelete(bi5);
+
+    bi1 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215"); // 2**1024 -1
+    bi2 = biFromInt(-1ll);
+    biSub(bi1, bi2);
+    biDelete(bi2);
+    ok &= check(bi1 != NULL);
+    bi2 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216"); // 2**1024
+    ok &= check(biCmp(bi1, bi2) == 0);
+    biDelete(bi1);
+    biDelete(bi2);
+
+    check(ok, 1);
+}
+
 int main() {
     test1();
     test2();
@@ -408,4 +463,7 @@ int main() {
     test8(8, 2, 1000, 1000);
     test9();
     test8(10, 3, 100, 100);
+    test11();
+    test12(); 
+    return 0;
 }

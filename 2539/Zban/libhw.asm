@@ -21,8 +21,8 @@ global biCmp
 
 ;  BigInt:
 ;
-;  int sign
-;  int size
+;  int sign (-1 | 0 | 1)
+;  int size > 0
 ;  int64_t* data
 ;  base is 2^64
 
@@ -32,31 +32,31 @@ global biCmp
 ; x in rdi
 ; result in rax
 biFromInt:
-    push rbx
+    push rbx ; save rbx by convention
     push rdi
-    mov rdi, 16 ; 4 + 4 + 8
+    mov rdi, 16 ; 4 + 4 + 8 allocate bytes
     call malloc
-    mov rbx, rax
+    mov rbx, rax ; rbx now ptr to BigInt
     mov rdi, 8 ; one 8-byte integer
-    call malloc
+    call malloc ; rax now ptr to data array
     pop rdi
     
-    mov [rbx + 8], rax
-    mov rax, rbx
-    mov dword [rax + 4], 1
+    mov [rbx + 8], rax ; ptr to data is assigned
+    mov rax, rbx ; rax -- ptr to BigInt
+    mov dword [rax + 4], 1 ; size is 1
     
     mov dword [rax], 1 ; let's initially sign will be +
     cmp rdi, 0
     jne .isNotZero
-    mov dword  [rax], 0
+    mov dword  [rax], 0 ; if x = 0 then sign = 0
     jmp .signReady
 .isNotZero
     jnl .signReady
-    mov dword [rax], -1
+    mov dword [rax], -1 ; if x < 0 then sign = -
     neg rdi
 .signReady
     mov rbx, [rax + 8]
-    mov [rbx], rdi
+    mov [rbx], rdi ; put x in data
 
     pop rbx    
     ret
@@ -71,47 +71,48 @@ biFromSignLenArray:
     push rdi
     push rsi
     push rdx
-    mov rdi, 16 ; 4 + 4 + 8
+    mov rdi, 16 ; 4 + 4 + 8 allocate bytes
     call malloc
     pop rdx
     pop rsi
     pop rdi
    
-    mov [rax], edi
-    mov [rax + 4], esi
-    mov [rax + 8], rdx
+    ; rax -- ptr to BigInt
+    mov [rax], edi ; sign
+    mov [rax + 4], esi ; size
+    mov [rax + 8], rdx ; data
    
     ret
 
 
 ; BigInt biCopy(BigInt a);
-; copy BigInt in rdi
+; copies given BigInt
 ; a in rdi
 ; result in rax
 biCopy:
-    push rbx
+    push rbx           ; store rbx (convention)
     
     xor r8, r8
     push rdi
-    mov rbx, rdi ; save rdi
-    mov rdi, 16 ; 4 + 4 + 8
+    mov rbx, rdi       ; save rdi
+    mov rdi, 16        ; 4 + 4 + 8
     call malloc
     mov r8D, [rbx]
-    mov [rax], r8D ; sign is copied
+    mov [rax], r8D     ; sign is copied
     mov r8D, [rbx + 4]
     mov [rax + 4], r8D ; size is copied
-    mov rbx, rax ; save pointer to BigInt
+    mov rbx, rax       ; save pointer to BigInt
     lea rdi, [r8 * 8]
-    call malloc
+    call malloc        ; rax now is new data array
     pop rdi
 
-    mov [rbx + 8], rax
-    mov rax, rbx
+    mov [rbx + 8], rax ; data ptr is assigned
+    mov rax, rbx       ; rax now 
     mov rdi, [rdi + 8] ; ptr to old data
     mov rsi, [rax + 8] ; ptr to new data
 
     xor rcx, rcx
-    mov ecx, [eax + 4]
+    mov ecx, [eax + 4] ; rcx -- counter copying data
     .while
         dec rcx
         mov r8, [rdi + rcx * 8]
@@ -127,16 +128,16 @@ biCopy:
 ; a in rdi
 ; result in rax
 biFromString:
-    mov r11, 1 ; sign
+    mov r11, 1 ; sign is 1 initially
     mov r10, 0 ; len of string
 
     cmp byte [rdi], '-'
     jne .isPositive
-    mov r11, -1
-    inc rdi
+    mov r11, -1 ; negative number
+    inc rdi ; move ptr to a
 .isPositive
-    mov r8, 0
-    .while
+    mov r8, 0 ; r8 -- counter on a
+    .while ; this while tests if in string exists non-zero char  
         mov al, [rdi + r10]
         test al, al
         jz .break
@@ -151,19 +152,19 @@ biFromString:
         inc r10
         jmp .while
         .isBad
-        mov rax, 0
+        mov rax, 0 ; string contains some prohibited symbols
         ret
     .break
 
     cmp r8, 0
     jne .isNotZero
-        mov rdi, 0
+        mov rdi, 0 ; if a = 0 then return immediatly
         call biFromInt
         ret
     .isNotZero
 
-    push r10
-    push r11
+    push r10 ; len
+    push r11 ; sign
 
     push rdi
     mov rdi, r10
@@ -181,16 +182,16 @@ biFromString:
     .while2
         mov dl, [r8 + r9]
         test dl, dl
-        jz .break2
+        jz .break2 ; zero byte -> end of string
 
-        push r8
+        push r8 ; save all needed registers
         push r9
         push rcx
         push rax
         mov rdi, rax
         mov rsi, rcx
         mov rdx, 10
-        call mulThisOnShort
+        call mulThisOnShort ; multiply current number by 10
         pop rax
         pop rcx 
         pop r9
@@ -205,7 +206,7 @@ biFromString:
         xor rdx, rdx
         mov dl, [r8 + r9]
         sub dl, '0'
-        call addShortToThis
+        call addShortToThis ; add s[i] - '0' to current number
         pop rax
         pop rcx 
         pop r9
@@ -218,6 +219,7 @@ biFromString:
     pop r11
     pop r10
 
+    ; this while deletes leading zeroes
     .while3
         cmp rcx, 1
         je .break3
@@ -228,6 +230,7 @@ biFromString:
         jmp .while3
     .break3
 
+    ; call constructor of bigint
     mov rdi, r11
     mov rsi, rcx
     mov rdx, rax
@@ -241,18 +244,18 @@ biFromString:
 ; size in rsi
 ; result in rax
 cmpWithZero:
-    .while
+    .while ; rsi is while-counter
         dec rsi
         mov r8, [rdi + rsi * 8]
         test r8, r8
         jz .notOk
-        mov rax, 1
+        mov rax, 1 ; if found non-zero element return 1
         ret
         .notOk
         test rsi, rsi
-        jnz .while
-        mov rax, 0        
-        ret
+        jnz .while ; end of cycle
+    mov rax, 0        
+    ret
 
 
 ; void biToString(BigInt a, char *s, size_t limit);
@@ -262,7 +265,7 @@ cmpWithZero:
 biToString:
     cmp rdx, 1
     jg .greaterThanOne
-    mov [rsi], byte 0
+    mov [rsi], byte 0 ; if limit <= 1 then return zero string immediatly
     ret
     .greaterThanOne
     push rsi
@@ -459,16 +462,13 @@ addUnsigned:
     pop rdi
     
     xor r8, r8
+    xor r11, r11 ; r11 will be carry
     .while
-        pushf
         cmp r8, rsi
         jng .whileIsNotEnded
-        popf
         jmp .endWhile
         .whileIsNotEnded
-        popf
 
-        pushf
         mov qword [rax + r8 * 8], 0
         mov r9, 0
         cmp r8, rsi
@@ -480,9 +480,13 @@ addUnsigned:
         jnl .isOutOfBorderB
         mov r10, [rdx + r8 * 8]
         .isOutOfBorderB
-        popf
-        adc [rax + r8 * 8], r9
-        adc [rax + r8 * 8], r10
+        add [rax + r8 * 8], r11
+        xor r11, r11
+        adc r11, 0
+        add [rax + r8 * 8], r9
+        adc r11, 0
+        add [rax + r8 * 8], r10
+        adc r11, 0
         inc r8
         jmp .while
     .endWhile
@@ -661,17 +665,15 @@ subUnsigned:
     pop rsi
     pop rdi
 
+    push r11
     xor r8, r8
+    xor r11, r11 ; r11 will be carry
     .while
-        pushf
         cmp r8, rsi
         jng .whileIsNotEnded
-        popf
         jmp .endWhile
         .whileIsNotEnded
-        popf
 
-        pushf
         mov qword [rax + r8 * 8], 0
         mov r9, 0
         cmp r8, rsi
@@ -684,11 +686,15 @@ subUnsigned:
         mov r10, [rdx + r8 * 8]
         .isOutOfBorderB
         mov [rax + r8 * 8], r9
-        popf
-        sbb [rax + r8 * 8], r10
+        sub [rax + r8 * 8], r11
+        xor r11, r11
+        adc r11, 0
+        sub [rax + r8 * 8], r10
+        adc r11, 0
         inc r8
         jmp .while
     .endWhile
+    pop r11
 
     mov r8, rsi
     .while2
@@ -939,7 +945,26 @@ biMul:
     ret
 
 
+; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+; *quotient in rdi
+; *remainder in rsi
+; numerator in rdx
+; denominator in rcx
 biDivRem:
+    push rdi
+    push rsi
+    xor rsi, rsi
+    mov esi, [rcx + 4]
+    mov rdi, [rcx + 8]
+    call cmpWithZero
+    pop rsi
+    pop rdi
+    test rax, rax
+    jnz .isNotZero
+    mov qword [rdi], 0
+    mov qword [rsi], 0
+    ret
+    .isNotZero
     ret
 
 
