@@ -70,6 +70,16 @@ void test3() {
     cout.flush();
     bool ok = 1;
 
+    BigInt a1, a2, a3;
+    a1 = biFromInt(7);
+    a2 = biFromInt(7);
+    a3 = biFromInt(0);
+    biSub(a1, a2);
+    ok &= check(biCmp(a1, a3) == 0);
+    biDelete(a1);
+    biDelete(a2);
+    biDelete(a3);
+
     int n = 100;
     vector<int> v(n);
     for (int i = 0; i < n; i++) v[i] = rand() % 101 - 50;

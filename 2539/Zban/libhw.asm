@@ -273,19 +273,19 @@ biToString:
     push rdi
     xor r8, r8
     mov r8D, [rdi + 4]
-    imul r8, 21
+    imul r8, 21 ; if BigInt consists of x 64-bit fields than it will be approximately ~21 * x chars long in decimal representation
     mov rdi, r8
     call malloc ; rax -- ptr to string representation of BigInt
-    pop rdi
+    pop rdi 
     push rdi
     push rax
-    call biCopy
+    call biCopy ; copy array to modify it
     mov r11, rax ; r11 -- ptr to copy of BigInt
     pop rax
     pop rdi    
     pop rdx
     pop rsi
-    mov rcx, [r11 + 8]
+    mov rcx, [r11 + 8] ; rcx now is ptr to array which wi divide by 10
 
     push rax
     push r11
@@ -295,7 +295,7 @@ biToString:
     mov rdi, rcx
     xor rsi, rsi
     mov esi, [r11 + 4]
-    call cmpWithZero
+    call cmpWithZero ; if zero then we can put '0' and return immediatly
     pop rdx
     pop rsi
     pop rdi
@@ -307,23 +307,23 @@ biToString:
     mov [rsi + 1], byte 0
     push r11
     mov rdi, rax
-    call free
+    call free ; free temp array
     pop r11
     mov rdi, r11
-    call biDelete
+    call biDelete ; free copied BigInt
     ret
     .notZero
 
     mov r9D, [rdi]
     cmp r9D, -1
-    jne .isPositive
+    jne .isPositive ; if BigInt is negative then first char is '-'
     mov [rsi], byte '-'
     inc rsi
     dec rdx
     .isPositive
-
+ 
     ; r9 -- counter to pos in rax
-    xor r9, r9
+    xor r9, r9 ; fill rax (decimal representation)
     .while
         push rax
         push r11
@@ -333,7 +333,7 @@ biToString:
         mov rdi, rcx
         xor rsi, rsi
         mov esi, [r11 + 4]
-        call cmpWithZero
+        call cmpWithZero ; if zero then break
         pop rdx
         pop rsi
         pop rdi
@@ -352,7 +352,7 @@ biToString:
         xor rsi, rsi
         mov esi, [r11 + 4]
         mov rdx, 10
-        call divThisOnShort
+        call divThisOnShort ; divide by 10
         mov r8, rdx
         pop rdx
         pop rsi
@@ -364,36 +364,37 @@ biToString:
         push rcx
         mov rcx, r8
         add cl, '0'
-        mov [rax + r9], cl
+        mov [rax + r9], cl ; x mod 10 is writen
         pop rcx
    
         inc r9
         jmp .while
     .break
 
+    ; copy limit (rdx) symbols from rax to rsi
     .while2
         cmp rdx, 1
-        je .break2
+        je .break2 ; break if only 0 char is left
         dec r9
         push rdx
         mov dl, [rax + r9]
-        mov [rsi], dl
+        mov [rsi], dl ; copy current char
         inc rsi
         pop rdx
         dec rdx
-        test r9, r9
+        test r9, r9 ; break if decimal representation is ended
         jz .break2
         jmp .while2
     .break2
-    mov [rsi], byte 0
+    mov [rsi], byte 0 ; terminal symbol
 
     push r11
     mov rdi, rax
-    call free
+    call free ; free temp array
     pop r11    
 
     mov rdi, r11
-    call biDelete
+    call biDelete ; free BigInt copy
     ret
 
 
@@ -402,9 +403,9 @@ biToString:
 biDelete:
     push rdi
     mov rdi, [rdi + 8]
-    call free
+    call free ; free data array
     pop rdi
-    call free
+    call free ; free ptr to BigInt
     ret
 
 
@@ -414,7 +415,7 @@ biDelete:
 ; result in eax
 biSign:
     xor rax, rax
-    mov eax, [rdi]
+    mov eax, [rdi] ; sign of BigInt
     ret
 
 
@@ -426,13 +427,13 @@ biSign:
 ; b in rsi
 biSwapAndDelete:
     mov r8D, [rsi]
-    mov [rdi], r8D
+    mov [rdi], r8D ; swap sign
     mov r8D, [rsi + 4]
-    mov [rdi + 4], r8D
+    mov [rdi + 4], r8D ; swap len
     mov r8, [rsi + 8]
-    mov [rdi + 8], r8
+    mov [rdi + 8], r8 ; swap data
     mov rdi, rsi
-    call free
+    call free ; free ptr to b
     ret
 
 
@@ -455,13 +456,13 @@ addUnsigned:
     push rcx
     lea rdi, [rsi + 1]
     imul rdi, 8
-    call malloc
+    call malloc ; new array will be sizeof(unsigned long long) * (a.size + 1) bytes long
     pop rcx
     pop rdx
     pop rsi
     pop rdi
     
-    xor r8, r8
+    xor r8, r8 ; r8 -- counter on current data element
     xor r11, r11 ; r11 will be carry
     .while
         cmp r8, rsi
@@ -470,18 +471,18 @@ addUnsigned:
         .whileIsNotEnded
 
         mov qword [rax + r8 * 8], 0
-        mov r9, 0
+        mov r9, 0 ; r9 = a[i], if i < a.length, and 0 otherwise
         cmp r8, rsi
         jnl .isOutOfBorderA
         mov r9, [rdi + r8 * 8]
         .isOutOfBorderA
-        mov r10, 0
+        mov r10, 0 ; r10 = b[i], if i < b.length, and 0 otherwise
         cmp r8, rcx
         jnl .isOutOfBorderB
         mov r10, [rdx + r8 * 8]
         .isOutOfBorderB
-        add [rax + r8 * 8], r11
-        xor r11, r11
+        add [rax + r8 * 8], r11 ; c[i] = a[i] (r9) + b[i] (r10) + carry (r11)
+        xor r11, r11 ; carry := 0, and see for carry on next iteration
         adc r11, 0
         add [rax + r8 * 8], r9
         adc r11, 0
@@ -491,6 +492,7 @@ addUnsigned:
         jmp .while
     .endWhile
 
+    ; delete leading zeroes in number
     lea r8, [rsi + 1]
     .while2
         cmp r8, 1
@@ -533,7 +535,7 @@ mulUnsigned:
     add r8D, ecx
     mov rdi, r8
     mov rsi, 8
-    call calloc
+    call calloc ; 8 * (a.length + b.length) bytes
     pop rcx
     pop rbx
     pop rsi
@@ -541,39 +543,40 @@ mulUnsigned:
     ; rax -- result array
     ; r8 -- i
     ; r9 -- j
+    ; rdx -- carry
 
-    xor r8, r8
+    xor r8, r8 ; i counter
     .whileI
         cmp r8, rsi
         je .breakI
 
-        xor r9, r9
-        xor rdx, rdx
+        xor r9, r9 ; j counter
+        xor rdx, rdx ; carry
         .whileJ
             mov r10, rsi
             add r10, rcx
             sub r10, r8
             cmp r9, r10
-            je .breakJ
+            je .breakJ ; i + j < len_a + len_b
             mov r10, r9
-            add r10, r8
+            add r10, r8 ; r10 = i + j
             add [rax + 8 * r10], rdx
-            pushf
+            pushf ; remember carry from this step not to forget
             xor rdx, rdx
             push rax
-            mov rax, [rdi + r8 * 8]
+            mov rax, [rdi + r8 * 8] ; a[i]
             mov r11, 0
             cmp r9, rcx
             jnl .r9IsZero
-            mov r11, [rbx + r9 * 8]
+            mov r11, [rbx + r9 * 8] ; b[j]
             .r9IsZero
             mul r11
-            mov r11, rax       
+            mov r11, rax
             pop rax
-            add [rax + 8 * r10], r11
-            adc rdx, 0
+            add [rax + 8 * r10], r11 ; += a[i] * b[j] mod base
+            adc rdx, 0 ; += a[i] * b[j] div base
             popf
-            adc rdx, 0
+            adc rdx, 0 ; += carry
 
             inc r9
             jmp .whileJ
@@ -582,6 +585,7 @@ mulUnsigned:
         jmp .whileI
     .breakI    
 
+    ; delete leading zeroes
     lea r8, [rsi + rcx]
     .while2
         cmp r8, 1
@@ -592,13 +596,12 @@ mulUnsigned:
         jmp .while2
     .while2End
 
-
     pop rbx
     ret
 
 ; int cmpUnsigned(int64_t *a, int len_a, int64_t *b, int len_b)
 cmpUnsigned:
-    cmp rsi, rcx
+    cmp rsi, rcx ; if len_a != len_b then we know which is less
     je .equals
         jl .aIsLess
             mov rax, 1
@@ -608,13 +611,13 @@ cmpUnsigned:
             ret 
     .equals
     
-    mov r8, rsi
+    mov r8, rsi ; r8 -- index from high data elements to low
     .while
         dec r8
         mov r9, [rdi + r8 * 8]
         mov r10, [rdx + r8 * 8]
         cmp r9, r10
-        je .equals2
+        je .equals2 ; if a[i] != b[i] then we know which is less
             jl .aIsLess2
                 mov rax, 1
                 ret
@@ -626,6 +629,7 @@ cmpUnsigned:
         jnz .while
     mov rax, 0
     ret
+
 
 ; int64_t* subUnsigned(int64_t *a, int len_a, int64_t *b, int len_b);
 ; a in rdi
@@ -639,14 +643,14 @@ subUnsigned:
     call cmpUnsigned
     mov r11, 1
     cmp rax, 0
-    jne .isNotZero
-        mov rdi, 0
-        call biFromInt
+    jne .isNotZero ; if a=b then return 0
+        mov rdi, 8
+        call malloc
         mov r8, 1
         mov r11, 0
         ret
 .isNotZero
-    jg .aIsBigger
+    jg .aIsBigger ; a should be greater
     xchg rdi, rdx
     xchg rsi, rcx
     mov r11, -1 
@@ -658,7 +662,7 @@ subUnsigned:
     push r11
     mov rdi, rsi
     imul rdi, 8
-    call malloc
+    call malloc ; result will be 8 * a.length bytes
     pop r11
     pop rcx
     pop rdx
@@ -666,7 +670,7 @@ subUnsigned:
     pop rdi
 
     push r11
-    xor r8, r8
+    xor r8, r8 ; r8 -- counter to cur element
     xor r11, r11 ; r11 will be carry
     .while
         cmp r8, rsi
@@ -678,14 +682,14 @@ subUnsigned:
         mov r9, 0
         cmp r8, rsi
         jnl .isOutOfBorderA
-        mov r9, [rdi + r8 * 8]
+        mov r9, [rdi + r8 * 8] ; a[i]
         .isOutOfBorderA
         mov r10, 0
         cmp r8, rcx
         jnl .isOutOfBorderB
-        mov r10, [rdx + r8 * 8]
+        mov r10, [rdx + r8 * 8] ; b[i]
         .isOutOfBorderB
-        mov [rax + r8 * 8], r9
+        mov [rax + r8 * 8], r9 ; c[i] = a[i] - b[i] - carry
         sub [rax + r8 * 8], r11
         xor r11, r11
         adc r11, 0
@@ -696,6 +700,7 @@ subUnsigned:
     .endWhile
     pop r11
 
+    ; remove leading zeroes
     mov r8, rsi
     .while2
         cmp r8, 1
@@ -716,8 +721,8 @@ subUnsigned:
 mulThisOnShort:
     mov rcx, rdx
 
-    xor r8, r8
-    xor rdx, rdx
+    xor r8, r8 ; r8 is index i on current element
+    xor rdx, rdx ; rdx is carry
     .while
         cmp r8D, esi
         je .break
@@ -740,9 +745,9 @@ mulThisOnShort:
 divThisOnShort:
     mov rcx, rdx
 
-    xor r8, r8
+    xor r8, r8 ; r8 is counter on current element
     mov r8D, esi
-    xor rdx, rdx
+    xor rdx, rdx ; rdx -- carry
     .while
         dec r8
         mov rax, [rdi + r8 * 8]
@@ -754,21 +759,20 @@ divThisOnShort:
 
 
 ; void addShortToThis(int64_t *a, int size, int64_t x);
-; it consider that a is big enough to contain result
+; it is considered that a is big enough to contain result
 ; a in rdi
 ; size in esi
 ; x in rdx
 addShortToThis:
-    xor r8, r8
+    xor r8, r8 ; counter to cur element
     .while
         cmp r8D, esi
         je .break
-        clc
         mov rax, [rdi + r8 * 8]
         mov qword [rdi + r8 * 8], rdx
-        adc [rdi + r8 * 8], rax
+        add [rdi + r8 * 8], rax
         mov rdx, 0
-        adc rdx, 0
+        adc rdx, 0 ; rdx is initially x to add, and later is carry
         inc r8
         jmp .while
     .break
@@ -783,28 +787,28 @@ biAddNew:
     cmp dword [rdi], 0
     jnz .aIsNotZero
     mov rdi, rsi
-    call biCopy
+    call biCopy ; if a is zero return b
     ret
 .aIsNotZero
     cmp dword [rsi], 0
     jnz .bIsNotZero
-    call biCopy
+    call biCopy if b is zero return a
     ret
 .bIsNotZero
     mov r8D, [rdi]
     mov r9D, [rsi]
     cmp r8D, r9D
     jne .differentSigns
-        push rdi
+        push rdi ; if signs are equal then add
         push rsi
 
         xor rcx, rcx
-        mov ecx, [rsi + 4]
-        mov rdx, [rsi + 8]
+        mov ecx, [rsi + 4] ; len of b array
+        mov rdx, [rsi + 8] ; ptr to b array
 
         xor rsi, rsi
-        mov esi, [rdi + 4]
-        mov rdi, [rdi + 8]
+        mov esi, [rdi + 4] ; len of a array
+        mov rdi, [rdi + 8] ; ptr to a array
         
         call addUnsigned
 
@@ -814,7 +818,7 @@ biAddNew:
         mov edi, [rdi]
         mov rsi, r8
         mov rdx, rax
-        call biFromSignLenArray
+        call biFromSignLenArray ; constructor of bigint
         ret
         
 .differentSigns
@@ -822,12 +826,12 @@ biAddNew:
         push rsi
 
         xor rcx, rcx
-        mov ecx, [rsi + 4]
-        mov rdx, [rsi + 8]
+        mov ecx, [rsi + 4] ; len of b array
+        mov rdx, [rsi + 8] ; ptr to b array
 
         xor rsi, rsi
-        mov esi, [rdi + 4]
-        mov rdi, [rdi + 8]
+        mov esi, [rdi + 4] ; len of a array
+        mov rdi, [rdi + 8] ; ptr to a array
         
         call subUnsigned
 
@@ -838,7 +842,7 @@ biAddNew:
         imul edi, r11D
         mov rsi, r8
         mov rdx, rax
-        call biFromSignLenArray
+        call biFromSignLenArray ; constructor of bigint
         ret
 
 
@@ -847,10 +851,10 @@ biAddNew:
 ; b in rsi
 biAdd:
     push rdi
-    call biAddNew
+    call biAddNew ; return new a + b
     pop rdi
     mov rsi, rax
-    call biSwapAndDelete
+    call biSwapAndDelete ; delete old a
     ret
 
 ; BigInt biSubNew(BigInt a, BigInt b) return a - b;
@@ -859,14 +863,14 @@ biAdd:
 ; result in rax
 biSubNew:
     mov r8D, [rsi]
-    imul r8D, -1
+    imul r8D, -1 ; we are changing b bigInt
     mov [rsi], r8D
     push rsi
     push r8
-    call biAddNew
+    call biAddNew ; a - b is a + (-b) in fact
     pop r8    
     pop rsi
-    imul r8D, -1
+    imul r8D, -1 ; so we should return sign of b
     mov [rsi], r8D
     ret
 
@@ -876,10 +880,10 @@ biSubNew:
 ; b in rsi
 biSub:
     push rdi
-    call biSubNew
+    call biSubNew ; return new a - b
     pop rdi
     mov rsi, rax
-    call biSwapAndDelete
+    call biSwapAndDelete ; delete old a
     ret
 
 
@@ -890,13 +894,13 @@ biSub:
 biMulNew:
     cmp dword [rdi], 0
     jnz .aIsNotZero
-    mov rdi, 0
+    mov rdi, 0 ; a = 0 -> result = 0
     call biFromInt
     ret
 .aIsNotZero
     cmp dword [rsi], 0
     jnz .bIsNotZero
-    mov rdi, 0
+    mov rdi, 0 ; b = 0 -> result = 0
     call biFromInt
     ret
 .bIsNotZero
@@ -913,22 +917,22 @@ biMulNew:
     mov r8D, [rsi]
     mov r9D, [rax]
     imul r9D, r8D
-    mov [rax], r9D
+    mov [rax], r9D ; rax now is correct sign
     
     xor rcx, rcx
-    mov ecx, [rsi + 4]
-    mov rdx, [rsi + 8]
+    mov ecx, [rsi + 4] ; len of b array
+    mov rdx, [rsi + 8] ; ptr to b array
 
     xor rsi, rsi
-    mov esi, [rdi + 4]
-    mov rdi, [rdi + 8]
+    mov esi, [rdi + 4] ; len of a array
+    mov rdi, [rdi + 8] ; ptr to a array
 
     push rax
     call mulUnsigned
     mov r9, rax
     pop rax
-    mov [rax + 4], r8
-    mov [rax + 8], r9
+    mov [rax + 4], r8 ; len
+    mov [rax + 8], r9 ; ptr to data
 
     ret
 
@@ -938,10 +942,10 @@ biMulNew:
 ; b in rsi
 biMul:
     push rdi
-    call biMulNew
+    call biMulNew ; return new a * b
     pop rdi
     mov rsi, rax
-    call biSwapAndDelete
+    call biSwapAndDelete ; delete old a
     ret
 
 
@@ -950,21 +954,21 @@ biMul:
 ; *remainder in rsi
 ; numerator in rdx
 ; denominator in rcx
-biDivRem:
-    push rdi
-    push rsi
-    xor rsi, rsi
-    mov esi, [rcx + 4]
-    mov rdi, [rcx + 8]
-    call cmpWithZero
-    pop rsi
-    pop rdi
-    test rax, rax
-    jnz .isNotZero
-    mov qword [rdi], 0
-    mov qword [rsi], 0
-    ret
-    .isNotZero
+biDivRem: ; it has not done yet
+    ;push rdi
+    ;push rsi
+    ;xor rsi, rsi
+    ;mov esi, [rcx + 4]
+    ;mov rdi, [rcx + 8]
+    ;call cmpWithZero
+    ;pop rsi
+    ;pop rdi
+    ;test rax, rax
+    ;jnz .isNotZero
+    ;mov qword [rdi], 0
+    ;mov qword [rsi], 0
+    ;ret
+    ;.isNotZero
     ret
 
 
@@ -974,7 +978,7 @@ biDivRem:
 ; b in rsi
 ; result in eax
 biCmp:
-    call biSubNew
+    call biSubNew ; biCmp is equal to biSign(biSubNew(a - b))
     mov rdi, rax
     push rdi
     call biSign
