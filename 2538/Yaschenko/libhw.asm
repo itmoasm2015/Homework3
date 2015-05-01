@@ -11,6 +11,7 @@ extern vectorDelete
 extern vectorSize
 extern vectorBack
 extern vectorGet
+extern vectorSet
 
 global biFromInt
 global biFromString
@@ -43,8 +44,17 @@ endstruc
 ;; Returns:
 ;;	* RAX: pointer to newly created Bigint.
 biNew:
-;; Create vector of size 0 to store digits of Bigint.
 	mov	rdi, 0
+	call	_biNew
+	ret
+
+;; Creates new Bigint with vector of size X.
+;; Takes:
+;;	* RDI: size X of vector.
+;; Returns:
+;;	* RAX: pointer to newly created Bigint.
+_biNew:
+;; Create vector of size X to store digits of Bigint.
 	call	vectorNew
 	push	rax
 
@@ -152,7 +162,7 @@ biSign:
 ;;	* RDX: max number of chars.
 biToString:
 
-;; These macros are used only here, so don't move it to macros.mac
+;; These macros are used only here, so don't move it to macros.
 
 ;; Writes byte %3 to [%1 + %2].
 %macro write_byte 3
@@ -429,11 +439,102 @@ biCmpAbs:
 ;;	* RDI: pointer to DST.
 ;;	* RSI: pointer to SRC.
 biMul:
-	mpush		rdi, rsi
-	vector_size	[rsi + Bigint.vector]
-	mov		rdx, rax
-	mpop		rdi, rsi
+	mpush		r12, r13, r14, r15
 
 	mpush		rdi, rsi
-	vector_size	[rdi + Bigint.vector]
+	vector_size	[rsi + Bigint.vector]
+	mov		r8, rax
 	mpop		rdi, rsi
+
+	mpush		rdi, rsi, r8
+	vector_size	[rdi + Bigint.vector]
+	mpop		rdi, rsi, r8
+	mov		r9, rax
+
+	mov		rcx, r8
+	add		rcx, r9
+
+	mpush		rdi, rsi, r8, r9
+	bigint_new	rcx
+	mpop		rdi, rsi, r8, r9
+	push		rax
+
+	mov		r15, rax
+
+;; R10: i loop counter.
+	xor		r10, r10
+.loop_i:
+;; R11: j loop counter.
+	xor		r11, r11
+;; R12: carry
+	xor		r12, r12
+.loop_j:
+	mov		rcx, r10
+	add		rcx, r11
+	push		rcx
+
+	mpush		rdi, rsi
+	vector_get	[r15 + Bigint.vector], rcx
+	mpop		rdi, rsi
+
+	push		rax
+;; stack: c[i + j] | i + j | *C | ...
+
+;; R13: a[i]
+	mpush		rdi, rsi
+	vector_get	[rdi + Bigint.vector], r10
+	mov		r13, rax
+	mpop		rdi, rsi
+
+;; RAX: b[j]
+	mpush		rdi, rsi
+	vector_get	[rsi + Bigint.vector], r11
+	mpop		rdi, rsi
+
+;; RAX = a[i] * b[j]
+	xor		rdx, rdx
+	mul		r13
+
+;; RAX = a[i] * b[j] + c[i + j]
+	add		rax, [rsp]
+	add		rsp, 8
+;; stack: i + j | *C | ...
+;; RAX = a[i] * b[j] + c[i + j] + CARRY
+	add		rax, r12
+
+;; RAX = RAX % BASE
+;; RDX = RAX / BASE
+	push		rbx
+	mov		rbx, BASE
+	div10		rbx
+	pop		rbx
+
+;; Update CARRY with new value.
+	mov		r12, rdx
+
+	pop		rdx
+	mpush		rdi, rsi
+	vector_set	[r15 + Bigint.vector], rdx, rax
+	mpop		rdi, rsi
+
+	inc		r11
+
+;; If CARRY > 0 do extra iteration.
+	cmp		r12, 0
+	jg		.loop_j
+
+	cmp		r11, r9
+	jl		.loop_j
+
+	inc		r10
+	cmp		r10, r8
+	jl		.loop_i
+
+.done
+	mov		rax, [r15 + Bigint.vector]
+	mov		rdx, [rax + Vector.data]
+	call		biDelete
+	pop		rax
+	mpop		r12, r13, r14, r15
+	ret
+
