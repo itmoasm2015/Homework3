@@ -186,6 +186,21 @@ biDelete:
 	call	free
 	ret
 
+;; int biSign(BigInt bi);
+;;
+;; Returns sign of Bigint BI:
+;;	-1: if BI < 0
+;;	 0: if BI = 0
+;;	 1: if BI > 0
+;; Takes:
+;;	* RDI: pointer to Bigint BI.
+;; Returns:
+;;	* RAX: sign of Bigint BI.
+biSign:
+	mov		rax, [rdi + Bigint.sign]
+	ret
+
+
 
 ;; void biToString(BigInt bi, char *buffer, size_t limit);
 ;;
