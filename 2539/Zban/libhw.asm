@@ -158,6 +158,11 @@ biFromString:
 
     cmp r8, 0
     jne .isNotZero
+        cmp r10, 0
+        jne .isCorrectZero
+        mov rax, 0
+        ret
+        .isCorrectZero
         mov rdi, 0 ; if a = 0 then return immediatly
         call biFromInt
         ret
