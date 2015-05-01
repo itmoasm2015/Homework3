@@ -1,7 +1,7 @@
 default rel
 section .text
 
-extern malloc, calloc
+extern malloc, calloc, strlen, free
 
 global biFromInt
 global biFromString
@@ -119,3 +119,138 @@ biFromInt
     pop rbx
     pop rcx
     ret
+
+;; BigInt biFromString(char const *s)
+;;      Creates a BigInt from a decimal string representation
+;; Takes:   RDI - pointer to the string
+;; Returns: RAX - BigInt of the string or NULL if string is invalid number
+biFromString:
+    push rcx                    ; sign in rcx
+    mov rcx, 1                  ; set positive sign
+    cmp byte[rdi], '-'          ; if minus then set negative sign
+    jne .skip_sign
+    inc rdi                     ; take next char
+    mov rcx, -1                 ; set negative sign
+    .skip_sign:
+    .skip_nulls:
+        cmp byte[rdi], '0'
+        jne .break1
+        inc rdi
+        cmp byte[rdi], 0        ; if the end of line
+        je .break2
+        jmp .skip_nulls
+    .break2:
+    sub rdi, 1
+    .break1:
+    push rdi
+    call strlen
+    pop rdi
+    push rbx
+    mov rbx, rax                ; put length to rbx
+    cmp rbx, 0
+    je .no_digits
+    mov rdx, 0
+    mov rax, rbx
+    add rax, 8
+    push rbx
+    mov rbx, 0
+    mov ebx, 9
+    div ebx
+    mov r11, rax
+    pop rbx
+    push rbx
+    push r11
+    push rdi
+    push rsi
+    mov rdi, r11
+    add rdi, 2
+    mov rsi, 4
+    call calloc
+    pop rsi
+    pop rdi
+    pop r11
+    pop rbx
+    mov rsi, rax
+    mov rax, rcx
+    mov [rsi], eax
+    mov rax, r11
+    mov [rsi + 4], eax
+    mov rcx, 0
+    .loop:
+    mov r11, rbx
+    sub rbx, 9
+    cmp rbx, 0
+    jge .skip_null_1
+    mov rbx, 0
+    .skip_null_1:
+    mov r9, 0 
+    .loop1:
+    mov r10, 0
+    mov r9b, byte[rdi + rbx]
+    mov rax, 0
+    cmp r9b, '0'
+    jl .bad_format
+    cmp r9b, '9'
+    jg .bad_format
+    sub bl, '0'
+    mov rax, r9
+    mov rcx, 10
+    mul rcx
+    add rax, r10
+    mov r9, rax
+    inc rbx
+    cmp r11, rbx
+    jne .loop1 
+    sub rbx, 9
+    cmp rbx, 0
+    jge .skip_null_2
+    mov rbx, 0
+    .skip_null_2:
+    mov rax, r9
+    mov [rsi + 4 * rcx + 8], eax
+    inc rcx
+    cmp rbx, 0
+    jne .loop
+    mov eax, [rsi + 4]
+    cmp eax, 1
+    jne .go_not_null
+    mov eax, [rsi + 8]
+    cmp eax, 0
+    jne .go_not_null
+    mov eax, 0
+    mov [rsi], eax
+    mov rax, 1
+    jmp .null_break
+    .go_not_null:
+    mov rax, 0
+    .null_break:
+    push rdi
+    push rsi
+    mov rdi, 8
+    call malloc
+    pop rsi
+    pop rdi
+    mov [rax], rsi
+    pop rbx
+    pop rcx
+    ret
+
+    .bad_format:
+    push rdi
+    mov rdi, rsi
+    call free
+    pop rdi
+
+    .no_digits:
+    mov rax, 0
+    pop rbx
+    pop rcx
+    ret
+
+
+
+
+
+
+
+
