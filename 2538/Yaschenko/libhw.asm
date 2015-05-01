@@ -1,5 +1,7 @@
 default rel
 
+%include "macros.mac"
+
 extern calloc
 extern free
 
@@ -56,68 +58,6 @@ biNew:
 	mov	qword [rax + Bigint.sign], SIGN_ZERO
 
 	ret
-
-;; Pushes %2 to vector %1.
-%macro vector_push_back 2
-	mov	rdi, %1
-	mov	rsi, %2
-	call	vectorPushBack
-%endmacro
-
-%macro vector_back 1
-	mov	rdi, %1
-	call	vectorBack
-%endmacro
-
-%macro vector_size 1
-	mov	rdi, %1
-	call	vectorSize
-%endmacro
-
-%macro vector_get 2
-	mov	rdi, %1
-	mov	rsi, %2
-	call	vectorGet
-%endmacro
-
-%macro bigint_set_sign 2
-	mov	%1, %2
-%endmacro
-
-
-;; Pushes given set of registers on stack.
-%macro mpush 1-*
-	%rep	%0
-	push	%1
-	%rotate	1
-	%endrep
-%endmacro
-
-;; Pops given set of registers from stack in reversed order.
-%macro mpop 1-*
-	%rep	%0
-	%rotate -1
-	pop	%1
-	%endrep
-%endmacro
-
-;; Divides given reg by 10
-;; (RAX, RDX and RCX are reserved)
-%macro div10 1
-	push	rax
-	push	rdx
-	push	rcx
-
-	xor	rdx, rdx
-	mov	rax, %1
-	mov	rcx, 10
-	idiv	rcx
-	mov	%1, rax
-
-	pop	rcx
-	pop	rdx
-	pop	rax
-%endmacro
 
 
 ;; BigInt biFromInt(int64_t x);
@@ -211,6 +151,8 @@ biSign:
 ;;	* RSI: pointer to destination buffer.
 ;;	* RDX: max number of chars.
 biToString:
+
+;; These macros are used only here, so don't move it to macros.mac
 
 ;; Writes byte %3 to [%1 + %2].
 %macro write_byte 3
@@ -478,3 +420,20 @@ biCmpAbs:
 
 .done:
 	ret
+
+
+;; void biMul(BigInt dst, BigInt src);
+;;
+;; Multiplies DST by SRC inplace.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+biMul:
+	mpush		rdi, rsi
+	vector_size	[rsi + Bigint.vector]
+	mov		rdx, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi
+	vector_size	[rdi + Bigint.vector]
+	mpop		rdi, rsi

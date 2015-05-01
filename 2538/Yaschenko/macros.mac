@@ -1,0 +1,94 @@
+%ifndef MACROS_MAC
+%define MACROS_MAC
+
+;; Round up to the next highest power of 2 (32bit numbers).
+;; See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+%macro round_next_2_power 1
+	push	rax
+	dec	%1
+	mov	rax, %1
+
+	shr	rax, 1
+	or	%1, rax
+
+	shr	rax, 1
+	or	%1, rax
+
+	shr	rax, 2
+	or	%1, rax
+
+	shr	rax, 4
+	or	%1, rax
+
+	shr	rax, 8
+	or	%1, rax
+
+	inc	%1
+	pop	rax
+%endmacro
+
+;; Pushes given set of registers on stack.
+%macro mpush 1-*
+	%rep	%0
+	push	%1
+	%rotate	1
+	%endrep
+%endmacro
+
+;; Pops given set of registers from stack in reversed order.
+%macro mpop 1-*
+	%rep	%0
+	%rotate -1
+	pop	%1
+	%endrep
+%endmacro
+
+;; Divides given reg by 10
+;; (RAX, RDX and RCX are reserved)
+%macro div10 1
+	push	rax
+	push	rdx
+	push	rcx
+
+	xor	rdx, rdx
+	mov	rax, %1
+	mov	rcx, 10
+	idiv	rcx
+	mov	%1, rax
+
+	pop	rcx
+	pop	rdx
+	pop	rax
+%endmacro
+
+;; Pushes %2 to vector %1.
+%macro vector_push_back 2
+	mov	rdi, %1
+	mov	rsi, %2
+	call	vectorPushBack
+%endmacro
+
+%macro vector_back 1
+	mov	rdi, %1
+	call	vectorBack
+%endmacro
+
+%macro vector_size 1
+	mov	rdi, %1
+	call	vectorSize
+%endmacro
+
+%macro vector_get 2
+	mov	rdi, %1
+	mov	rsi, %2
+	call	vectorGet
+%endmacro
+
+%macro bigint_set_sign 2
+	mov	%1, %2
+%endmacro
+
+
+
+
+%endif

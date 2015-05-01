@@ -1,5 +1,7 @@
 default rel
 
+%include "macros.mac"
+
 extern calloc
 extern free
 extern memcpy
@@ -17,32 +19,6 @@ global vectorPopBack
 
 %assign DEFAULT_CAPACITY 8
 %assign ELEM_SIZE        4
-
-;; Round up to the next highest power of 2.
-;; See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-%macro round_next_2_power 1
-	push	rax
-	dec	%1
-	mov	rax, %1
-
-	shr	rax, 1
-	or	%1, rax
-
-	shr	rax, 1
-	or	%1, rax
-
-	shr	rax, 2
-	or	%1, rax
-
-	shr	rax, 4
-	or	%1, rax
-
-	shr	rax, 8
-	or	%1, rax
-
-	inc	%1
-	pop	rax
-%endmacro
 
 struc Vector
 	.data		resq	1
