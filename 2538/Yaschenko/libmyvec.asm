@@ -1,6 +1,8 @@
 default rel
 
 %include "macros.mac"
+%include "libhw.i"
+%include "libmyvec.i"
 
 extern calloc
 extern free
@@ -20,11 +22,6 @@ global vectorPopBack
 %assign DEFAULT_CAPACITY 8
 %assign ELEM_SIZE        4
 
-struc Vector
-	.data		resq	1
-	.size		resq	1
-	.capacity	resq	1
-endstruc
 
 ;; Vector vectorNew(size_t size);
 ;;

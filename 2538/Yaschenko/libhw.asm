@@ -1,6 +1,8 @@
 default rel
 
 %include "macros.mac"
+%include "libhw.i"
+%include "libmyvec.i"
 
 extern calloc
 extern free
@@ -33,11 +35,6 @@ section .text
 %assign	SIGN_PLUS	1
 %assign	SIGN_MINUS	-1
 %assign	SIGN_ZERO	0
-
-struc Bigint
-	.vector		resq	1
-	.sign		resq	1
-endstruc
 
 
 ;; Creates new Bigint with empty vector.
