@@ -20,6 +20,7 @@ global biSub
 global biMul
 global biCmp
 global biSign
+global biMul
 
 struc VectorInt
     sz:        resq 1
@@ -250,13 +251,13 @@ biSign:
             mov rax, [rdi + elem]
             cmp dword [rax], 0
             je .zero
-                mov eax, 1
+                mov rax, 1
                 jmp .sign_done
         .zero
-            xor eax, eax
+            xor rax, rax
             jmp .sign_done
     .minus
-        mov eax, -1
+        mov rax, -1
     .sign_done
     ret
 
@@ -432,4 +433,105 @@ biSub:
         xor qword [rsi + sign], 1
     .zero
     add rsp, 16
+    ret
+
+biMul:
+    push rbx
+    push r12
+    push r13
+
+    push rdi
+    push rsi
+    call biSign
+    push rax
+    mov rdi, [rsp + 16]
+    call biSign
+    mul qword [rsp]
+    add rsp, 8
+    cmp rax, 0
+    je .res_zero
+
+    push rax
+    mov rax, [rsp + 8]
+    length r12, rax
+    mov rsi, [rsp + 16]
+    length r13, rsi
+    mov rsi, r12
+    add rsi, r13
+    call newVector
+    pop rsi
+    pop rdi
+    push rax
+
+    xor r8, r8
+    .loop1
+        xor r9, r9
+        mov rcx, [rsp]
+        mov rcx, [rcx + vec]
+        lea rcx, [rcx + 4*r8]
+        xor rax, rax
+        .loop2
+            xor rdx, rdx
+            mov edx, [rcx]
+            add rax, rdx
+            mov r10, rax
+            element rax, rdi, r8
+            element r11, rsi, r9
+            mul r11
+            add rax, r10
+            xor rdx, rdx
+            div qword BASE
+            mov [rcx], edx
+
+            add rcx, 4
+            inc r9
+            cmp r9, r13
+            jne .loop2
+
+            .loop_carry
+                cmp rax, 0
+                je .break_loop_carry
+                xor rdx, rdx
+                mov edx, [rcx]
+                add rax, rdx
+                div qword BASE
+                mov dword [rcx], edx
+                add rcx, 4
+                jmp .loop_carry
+            .break_loop_carry
+        inc r8
+        cmp r8, r12
+        jne .loop1
+    pop rax
+    pop rdx
+    cmp rdx, -1
+    je .less_zero
+        mov qword [rdi + sign], 1
+        jmp .sign_done
+    .less_zero
+        mov qword [rdi + sign], 0
+    push rax
+    push rdi
+    mov rdi, [rdi + vec]
+    call deleteVector
+    pop rdi
+    pop rax
+    mov [rdi + vec], rax
+    jmp .done
+
+    .res_zero
+        pop rsi
+        pop rdi
+        mov qword [rdi + sign], 1
+        push rdi
+        mov rdi, [rdi + vec]
+        call deleteVector
+        mov rdi, 1
+        call newVector
+        pop rdi
+        mov [rdi + vec], rax
+    .done
+    pop r13
+    pop r12
+    pop rbx
     ret
