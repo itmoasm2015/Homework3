@@ -366,14 +366,57 @@ biCmp:
 	mov		rax, [rdi + Bigint.sign]
 	mov		rdx, [rsi + Bigint.sign]
 	cmp		rax, rdx
-	jl		.less
-	jg		.greater
-
+	jl		.lt
+	jg		.gt
 	cmp		rax, SIGN_ZERO
-	je		.equal
+	je		.eq
 
-	push		rax
+;; Either -/- or +/+
+	mpush		rdi, rsi, rdx
+	call		biCmpAbs
+	mpop		rdi, rsi, rdx
 
+	cmp		rdx, SIGN_MINUS
+	je		.both_negative
+
+.both_positive:
+	cmp		rax, SIGN_MINUS
+	je		.lt
+	cmp		rax, SIGN_ZERO
+	je		.eq
+	jmp		.gt
+
+.both_negative:
+	cmp		rax, SIGN_MINUS
+	je		.gt
+	cmp		rax, SIGN_ZERO
+	je		.eq
+	jmp		.lt
+
+.lt:
+	mov		rax, SIGN_MINUS
+	jmp		.done
+.gt:
+	mov		rax, SIGN_PLUS
+	jmp		.done
+.eq:
+	mov		rax, SIGN_ZERO
+	jmp		.done
+
+.done:
+	ret
+
+;; int biCmpAbs(BigInt a, BigInt b);
+;;
+;; Compares two Bigints by absolute value.
+;; Takes:
+;;	* RDI: pointer to first Bigint.
+;;	* RSI: pointer to secont Bigint.
+;; Returns:
+;;	* RAX: -1 if |a| < |b|
+;; 	        0 if |a| = |b|
+;;	        1 if |a| > |b|
+biCmpAbs:
 	mpush		rdi, rsi
 	vector_size	[rsi + Bigint.vector]
 	mov		rdx, rax
@@ -384,10 +427,9 @@ biCmp:
 	mpop		rdi, rsi
 
 	cmp		rax, rdx
-	jg		.greater_abs
-	jl		.less_abs
+	jl		.lt
+	jg		.gt
 
-.equal_size:
 	mov		rcx, rax
 	dec		rcx
 .digit_loop:
@@ -401,36 +443,22 @@ biCmp:
 	mpop		rdi, rsi, rcx, rdx
 
 	cmp		rax, rdx
-	jg		.greater_abs
-	jl		.less_abs
+	jl		.lt
+	jg		.gt
 
 	dec		rcx
 	cmp		rcx, 0
-	jl		.equal
+	jl		.eq
 	jmp		.digit_loop
 
-.greater_abs:
-	pop		rax
-	cmp		rax, 1
-	je		.greater
-	jmp		.less
-
-.less_abs:
-	pop		rax
-	cmp		rax, -1
-	je		.less
-	jmp		.greater
-
-.equal:
-	mov		rax, 0
+.lt:
+	mov		rax, SIGN_MINUS
 	jmp		.done
-
-.greater:
-	mov		rax, 1
+.gt:
+	mov		rax, SIGN_PLUS
 	jmp		.done
-
-.less:
-	mov		rax, -1
+.eq:
+	mov		rax, SIGN_ZERO
 	jmp		.done
 
 .done:
