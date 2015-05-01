@@ -34,9 +34,9 @@ BASE_LEN equ 8
 
 %macro element 3;to vec index
     push r15
-    mov %1, [%2 + vec]
-    mov r15, [%1 + elem]
-    mov %1, [r15 + 4*%3]
+    mov r15, [%2 + vec]
+    mov r15, [r15 + elem]
+    mov %1, dword [r15 + 4*%3]
     pop r15
 %endmacro
 
@@ -44,7 +44,7 @@ BASE_LEN equ 8
     push r15
     mov r15, [%1 + vec]
     mov r15, [r15 + elem]
-    mov [r15 + 4*%2], %3
+    mov dword [r15 + 4*%2], %3
     pop r15
 %endmacro
 
@@ -453,21 +453,21 @@ biMul:
 
     push rax
     mov rax, [rsp + 8]
-    length r12, rax
+    length r13, rax
     mov rsi, [rsp + 16]
-    length r13, rsi
-    mov rsi, r12
-    add rsi, r13
+    length r12, rsi
+    mov rdi, r12
+    add rdi, r13
     call newVector
-    pop rsi
-    pop rdi
+    mov rsi, [rsp + 8]
+    mov rdi, [rsp + 16]
     push rax
 
     xor r8, r8
     .loop1
         xor r9, r9
         mov rcx, [rsp]
-        mov rcx, [rcx + vec]
+        mov rcx, [rcx + elem]
         lea rcx, [rcx + 4*r8]
         xor rax, rax
         .loop2
@@ -475,12 +475,15 @@ biMul:
             mov edx, [rcx]
             add rax, rdx
             mov r10, rax
-            element rax, rdi, r8
-            element r11, rsi, r9
-            mul r11
+            xor rax, rax
+            xor rbx, rbx
+            element eax, rdi, r8
+            element ebx, rsi, r9
+            mul rbx
             add rax, r10
             xor rdx, rdx
-            div qword BASE
+            mov rbx, BASE
+            div rbx
             mov [rcx], edx
 
             add rcx, 4
@@ -494,7 +497,8 @@ biMul:
                 xor rdx, rdx
                 mov edx, [rcx]
                 add rax, rdx
-                div qword BASE
+                mov rbx, BASE
+                div rbx
                 mov dword [rcx], edx
                 add rcx, 4
                 jmp .loop_carry
@@ -504,16 +508,25 @@ biMul:
         jne .loop1
     pop rax
     pop rdx
+    add rsp, 16
     cmp rdx, -1
     je .less_zero
         mov qword [rdi + sign], 1
         jmp .sign_done
     .less_zero
         mov qword [rdi + sign], 0
+    .sign_done
     push rax
     push rdi
     mov rdi, [rdi + vec]
     call deleteVector
+
+    mov rdi, [rsp + 8]
+    call back
+    cmp eax, 0
+    jne .no_pop_zero
+        call popBack
+    .no_pop_zero
     pop rdi
     pop rax
     mov [rdi + vec], rax
