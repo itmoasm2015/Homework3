@@ -949,6 +949,9 @@ biAdd:
 ;Returns:
 ;   RAX - sign
 biSign:
+    call    shiftLeft
+    ret
+
     mov     rcx, [rdi + len]
     cmp     rcx, 0
     je      .zero
@@ -1162,53 +1165,291 @@ biMul:
 
     ret
 
-;pair<void*, void*> digsDiv(void * v1, void * v2, int n, int m)
-;
-;Parameters:
-;   1) RDI - address of numerator digs vector
-;   2) RSI - address of remainder digs vector
-;   3) RDX - size of #1
-;   4) RCX - size of #2
-;Returns:
-;   1) RAX - address of quotient resulting vector
-;   2) RDX - address of remainder resulting vector
-digsDiv:
+%macro push_all_regs 0
     push    rdi
     push    rsi
     push    rdx
     push    rcx
-    mov     rax, [rdi + len]
-    alloc_N_qwords rax
-    mov     r8, rax
+    push    rbx
+    push    r8
+    push    r9
+    push    r10
+    push    r11
+    push    r12
+    push    r13
+    push    r14
+    push    r15
+%endmacro
+
+%macro pop_all_regs 0
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     r11
+    pop     r10
+    pop     r9
+    pop     r8
+    pop     rbx
     pop     rcx
     pop     rdx
     pop     rsi
     pop     rdi
+%endmacro
+
+;void shiftLeft(BigInt bi)
+;
+;Parameters:
+;   1) RDI - address of BigInt to be shifted one digit left (that is *= BASE)
+shiftLeft:
+    mov     rax, [rdi + len]
+    cmp     rax, 0
+    jne     .not_zero
+    ret
+.not_zero:
+    mov     rax, [rdi + len]
+    inc     rax
+    push_all_regs
+    alloc_N_qwords rax
+    pop_all_regs
+    mov     r8, rax
+
+    mov     rsi, [rdi + digs]
+    mov     rcx, [rdi + len]
+    mov     r9, r8
+    add     r9, 8
+.loop:
+    cmp     rcx, 0
+    je      .endloop
+    dec     rcx
+    mov     rax, [rsi]
+    mov     [r9], rax
+    add     rsi, 8
+    add     r9, 8
+    jmp     .loop 
+.endloop:
+    
+    push_all_regs
+    mov     rdi, [rdi + digs]
+    call    free
+    pop_all_regs
+
+    mov     [rdi + digs], r8
+    mov     rax, [rdi + len]
+    inc     rax
+    mov     [rdi + len], rax
+    ret
+
+
+;void* digsDiv(void * v1, void * v2, int n, int m)
+;
+;Parameters:
+;   1) RDI - address of numerator digs vector
+;   2) RSI - address of denominator digs vector
+;   3) RDX - size of numerator
+;   4) RCX - size of denominator
+;Returns:
+;   RAX - address of resultion quotient BigInt
+digsDiv:
+    push_all_regs
+
+    push_all_regs
+    alloc_N_and_copy_M rdx, rdi, rdx
+    pop_all_regs
+    mov     rdi, rax
+
+    push_all_regs
+    alloc_N_and_copy_M rcx, rsi, rcx
+    pop_all_regs
+    mov     rsi, rax
+
+    push_all_regs
+    xor     rdi, rdi
+    call    biFromInt
+    pop_all_regs
+    mov     r10, rax
+    mov     [r10 + digs], rdi
+    mov     [r10 + len], rdx
+    mov     qword [r10 + sign], 1
+
+    push_all_regs
+    xor     rdi, rdi
+    call    biFromInt
+    pop_all_regs
+    mov     r11, rax
+    mov     [r11 + digs], rdi
+    mov     [r11 + len], rcx
+    mov     qword [r11 + sign], 1
 
     mov     r9, [rsi + rcx * 8 - 8]
     inc     r9
-    
     push    rdx
     mov     rdx, 1
-    xor     rax, rax
+    mov     rax, 0
     div     r9
     mov     r9, rax
     pop     rdx
 
-    push    rdi
-    push    rsi
-    push    rdx
-    push    rcx
-    push    r8
-    push    r9
+    push_all_regs
+    mov     rdi, r10
+    mov     rsi, r9
+    call    mulLongShort
+    pop_all_regs
+
+    push_all_regs
+    mov     rdi, r11
+    mov     rsi, r9
+    call    mulLongShort
+    pop_all_regs
+
+    mov     rdi, [r10 + digs]
+    mov     rdx, [r10 + len]
+    mov     rsi, [r11 + digs]
+    mov     rcx, [r11 + len]
+
+    push_all_regs
+    alloc_N_qwords rdx
+    pop_all_regs
+    mov     r8, rax
+
+    push_all_regs
     xor     rdi, rdi
     call    biFromInt
-    pop     r9
-    pop     r8
-    pop     rcx
-    pop     rdx
-    pop     rsi
-    pop     rdi
+    pop_all_regs
+    mov     r9, rax
+
+    push_all_regs
+    xor     rdi, rdi
+    call    biFromInt
+    pop_all_regs
+    mov     r12, rax
+
+    mov     r13, rdx
+.loop:
+    cmp     r13, 0
+    je      .endloop
+    dec     r13
+
+    push_all_regs
+    mov     rdi, r9
+    call    shiftLeft
+    pop_all_regs
+
+    mov     rax, [rdi + r13 * 8]    
+    push_all_regs
+    mov     rdi, r9
+    mov     rsi, rax
+    call    addLongShort
+    pop_all_regs
+
+    push_all_regs
+    mov     rdx, [r10 + len]
+    mov     rcx, [r11 + len]
+
+    mov     r14, [r11 + digs]
+    mov     r14, [r14 + rcx * 8 - 8]
+
+    xor     r10, r10
+    mov     r12, rcx
+    mov     r8, [r9 + len]
+    cmp     r12, r8
+    jge     .s1_set
+    
+    mov     r10, [r9 + digs]
+    mov     r10, [r10 + r12 * 8]
+
+    .s1_set:
+    xor     r11, r11
+    mov     r12, rcx
+    dec     r12
+    mov     r8, [r9 + len]
+    cmp     r12, r8
+    jge     .s2_set
+
+    mov     r11, [r9 + digs]
+    mov     r11, [r11 + r12 * 8]
+
+    .s2_set:
+    mov     rdx, 1
+    mov     rax, 0
+    mul     r10
+    add     rax, r11
+    adc     rdx, 0
+    div     r14
+    pop_all_regs
+    mov     r14, rax
+
+    push_all_regs
+    mov     rdi, [r12 + digs]
+    call    free 
+    pop_all_regs
+
+    push_all_regs
+    alloc_N_and_copy_M [r11 + len], [r11 + digs], [r11 + len]
+    pop_all_regs
+    mov     [r12 + digs], rax
+    mov     [r12 + len], rcx
+    mov     qword [r12 + sign], 1
+
+    push_all_regs
+    mov     rdi, r12
+    mov     rsi, r14
+    call    mulLongShort
+    pop_all_regs
+
+    push_all_regs
+    mov     rdi, r9
+    mov     rsi, r12
+    call    biSub
+    pop_all_regs
+
+    .while_neg_loop:
+        mov     rax, [r9 + sign]
+        cmp     rax, 1
+        je      .end_while_neg_loop
+        push_all_regs
+        mov     rdi, r9
+        mov     rsi, r11
+        call    biAdd
+        pop_all_regs
+        dec     r14
+        jmp     .while_neg_loop
+    .end_while_neg_loop:
+
+    mov     [r8 + r13 * 8], r14
+    jmp     .loop
+.endloop:
+    push_all_regs
+    mov     rdi, r9
+    call    biDelete
+    pop_all_regs
+
+    push_all_regs
+    mov     rdi, r10
+    call    biDelete
+    pop_all_regs
+
+    push_all_regs
+    mov     rdi, r11
+    call    biDelete
+    pop_all_regs
+
+    push_all_regs
+    mov     rdi, r12
+    call    biDelete
+    pop_all_regs
+
+    mov     rax, r8
+    pop_all_regs
+
+    mov     rdi, rax
+    push_all_regs
+    xor     rdi, rdi
+    call    biFromInt
+    pop_all_regs
+    mov     [rdi + digs], rax
+    mov     [rdi + len], rdx
+    mov     qword [rdi + sign], 1
 
     ret
 
@@ -1217,8 +1458,8 @@ digsDiv:
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 ;
 ;Parameters:
-;   1) RDI - quotient address-holder
-;   2) RSI - remainder address-holder
+;   1) RDI - resulting quotient address-holder
+;   2) RSI - resulting remainder address-holder
 ;   3) RDX - numerator BigInt
 ;   4) RCX - denominator BigInt
 biDivRem:
@@ -1254,7 +1495,15 @@ biDivRem:
     ret
 
 .numer_not_zero:
-    ;TODO: write digsDiv
+    push_all_regs
+    mov     rdx, [rdi + len]
+    mov     rcx, [rsi + len]
+    mov     rdi, [rdi + digs]
+    mov     rsi, [rsi + digs]
+    call    digsDiv
+    pop_all_regs
+
+    
 
 .return:
     ret
