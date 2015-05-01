@@ -161,3 +161,18 @@ TEST(bigint, cmp_long_long) {
 		}
 	}
 }
+
+TEST(bigint, sign) {
+	std::vector<long long> test_long_longs { 0LL, -1LL, 1LL, 234567654345678LL, -5297682377823095LL, 6523792561283132LL, LLONG_MIN, LLONG_MAX };
+	for (auto i : test_long_longs) {
+		BigInt a = biFromInt(i);
+
+		int x = (i < 0 ? -1 : ((i == 0) ? 0 : 1));
+		int y = biSign(a);
+
+		biDelete(a);
+
+		ASSERT_EQ(x, y);
+	}
+}
+
