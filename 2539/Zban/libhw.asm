@@ -436,7 +436,7 @@ biSwapAndDelete:
     push rdi
     push rsi
     mov rdi, [rdi + 8]
-    call free
+    call free ; free old array
     pop rsi
     pop rdi
 
@@ -492,7 +492,9 @@ addUnsigned:
         mov r10, [rdx + r8 * 8]
         .isOutOfBorderB
         add [rax + r8 * 8], r11 ; c[i] = a[i] (r9) + b[i] (r10) + carry (r11)
+        pushf
         xor r11, r11 ; carry := 0, and see for carry on next iteration
+        popf
         adc r11, 0
         add [rax + r8 * 8], r9
         adc r11, 0
@@ -702,7 +704,9 @@ subUnsigned:
         .isOutOfBorderB
         mov [rax + r8 * 8], r9 ; c[i] = a[i] - b[i] - carry
         sub [rax + r8 * 8], r11
+        pushf
         xor r11, r11
+        popf
         adc r11, 0
         sub [rax + r8 * 8], r10
         adc r11, 0
