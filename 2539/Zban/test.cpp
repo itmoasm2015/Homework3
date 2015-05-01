@@ -198,6 +198,15 @@ void test5() {
     biDelete(b);
     biDelete(c);
 
+    a = biFromString("-");
+    ok &= check(a == NULL);
+
+    a = biFromString("");
+    ok &= check(a == NULL);
+    
+    a = biFromString("-0");
+    ok &= check(a != NULL);
+    biDelete(a);
 
     check(ok, 1);
 }
