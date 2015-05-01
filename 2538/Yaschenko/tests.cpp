@@ -127,11 +127,9 @@ TEST(bigint, to_string_long_long) {
 }
 
 TEST(bigint, cmp_ints) {
-	std::vector<int> test_ints { 0 , -1 };//, 1, 5, 999, 4531, -987152, -5643, 123456789, -876478, INT_MAX, INT_MIN };
-	//std::vector<int> test_ints { INT_MAX, INT_MIN };
+	std::vector<int> test_ints { 0 , -1, 1, 5, 999, 4531, -987152, -5643, 123456789, -876478, INT_MAX, INT_MIN };
 	for (auto i : test_ints) {
 		for (auto j : test_ints) {
-			//i = -1, j = 0;
 			BigInt a = biFromInt(i);
 			BigInt b = biFromInt(j);
 
@@ -141,7 +139,24 @@ TEST(bigint, cmp_ints) {
 			biDelete(a);
 			biDelete(b);
 
-			std::cout << i << ' ' << j << std::endl;
+			ASSERT_EQ(x, y);
+		}
+	}
+}
+
+TEST(bigint, cmp_long_long) {
+	std::vector<long long> test_long_longs { 0LL, -1LL, 1LL, 234567654345678LL, -5297682377823095LL, 6523792561283132LL, LLONG_MIN, LLONG_MAX };
+	for (auto i : test_long_longs) {
+		for (auto j : test_long_longs) {
+			BigInt a = biFromInt(i);
+			BigInt b = biFromInt(j);
+
+			int x = (i < j ? -1 : ((i == j) ? 0 : 1));
+			int y = biCmp(a, b);
+
+			biDelete(a);
+			biDelete(b);
+
 			ASSERT_EQ(x, y);
 		}
 	}
