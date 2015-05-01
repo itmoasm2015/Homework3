@@ -84,11 +84,26 @@
 	call	vectorGet
 %endmacro
 
+%macro vector_set 3
+	mov	rdi, %1
+	mov	rsi, %2
+	mov	rdx, %3
+	call	vectorSet
+%endmacro
+
 %macro bigint_set_sign 2
 	mov	%1, %2
 %endmacro
 
+%macro bigint_new 1
+	mov	rdi, %1
+	call	_biNew
+%endmacro
 
+%macro bigint_delete 1
+	mov	rdi, %1
+	call	biDelete
+%endmacro
 
 
 %endif
