@@ -1,4 +1,4 @@
-CXXFLAGS=-g -O2
+CXXFLAGS=-g -O0
 
 YASM_FLAGS=-f elf64 -g dwarf2
 

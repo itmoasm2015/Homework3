@@ -107,7 +107,7 @@ biCopy:
     pop rdi
 
     mov [rbx + 8], rax ; data ptr is assigned
-    mov rax, rbx       ; rax now 
+    mov rax, rbx       ; rax now is ptr to BigInt
     mov rdi, [rdi + 8] ; ptr to old data
     mov rsi, [rax + 8] ; ptr to new data
 
@@ -285,17 +285,19 @@ biToString:
     pop rdi    
     pop rdx
     pop rsi
-    mov rcx, [r11 + 8] ; rcx now is ptr to array which wi divide by 10
+    mov rcx, [r11 + 8] ; rcx now is ptr to array which we divide by 10
 
     push rax
     push r11
     push rdi
     push rsi
     push rdx
+    push rcx
     mov rdi, rcx
     xor rsi, rsi
     mov esi, [r11 + 4]
     call cmpWithZero ; if zero then we can put '0' and return immediatly
+    pop rcx
     pop rdx
     pop rsi
     pop rdi
@@ -303,8 +305,8 @@ biToString:
     test rax, rax
     pop rax
     jnz .notZero
-    mov [rsi], byte '0'
-    mov [rsi + 1], byte 0
+    mov byte [rsi], '0'
+    mov byte [rsi + 1], 0
     push r11
     mov rdi, rax
     call free ; free temp array
@@ -430,6 +432,14 @@ biSwapAndDelete:
     mov [rdi], r8D ; swap sign
     mov r8D, [rsi + 4]
     mov [rdi + 4], r8D ; swap len
+
+    push rdi
+    push rsi
+    mov rdi, [rdi + 8]
+    call free
+    pop rsi
+    pop rdi
+
     mov r8, [rsi + 8]
     mov [rdi + 8], r8 ; swap data
     mov rdi, rsi
@@ -646,6 +656,7 @@ subUnsigned:
     jne .isNotZero ; if a=b then return 0
         mov rdi, 8
         call malloc
+        mov qword [rax], 0
         mov r8, 1
         mov r11, 0
         ret
@@ -674,7 +685,7 @@ subUnsigned:
     xor r11, r11 ; r11 will be carry
     .while
         cmp r8, rsi
-        jng .whileIsNotEnded
+        jl .whileIsNotEnded
         jmp .endWhile
         .whileIsNotEnded
 
