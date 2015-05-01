@@ -740,7 +740,7 @@ biToString:
 ; rsi - 2nd unsigned BigInt
 ; rdi -= rsi
 SUB_LESS_FLAG equ 1
-%macro sub_long_long 0
+sub_long_long:
     PUSH_REGS
     call biCmpUnsigned
     xor rcx, rcx
@@ -748,7 +748,7 @@ SUB_LESS_FLAG equ 1
     ; then increase size of 1st to size of 2nd
     ; and invert sign
     cmp rax, -1
-    jne %%sub_normal
+    jne .sub_normal
     setf(SUB_LESS_FLAG)
     mov r8, [rdi + SIGN]
     neg r8
@@ -756,7 +756,7 @@ SUB_LESS_FLAG equ 1
     mov rdx, [rsi + SIZE]
     increaseCapacity
 
-%%sub_normal:
+.sub_normal:
     mov r8, [rdi + VALUE]
     mov r9, [rsi + VALUE]
     mov r10, [rdi + SIZE]
@@ -764,37 +764,40 @@ SUB_LESS_FLAG equ 1
 
     xor rdx, rdx
     clc
-%%sub_ll_loop:
+.sub_ll_loop:
     mov rax, 0
     test r11, r11
-    jz %%sub_ll_loop_skip
+    jz .sub_ll_loop_skip
     mov rax, [r9]
     dec r11
 
-%%sub_ll_loop_skip:
+.sub_ll_loop_skip:
     mov r12, [r8]
     testf(SUB_LESS_FLAG)
-    jnz %%sub_ll_loop_less
-%%sub_ll_loop_normal:
-    add rax, rdx
+    jnz .sub_ll_loop_less
+.sub_ll_loop_normal:
+    sub r12, rdx
+    mov rdx, 0
+    adc rdx, 0
     sub r12, rax
-    jmp %%sub_ll_loop_next
-%%sub_ll_loop_less:
-    add r12, rdx
+    jmp .sub_ll_loop_next
+.sub_ll_loop_less:
+    sub rax, rdx
+    mov rdx, 0
+    adc rdx, 0
     sub rax, r12
     mov r12, rax
-%%sub_ll_loop_next:
+.sub_ll_loop_next:
     mov [r8], r12
-    mov rdx, 0
     adc rdx, 0
     add r8, 8
     add r9, 8
     dec r10
-    jnz %%sub_ll_loop
+    jnz .sub_ll_loop
 
-%%sub_ll_end:
+.sub_ll_end:
     POP_REGS
-%endmacro
+    ret
 
 
 ; rdi - 1st BigInt
@@ -836,7 +839,7 @@ biAdd:
     jmp .add_end
 
 .diff_signs:
-    sub_long_long
+    call sub_long_long
     jmp .add_end
 
 .add_end:

@@ -224,5 +224,11 @@ int main()
     assert(biCmp(bi1, bi2) == 0);
     cout << "OK 34" << endl;
 
+    bi1 = biFromInt(-1);
+    biToString(bi1, buffer, 2);
+    test = buffer;
+    assert(test == "");
+    cout << "OK 35" << endl;
+
     return 0;
 }
