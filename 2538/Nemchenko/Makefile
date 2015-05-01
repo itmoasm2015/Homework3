@@ -1,7 +1,7 @@
 CC=g++
 TARGET=main
 OBJECTS=bigint_impl.o main.o
-CXXFLAGS=-Wall -Wextra -g -std=c++1y -I../../include/
+CXXFLAGS=-Wall -Wextra -g3 -std=c++1y -I../../include/
 DEPS=../../include/bigint.h
 
 $(TARGET): $(OBJECTS)

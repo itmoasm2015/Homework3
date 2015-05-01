@@ -371,6 +371,8 @@ biToString:
 	mov byte [r13], '-'
 	inc r13
 	dec arg3
+	cmp arg3, 1
+	je .empty ; if only one symbol in string is '-'
 
 .after_sign:
 	cmp arg3, 1
@@ -456,6 +458,13 @@ biToString:
 	call biDelete ; delete copyied bigint, because it's not need now
 	mov arg1, r8 ; restore value of bigint
 	function_end
+
+.empty:
+	dec r13
+	mov byte [r13], 0
+	call biDelete
+	mov arg1, r8
+	function_end	
 
 ; arg1 - pointer on bigint
 ; return -1 if arg1 < 0, 1 if arg1 > 0 and 0 if arg1 == 0

@@ -444,7 +444,7 @@ biSub:
 
 ; void biMul(BigInt dst, BigInt src);
 biMul:
-        SAVE_REGS 3
+        SAVE_REGS 5
         mov R1, Arg1
         mov R2, Arg2
 
@@ -493,12 +493,12 @@ biMul:
         xor [R1 + BigInt.sign], T2
 
 .done:
-        RESTORE_REGS 3
+        RESTORE_REGS 5
         ret
 .return_zero:
         mov qword [R1 + BigInt.size], 0
         mov qword [R1 + BigInt.sign], 0
-        RESTORE_REGS 3
+        RESTORE_REGS 5
         ret
 
 

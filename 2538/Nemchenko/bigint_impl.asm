@@ -14,14 +14,87 @@ global biSub
 global biMul
 global biDivRem
 global biCmp
+;global main
+;main:
+    ;ret
 
-extern calloc
-extern free
+extern calloc, free
 
+BASE equ 1 << 64
+DEFAULT_SIZE equ 10
+
+;
+; stored bigNumber like this:
+; struct bigNum {
+;   unsigned int capacity;              4 bytes
+;   unsigned int size;                  4 bytes
+;   int sign;                           4 byte
+;   padding 4 bytes to stored "digits" in address multiples 8
+;   unsigned int64_t digits[capacity];  8 * capacity bytes
+; }
+;  
+; forall i < capacity: digits[i] < BASE
+; sign = 1 | 0 | -1 , more than 0, equal and less respectively
+
+; allocate (%1 + 2) * 8 bytes
+; pointer saved to rax
+%macro allocate_memory 1
+    push rdi
+    push rsi
+
+    mov rdi, %1
+    add rdi, 2     ; for storing capacity, size, sign. 12 bytes + 4b padding
+    mov rsi, 8
+
+    push rdi
+    call calloc 
+    pop rdi
+
+    mov [rax], rdi ; set capacity = %1 + 2
+
+    pop rsi
+    pop rdi
+%endmacro
+
+; first argument - pointer to the structure bigNum
+; second argument - arg::(unsigned long long)  which will be pushed into the "digits"
+; pre: "size" have to < "capacity"
+%macro push_back 2
+    push %1
+    push rcx
+
+    xor  rcx, rcx
+    add  %1, 4            ; %1 refer to size
+    mov  ecx, dword [%1]  ; rcx = size
+    imul rcx, 8           ; rcx = size * 8
+    add  rcx, 12          ; skip size, sign field and padding 4 bytes
+    inc  dword [%1]       ; size++
+
+    add %1, rcx           ; %1 refer to last free position in digits
+    mov qword [%1], %2    ; set first digit to appropriate position
+
+    pop rcx
+    pop %1
+%endmacro
 
 ; BigInt biFromInt(int64_t x);
 biFromInt:
-    mov rax, rdi
+    allocate_memory DEFAULT_SIZE
+    push_back rax, rdi
+    push rax
+    add rax, 8             ; rax refer to field "sign"
+    cmp rdi, 0
+    je .end                ; x == 0 -> sign = 0
+    jg .greater_0
+
+    mov [rax], dword -1    ; x < 0  -> sign = -1
+    jmp .end
+
+    
+    .greater_0:
+        mov [rax], dword 1 ; x > 0  -> sign = 1
+    .end:
+    pop rax
     ret
 
 ; BigInt biFromString(char const *s);
@@ -33,11 +106,14 @@ biToString:
     ret
 
 ; void biDelete(BigInt bi);
+; pointer to bi saved in rdi, free will be called with this pointer
 biDelete:
+    call free
     ret
 
 ; int biSign(BigInt bi);
 biSign:
+    mov rax, [rdi + 8]    
     ret
 
 ; void biAdd(BigInt dst, BigInt src);
@@ -58,5 +134,6 @@ biDivRem:
 
 ; int biCmp(BigInt a, BigInt b);
 biCmp:
+    
     ret
 
