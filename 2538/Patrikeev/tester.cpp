@@ -23,8 +23,8 @@ void testDivision() {
     BigInt * q = new BigInt();
     BigInt * r = new BigInt();
 
-    BigInt a = biFromString("-123897129837129837216298371629837162983716928736");
-    BigInt b = biFromString("123897129837129837216298371629837162983716928736");
+    BigInt a = biFromString("340282366920938463463374607431768211456");
+    BigInt b = biFromString("340282366920938463463374607431768211455");
 
     biDivRem(q, r, a, b);
 
@@ -45,11 +45,7 @@ void testDivision() {
 
 int main() {    
 
-    BigInt a = biFromString("-");
-    cout << a << endl;
-    cout << biCmp(a, a) << endl; 
-
-    
+    testDivision();    
 
     return 0;
 }

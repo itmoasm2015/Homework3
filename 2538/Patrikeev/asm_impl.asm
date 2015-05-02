@@ -17,6 +17,14 @@ global biCmp
 
 section .text
 
+;BigInt stores in memory as structure with appropriate offsets
+;BigInt scale is 2^64, that is every digit is 64-bit unsigned number
+;
+;Offsets:
+;   1) len - number of digits in BigInt
+;   2) sign - signum of BigInt: either -1 or 1
+;   3) digs - address in memory where digits begin
+;BigInt is 0 if and only if (len == 0 && sign == 1)
     struc BigInt_t
 len:    resq    1
 sign:   resq    1
@@ -24,7 +32,7 @@ digs:   resq    1
     endstruc
 
 ;;Create a BigInt from 64-bit signed integer.
-;BigInt biFromInt(int64_t x);
+;BigInt biFromInt(int64_t number);
 ;
 ;Parameters:
 ;   1) RDI - value of new BigInt
@@ -33,23 +41,23 @@ digs:   resq    1
 biFromInt: 
     push    rdi 
 
-    mov     rdi, 1
-    mov     rsi, BigInt_t_size
+    mov     rdi, 1              ;calloc one BigInt structure
+    mov     rsi, BigInt_t_size  ;with size of BigInt_t_size
     call    calloc
-    mov     rdx, rax
+    mov     rdx, rax            ;address of allocated BigInt
 
     pop     rdi
 
-    mov     qword [rdx + sign], 1
-    mov     qword [rdx + len], 0
-    mov     qword [rdx + digs], 0
+    mov     qword [rdx + sign], 1   ;fill fields
+    mov     qword [rdx + len], 0    ;number if zero yet
+    mov     qword [rdx + digs], 0   ;so no digits are allocated
 
-    cmp     rdi, 0
+    cmp     rdi, 0      ;if number == 0 then done.
     je      .return
-    jg      .fill_digs
+    jg      .fill_digs  ;number > 0
 
-    mov     qword [rdx + sign], (-1)
-    not     rdi
+    mov     qword [rdx + sign], (-1)  ;number < 0
+    not     rdi         ;convert to unsigned 64-bit
     inc     rdi
 
 .fill_digs:
@@ -58,103 +66,38 @@ biFromInt:
 
     mov     rdi, 1
     mov     rsi, 8
-    call    calloc
+    call    calloc      ;calloc one digit
 
     pop     rdi
     pop     rdx
 
-    mov     [rax], rdi
-    mov     [rdx + digs], rax
-    mov     qword [rdx + len], 1
+    mov     [rax], rdi           ;store the only digit in memory
+    mov     [rdx + digs], rax    ;save digits address
+    mov     qword [rdx + len], 1 ;set length to 1
 
 .return:
-    mov     rax, rdx
+    mov     rax, rdx    ;return address of BigInt
 
     ret
 
-;;Prints element using printf
+;Allocates N bytes and copies M from SRC to newly allocated
+;memory starting from its beginning
+;(convenient way in all kinds of copying BigInts)
+;
+;;void* alloc_N_and_copy_M(int n, void * src, int m)
 ;
 ;Parameters:
-;   1) format_string
-;   2) element_to_print
-%macro call_printf 2
-    push    rdi
-    push    rsi
-    mov     rdi, %1
-    mov     rsi, %2
-    xor     rax, rax
-    call    printf
-    pop     rsi
-    pop     rdi
-%endmacro
-
-%macro printValue 1
-    jmp     %%endstr
-%%form:   db  "%llu ", 10, 0
-%%endstr:
-    push    r12
-    mov     r12, %1
-    call_printf %%form, r12
-    pop     r12
-%endmacro
-
-
-;;Prints content of BigInt to console
-;Parameters:
-;   1) address of BigInt
-%macro dumpBigInt 1
-    jmp     %%endstr
-%%len_str:      db  "len: %llu", 10, 0
-%%sign_str:     db  "sign: %lld", 10, 0
-%%format_s:     db  "%s", 10, 0
-%%digs_str:     db  "digs: ", 0
-%%format_ull:   db  "%llu ", 0
-%%format_sll:   db  "%lld", 0  
-%%new_line:     db  " ", 10, 0 
-%%endstr:
-    push    r12
-    mov     r12, %1
-    call_printf %%len_str, [r12 + len]
-    call_printf %%sign_str, [r12 + sign]
-    call_printf %%format_s, %%digs_str
-    push    rcx
-    push    rdx
-    mov     rdx, [r12 + digs]
-    mov     rcx, [r12 + len]
-
-    %%loop:
-        cmp     rcx, 0
-        je      %%endloop
-        dec     rcx
-        push    rcx
-        push    rdx
-        call_printf %%format_ull, [rdx + rcx * 8]
-        pop     rdx
-        pop     rcx
-        jmp     %%loop
-    
-    %%endloop: 
-
-    call_printf %%format_s, %%new_line
-    
-    pop     rdx
-    pop     rcx       
-    pop     r12
-%endmacro
-
-;void* alloc_N_and_copy_M(int n, void * src, int m)
-;Parameters:
-;   1) N 
-;   2) SRC
-;   3) M 
+;   1) N - number of bytes to be allocated
+;   2) SRC - source from where copy should be done
+;   3) M - number of copying bytes
 ;Returns:
 ;   RAX - address of allocated and filled memory
 %macro alloc_N_and_copy_M 3
     push    r12
     push    r13
     push    r14
-    mov     r12, %1
-    mov     r13, %2
+    mov     r12, %1     ;move parameters to callee-saved registers
+    mov     r13, %2     ;to preserve them across calloc-invokation
     mov     r14, %3
 
     mov     rdi, r12
@@ -172,7 +115,11 @@ biFromInt:
     pop     r12
 %endmacro
 
-;void trimZeros(BigInt bi)
+;Trims digits of specified BigInt while the last digit equals 0
+;(this method is applicable after about every arithmetic operation
+;to hold correct values length and sign of BigInt)
+;
+;;void trimZeros(BigInt bi)
 ;
 ;Parameters:
 ;   1) RDI - BigInt
@@ -1298,6 +1245,12 @@ getQuotient:
 
     mov     r9, [rsi + rcx * 8 - 8]
     inc     r9
+    cmp     r9, 0
+    jne     .norm_take
+    mov     r9, 1
+    jmp     .norm_got 
+
+.norm_take:
     push    rdx
     mov     rdx, 1
     mov     rax, 0
@@ -1305,6 +1258,7 @@ getQuotient:
     mov     r9, rax
     pop     rdx
 
+.norm_got:
     push_all_regs
     mov     rdi, r10
     mov     rsi, r9
