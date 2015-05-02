@@ -739,6 +739,7 @@ biToString:
 ; rdi - 1st unsigned BigInt
 ; rsi - 2nd unsigned BigInt
 ; rdi -= rsi
+; need to be 16 bytes aligned
 SUB_LESS_FLAG equ 1
 %macro sub_long_long 0
     PUSH_REGS
@@ -754,7 +755,9 @@ SUB_LESS_FLAG equ 1
     neg r8
     mov [rdi + SIGN], r8
     mov rdx, [rsi + SIZE]
+    sub rsp, 8
     increaseCapacity
+    add rsp, 8
 
 %%sub_normal:
     mov r8, [rdi + VALUE]
