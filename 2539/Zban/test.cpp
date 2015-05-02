@@ -106,16 +106,16 @@ void test3() {
             biDelete(b);
         }
     }
+    biDelete(a);
 
     check(ok, 1);
 }
 
-void test4() {
+void test4(int n) {
     cout << "test 4: ";
     cout.flush();
     bool ok = 1;
 
-    int n = 1000;
     vector<unsigned long long> v(n);
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < 63; j++) {
@@ -265,43 +265,56 @@ void test6() {
     check(ok, 1);
 }
 
+const int size = 100000;
+char c[size];
+
 void test7() {
     cout << "test 7: ";
     cout.flush();
     bool ok = 1;
 
-    BigInt a;
-    char c[1000];
+    BigInt a, b;
+//    const int size = 100000;
+//    char c[size];
+
     a = biFromInt(0);
-    biToString(a, c, 1000);
+    biToString(a, c, size);
     ok &= check((string)c == "0");
     biDelete(a);
 
     a = biFromInt(5);
-    biToString(a, c, 1000);
+    biToString(a, c, size);
     ok &= check((string)c == "5");
     biDelete(a);
 
     a = biFromInt(123);
-    biToString(a, c, 1000);
+    biToString(a, c, size);
     ok &= check((string)c == "123");
     biDelete(a);
 
     a = biFromInt(-777);
-    biToString(a, c, 1000);
+    biToString(a, c, size);
     ok &= check((string)c == "-777");
     biDelete(a);
 
     a = biFromString("100000000000000000000");
-    biToString(a, c, 1000);
+    biToString(a, c, size);
     ok &= check((string)c == "100000000000000000000");
     biDelete(a);
 
 
     a = biFromString("43425452362856925692456924562568246836516062562");
-    biToString(a, c, 1000);
+    biToString(a, c, size);
     ok &= check((string)c == "43425452362856925692456924562568246836516062562");
     biDelete(a);
+
+    a = biFromString("100000000000000000000");
+    b = biFromString("90000000000000000000");
+    biSub(a, b);
+    biToString(a, c, size);
+    ok &= check((string)(c) == "10000000000000000000");
+    biDelete(a);
+    biDelete(b);
 
     check(ok, 1);
 }
@@ -311,9 +324,6 @@ void test8(int test, int cnt, int iters, int len) {
     cout.flush();
     bool ok = 1;
     
-    const int sz = 10000;
-    char c[sz];
-
     BigInt a;
     a = biFromInt(0);
     mpz_class a2 = 0;
@@ -322,8 +332,7 @@ void test8(int test, int cnt, int iters, int len) {
         string s = genRandNumber(len);
         BigInt b = biFromString(s.c_str());
 
-        //int o = rand() % cnt;
-        int o = (it > 0) * (1 + (test == 10));
+        int o = rand() % cnt;
         if (o == 0) {
             if (rand() % 2) {
                 biAdd(a, b);
@@ -332,17 +341,17 @@ void test8(int test, int cnt, int iters, int len) {
                 swap(a, b);
             }
             a2 += mpz_class(s);
-        }
+        } else
         if (o == 1) {
             biSub(a, b);
             a2 -= mpz_class(s);
-        }
+        } else 
         if (o == 2) {
             biMul(a, b);
             a2 *= mpz_class(s);
         }
 
-        biToString(a, c, sz);
+        biToString(a, c, size);
         string c1 = c;
         string c2 = a2.get_str();
         ok &= check(c1 == c2);
@@ -360,14 +369,11 @@ void test9() {
     cout.flush();
     bool ok = 1;
 
-    const int mx = 10000;
-    char c[mx];
-
     BigInt a, b;
     a = biFromInt(0);
     b = biFromInt(0);
     biMul(a, b);
-    biToString(a, c, mx);
+    biToString(a, c, size);
     ok &= check((string)c == "0");
     biDelete(a);
     biDelete(b);
@@ -375,7 +381,7 @@ void test9() {
     a = biFromInt(2);
     b = biFromInt(3);
     biMul(a, b);
-    biToString(a, c, mx);
+    biToString(a, c, size);
     ok &= check((string)c == "6");
     biDelete(a);
     biDelete(b);
@@ -383,7 +389,7 @@ void test9() {
     a = biFromString("-100000");
     b = biFromString("100000");
     biMul(a, b);
-    biToString(a, c, mx);
+    biToString(a, c, size);
     ok &= check((string)c == "-10000000000");
     biDelete(a);
     biDelete(b);
@@ -391,7 +397,7 @@ void test9() {
     a = biFromString("-100000000000000000000");
     b = biFromString("-100000000000000000000");
     biMul(a, b);
-    biToString(a, c, mx);
+    biToString(a, c, size);
     ok &= check((string)c == "10000000000000000000000000000000000000000");
     biDelete(a);
     biDelete(b);
@@ -399,7 +405,7 @@ void test9() {
     a = biFromString("543534651454354353461464534");
     b = biFromString("986825976248623595236852396");
     biMul(a, b);
-    biToString(a, c, mx);
+    biToString(a, c, size);
     ok &= check((string)c == "536374113046398593484849759421413903658458498546923464");
     biDelete(a);
     biDelete(b);
@@ -407,7 +413,7 @@ void test9() {
     a = biFromString("-10000000000000000000000000000000000000000");
     b = biFromString("-10000000000000000000000000000000000000001");
     biMul(a, b);
-    biToString(a, c, mx);
+    biToString(a, c, size);
     ok &= check((string)c == "100000000000000000000000000000000000000010000000000000000000000000000000000000000");
     biDelete(a);
     biDelete(b);
@@ -418,23 +424,6 @@ void test9() {
 
 void test11() {
     cout << "test 11: ";
-    cout.flush();
-    bool ok = 1;
-
-    BigInt a, b;
-    a = biFromInt(1);
-    b = biFromInt(0);
-    BigInt c, d;
-    biDivRem(&c, &d, a, b);
-    ok &= check(c == 0 && d == 0);
-    biDelete(a);
-    biDelete(b);
-    
-    check(ok, 1);
-}
-
-void test12() {
-    cout << "test 12: ";
     cout.flush();
     bool ok = 1;
 
@@ -465,8 +454,222 @@ void test12() {
     ok &= check(bi1 != NULL);
     bi2 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216"); // 2**1024
     ok &= check(biCmp(bi1, bi2) == 0);
+    biSub(bi1, bi2);
+    biToString(bi1, c, size);
+    ok &= check((string)(c) == "0");
     biDelete(bi1);
     biDelete(bi2);
+
+    bi1 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216");
+    bi2 = biFromString("-179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215");
+    bi3 = biFromString("1");
+    biAdd(bi1, bi2);
+    biToString(bi1, c, size);
+    ok &= check(biCmp(bi1, bi3) == 0);
+    biDelete(bi1);
+    biDelete(bi2);
+    biDelete(bi3);
+
+    check(ok, 1);
+}
+
+void test12() {
+    cout << "test 12: ";
+    cout.flush();
+    bool ok = 1;
+
+    BigInt a = biFromInt(3);
+    ok &= check(biCmp(a, a) == 0);
+    biDelete(a);
+
+    check(ok, 1);
+}
+
+void test13() {
+    cout << "test " << 13 << ": ";
+    cout.flush();
+    bool ok = 1;
+
+    BigInt a = biFromInt(0);
+    mpz_class a2 = 0;
+    string s = genRandNumber(100);
+    BigInt b = biFromInt(0);
+    biAdd(a, b);
+    a2 += mpz_class(s);
+    biDelete(a);
+    biDelete(b);
+    
+    check(ok, 1);
+}
+
+void gmpDivision(mpz_class a1, mpz_class a2, mpz_class &x1, mpz_class &x2) {
+    x1 = a1 / a2;
+    x2 = a1 % a2;
+    if (a1 < 0 && a2 > 0) {
+        if (x2 < 0) {
+            x2 += a2;
+            x1--;
+        }
+    } else
+    if (a1 > 0 && a2 < 0) {
+        if (x2 > 0) {
+            x2 += a2;
+            x1--;
+        }
+    }
+    assert(x1 * a2 + x2 == a1);
+}
+
+void testDelete(string s1, string s2, bool &ok) {
+    // s2 != 0
+    BigInt a = biFromString(s1.c_str());
+    BigInt b = biFromString(s2.c_str());
+    BigInt x, y;
+    biDivRem(&x, &y, a, b);
+    mpz_class a1 = 0;
+    a1 += mpz_class(s1);
+    mpz_class a2 = 0;
+    a2 += mpz_class(s2);
+
+    mpz_class x1, x2;
+    gmpDivision(a1, a2, x1, x2);
+    s1 = x1.get_str();
+    s2 = x2.get_str();
+
+    biToString(x, c, size);
+    string c1 = (string)(c);
+    ok &= check(c1 == s1);
+
+    biToString(y, c, size);
+    string c2 = (string)(c);
+    ok &= check(c2 == s2);
+
+    biDelete(a);
+    biDelete(b);
+    biDelete(x);
+    biDelete(y);
+}
+
+void test14() {
+    cout << "test 14: ";
+    cout.flush();
+    bool ok = 1;
+
+    BigInt a, b;
+    BigInt x, y;
+
+    a = biFromInt(1);
+    b = biFromInt(0);
+    biDivRem(&x, &y, a, b);
+    ok &= check(x == 0 && y == 0);
+    biDelete(a);
+    biDelete(b);
+    
+    a = biFromInt(0);
+    b = biFromInt(1);
+    biDivRem(&x, &y, a, b);
+    biToString(x, c, size);
+    ok &= check((string)(c) == "0");
+    biToString(y, c, size);
+    ok &= check((string)(c) == "0");
+    biDelete(a);
+    biDelete(b);
+    biDelete(x);
+    biDelete(y);
+    
+    testDelete("3", "15", ok);
+    testDelete("16", "3", ok);
+    testDelete("-16", "3", ok);
+    testDelete("-16", "-3", ok);
+    testDelete("16", "-3", ok);
+    testDelete("15", "3", ok);
+    testDelete("-15", "3", ok);
+    testDelete("-15", "-3", ok);
+    testDelete("15", "-3", ok);
+    testDelete("1000000000000000", "100000", ok);
+    testDelete("10000000000000000000000000", "10000000000000000000000000", ok);
+    testDelete("100000000000000000000", "1", ok);
+    testDelete("100000000000000000000000000000000000000000000000000", "100000000000000000000", ok);
+
+    a = biFromInt(534635);
+    biDivRem(&x, &y, a, a);
+    biToString(x, c, size);
+    ok &= check((string)(c) == "1");
+    biToString(y, c, size);
+    ok &= check((string)(c) == "0");
+    biDelete(a);
+    biDelete(x);
+    biDelete(y);
+    
+    check(ok, 1);
+}
+
+void test15(int iterations, int size) {
+    cout << "test 15: ";
+    cout.flush();
+    bool ok = 1;
+
+    for (int it = 0; it < iterations; it++) {
+        testDelete(genRandNumber(size * 2), genRandNumber(size), ok);
+    }
+
+    check(ok, 1);
+}
+
+void test16(int iters, int n, int len) {
+    cout << "test 16: ";
+    cout.flush();
+    bool ok = 1;
+
+    vector<BigInt> v(n);
+    vector<mpz_class> g(n);
+    for (int i = 0; i < n; i++) {
+        string s = genRandNumber(len);
+        v[i] = biFromString(s.c_str());
+        g[i] = 0;
+        g[i] += mpz_class(s);
+    }
+
+    for (int it = 0; it < iters; it++) {
+        int k = rand() % 4;
+        int i = rand() % n;
+        int j = rand() % n;
+        if (k == 0) {
+            g[i] += g[j];
+            biAdd(v[i], v[j]);
+        } else
+        if (k == 1) {
+            g[i] -= g[j];
+            biSub(v[i], v[j]);
+        } else
+        if (k == 2) {
+            g[i] *= g[j];
+            biMul(v[i], v[j]);
+        } else {
+            int o = rand() % 2;
+            if (g[j] == 0) continue;
+            BigInt x, y;
+            biDivRem(&x, &y, v[i], v[j]);
+            mpz_class x1, x2;
+            gmpDivision(g[i], g[j], x1, x2);
+            if (o == 0) {
+                g[i] = x1;
+                swap(v[i], x);
+            } else
+            if (o == 1) {
+                g[i] = x2;
+                swap(v[i], y);
+            }
+            biDelete(x);
+            biDelete(y);
+        }
+        biToString(v[i], c, size);
+        string s = g[i].get_str();
+        ok &= check((string)(c) == s);
+    }
+    for (int i = 0; i < n; i++) {
+        biDelete(v[i]);
+    }
 
     check(ok, 1);
 }
@@ -475,14 +678,19 @@ int main() {
     test1();
     test2();
     test3();
-    test4();
+    test4(2);
+    test4(1000);
     test5();
     test6();
     test7();
     test8(8, 2, 1000, 1000);
     test9();
-    test8(10, 3, 100, 100);
-    //test11();
-    test12(); 
-    return 0; 
+    test8(10, 3, 100, 200);
+    test11(); 
+    test12();
+    test13();
+    test14();
+    test15(1000, 100);
+    test16(3000, 500, 100);
+    return 0;
 }

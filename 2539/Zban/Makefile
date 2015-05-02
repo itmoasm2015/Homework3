@@ -1,14 +1,13 @@
-CXXFLAGS=-g -O2
-
-OBJS=test.o libhw.o
+CXXFLAGS=-g -O0
 
 YASM_FLAGS=-f elf64 -g dwarf2
 
-all: test
+all: libhw.o
 	ar rcs libhw.a libhw.o
 
-test: $(OBJS)
-	g++ $(CXXFLAGS) -o $@ $^ -lgmp
+test: test.o all
+	g++ $(CXXFLAGS) -o test test.o libhw.o -lgmp
+
 
 libhw.o: libhw.asm
 	yasm libhw.asm $(YASM_FLAGS) -o libhw.o
