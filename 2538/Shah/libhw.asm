@@ -744,7 +744,9 @@ SUB_LESS_FLAG equ 1
 %macro sub_long_long 0
     PUSH_REGS
     xor rcx, rcx
+    sub rsp, 8
     call biCmpUnsigned
+    add rsp, 8
     ; if unsigned 1st < 2nd
     ; then increase size of 1st to size of 2nd
     ; and invert sign
