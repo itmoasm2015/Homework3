@@ -1191,10 +1191,27 @@ biDivRem:
     push rdi
     push rsi
     push rdi
+    xchg rdi, rcx
+    isZeroFast
+    xchg rdi, rcx
+    test rax, rax
+    jnz .div_cont
+
+    pop rdi
+    pop rsi
+    pop rdi
+    mov [rdi], rax
+    mov [rsi], rax
+    POP_REGS
+    ret
+
+.div_cont:
     ; create quotient and save in r8
     ; size of quotient can't be more than size of numerator
     mov rdi, [rdx + SIZE]
+    sub rsp, 8
     allocateMemory
+    add rsp, 8
     mov rdi, rax
     biSetToZero
     mov r8, rdi
@@ -1202,13 +1219,15 @@ biDivRem:
     ; size of remainder = size of denominator + 1
     mov rdi, [rcx + SIZE]
     inc rdi
+    sub rsp, 8
     allocateMemory
+    add rsp, 8
     mov rdi, rax
     biSetToZero
     mov r9, rdi
     pop rdi
-    ; r8 - size of numerator(quotient)
-    ; r9 - size of denominator(remainder)
+    ; r8 - quotient
+    ; r9 - remainder
     mov rdi, rdx
     mov rsi, rcx
     ; rdi - numerator
@@ -1260,6 +1279,23 @@ biDivRem:
     mov rdi, r9
     biTrim
     isZeroFast
+    mov rdi, [r9 + SIGN]
+    test rdi, rdi
+    jz .end_div
+    cmp rdi, [rsi + SIGN]
+    je .end_div
+    mov rdi, r9
+    call biAdd
+    mov rdi, -1
+    call biFromInt
+    mov rsi, rax
+    mov rdi, r8
+    call biAdd
+    mov rdi, rsi
+    call biDelete
+    jmp .end_div
+
+.end_div:
     pop rsi
     pop rdi
     ; write result
