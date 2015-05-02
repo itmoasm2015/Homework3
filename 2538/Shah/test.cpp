@@ -244,10 +244,25 @@ void test_divide()
     {
         mpz_int var2 = randBig();
         mpz_int var = var2 * randBig() + randBig();
+        mpz_int p1 = randBig();
+        if (p1 < 0) p1 = -p1;
+        mpz_int p2 = randBig();
+        if (p2 < 0) p2 = -p2;
+        mpz_int p3 = randBig();
+        if (p3 < 0) p3 = -p3;
+        var = (rand()%2 == 0 ? -1 : 1) * (p1 * p2 + p3);
+        var2 = (rand()%2 == 0 ? -1 : 1) * p2;
+        // mpz_int p1("1298074214633706835075030044377087");
+        // mpz_int p2("170141183460469231731687303715884105727");
+        // mpz_int p3("2361183241434822606847");
+        // var = -(p1 * p2 + p3);
+        // var2 = p2;
         BigInt b1 = biFromString(var.str().c_str());
         BigInt b2 = biFromString(var2.str().c_str());
         BigInt quotient;
         BigInt remainder;
+        BigInt q2;
+        BigInt r2;
         mpz_int var3;
         biDivRem(&quotient, &remainder, b1, b2);
         if (var2 == 0)
@@ -256,6 +271,15 @@ void test_divide()
             assert(remainder == NULL);
             continue;
         }
+        biDivRem(&q2, &r2, b1, b2);
+        if (biSign(r2) != 0)
+        {
+        //printf("%d\n%d\n", biSign(r2), biSign(b2));
+            assert(biSign(r2) == biSign(b2));
+        }
+        biMul(q2, b2);
+        biAdd(q2, r2);
+        assert(biCmp(q2, b1) == 0);
         var3 = var / var2;
         mpz_int var4 = var % var2;
         biToString(quotient, str, str_size);
@@ -285,10 +309,10 @@ void test_divide()
 int main() 
 {
     srand(time(NULL));
-    test_str();
-    test_cmp();
-    test_add(true);
-    test_add(false);
-    test_mul();
+    // test_str();
+    // test_cmp();
+    // test_add(true);
+    // test_add(false);
+    // test_mul();
     test_divide();
 }
