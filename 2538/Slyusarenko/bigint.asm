@@ -230,11 +230,14 @@ biFromString:
 
 biDelete:
 	function_start
+	mov r15, rsp
+	and rsp, ~15
 	mov r14, arg1
 	mov arg1, [arg1 + bigint.data] ; free data
 	call free
 	mov arg1, r14 ; free struct
 	call free
+	mov rsp, r15
 	function_end
 
 ; arg1 - pointer on bigint
@@ -728,10 +731,15 @@ biSub:
 		mov cl, byte [arg1 + bigint.sign]
 		mov byte [rbx + bigint.sign], cl ; move all information from arg1 to rbx
 		push arg1 ; save value arg1 to delete it after memcpy
+		push r15
+		mov r15, rsp
+		and rsp, ~15 ; align the stack to call memcpy
 		mov arg2, [arg1 + bigint.data]
 		mov arg1, [rbx + bigint.data]
 		lea arg3, [r13 * 8] ; arguments for memcpy
 		call memcpy
+		mov rsp, r15
+		pop r15
 		pop arg1
 		call biDelete ; delete copy of bigint in function
 		mov arg1, rbx
@@ -840,10 +848,13 @@ biMul:
 			mov [arg1 + bigint.size], r14 ; set real size to size of arg1
 			push arg1
 			push arg2 ; save values of arg1 and arg2, because i want to use memcpy which requiers arg1 and arg2
+			mov r15, rsp
+			and rsp, ~15
 			mov arg1, [arg1 + bigint.data]
 			mov arg2, [r13 + bigint.data]
 			lea arg3, [r14 * 8]
 			call memcpy ; copy resulted bigint to arg1
+			mov rsp, r15
 			mov arg1, r13
 			call biDelete ; delete temporary bigint3
 			pop arg2
