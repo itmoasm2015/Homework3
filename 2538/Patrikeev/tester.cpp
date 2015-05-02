@@ -19,8 +19,32 @@ void printBigInt(BigInt a) {
     cout << buf << endl;
 }
 
+void testDivision() {
+    BigInt * q = new BigInt();
+    BigInt * r = new BigInt();
+
+    BigInt a = biFromString("340282366920938463463374607431768211456");
+    BigInt b = biFromString("340282366920938463463374607431768211455");
+
+    biDivRem(q, r, a, b);
+
+    if (*q == NULL) {
+        cout << "quotient is NULL" << endl;
+    } else {
+        cout << "quotient = ";
+        printBigInt(*q);
+    }
+
+    if (*r == NULL) {
+        cout << "remainder is NULL" << endl;
+    } else {
+        cout << "remainder = ";
+        printBigInt(*r);
+    }
+}
+
 int main() {    
 
-    printBigInt(a);
-    return 0;
+    testDivision();    
+
 }

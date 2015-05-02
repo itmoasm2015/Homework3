@@ -73,7 +73,7 @@ endstruc
     pushAll
 	mov r11, %1	
 	xor rdi, rdi				 		; запоминаем указатель на структуру с длинным числом
-    mov edi, [%1 + BigInt.digits]		; удаляем указатель на цифры длинного числа
+    mov edi, [r11 + BigInt.digits]		; удаляем указатель на цифры длинного числа
     ;call free
 	mov rdi, r11						; удаляем указатель на структуру
 	call free
@@ -90,7 +90,7 @@ endstruc
 ; Создает новый вектор по указателю на структуру с длинным числом и размеру
 ; Старый вектор удаляется
 %macro newVector 2
-	mpush %1, %2, r12, r13
+	mpush rdi, %1, %2, r12, r13
 	lea rdi, [%2 * 4]					; %2 * 4 -- количество байт, которые надо выделить
 
 	mpush rdi, rax
@@ -99,16 +99,18 @@ endstruc
 	mpop rdi, rax
 	
 	xor r12, r12						; R12 -- указатель на цифру
+	push r14
+	mov r14, r13
 %%fill_zeroes:     
 	cmp r12, rdi
 	je %%finish
 	mov dword [r13], 0					; записываем в цифру 0
-	lea r13, [r13 + 4]					; переходим к следующей цифре
+	add r13, 4							; переходим к следующей цифре
 	add r12, 4
 	jmp %%fill_zeroes
 %%finish:
-	mov [%1 + BigInt.digits], r13d
-	mpop %1, %2, r12, r13
+	mov [%1 + BigInt.digits], r14d
+	mpop rdi, %1, %2, r12, r13, r14
 %endmacro
 
 ; BigInt createBigIntWithCapacity(size_t capacity);
@@ -117,18 +119,18 @@ endstruc
 ; RAX -- результат
 ; сохраняет RDI
 %macro createBigIntWithCapacity 1
-	mov rdi, 16							; 16 байт выделяем под структуру
-	push %1
+	mov rdi, 16							; 32 байта выделяем под структуру
+	mpush %1, rsi
 	call malloc							; RAX -- выделенная структура
-	pop %1
+	mpop %1, rsi
 	mov byte [rax + BigInt.sign], 0		; Записываем 0 в знак и размер вектора
 	mov dword [rax + BigInt.size], 0	;
 	mov [rax + BigInt.capacity], %1d	; Вместимость берем из аргумента
 
-	mpush r9
+	mpush r9, rsi
 	mov r9, %1
 	newVector rax, r9
-	mpop r9
+	mpop r9, rsi
 %endmacro
 
 ; BigInt createBigInt();
@@ -136,11 +138,11 @@ endstruc
 ; RAX -- результат
 ; сохраняет RDI
 %macro createBigInt 0
-    mpush rdi, r9
+    mpush rdi, rsi, r9
     mov rdi, DEFAULT_CAPACITY
 	mov r9, rdi
     createBigIntWithCapacity r9
-    mpop rdi, r9
+    mpop rdi, rsi, r9
 %endmacro
 
 ; void ensureCapacity(size_t size, size_t capacity, BigInt number);
@@ -158,12 +160,13 @@ ensureCapacity:
 	shl rsi, 1                      ; RSI -- новая вместимость, RSI = RSI_OLD * 2
 	xor rax, rax
 	mov eax, [rdx + BigInt.digits]  ; RAX -- указатель на вектор с цифрами
+
 	mpush rax
     newVector rdx, rsi
 	mpop rax
     mpop rdx, rdi, rsi
 
-    mov r8, 0                       ; R8 -- индекс текущей цифры
+	mov r8, 0                       ; R8 -- индекс текущей цифры
 	push r12
 	xor r12, r12					; указатель на новый вектор с цифрами
 	mov r12d, [rdx + BigInt.digits]
@@ -179,6 +182,7 @@ ensureCapacity:
     jmp .fill_values
 .before_simple_push_back:
 	pop r12
+
 	callFreeVector rax
 .finish:
     ret
@@ -197,11 +201,12 @@ ensureCapacity:
     mov esi, [%1 + BigInt.capacity] ; RSI -- вместимость числа
     mov rdx, %1                 	; RDX -- само длинное число
                                 	; можем вызвать ensureCapacity, он все сделает, что нам надо
-    mpush %2
+    	
+	mpush %2, rax
 	call ensureCapacity
-    mpop %2
+    mpop %2, rax
     mov %1, rdx
-    
+
 	mpush r12
 	xor r12, r12
 	mov r12d, [%1 + BigInt.digits]
@@ -343,6 +348,7 @@ ensureCapacity:
 %macro biCopy 2
 	xor r8, r8
 	mov r8b, byte [%2 + BigInt.sign]
+
 	mov byte [%1 + BigInt.sign], r8b
 	mov r8d, [%2 + BigInt.size]
 	mov [%1 + BigInt.size], r8d
@@ -350,7 +356,14 @@ ensureCapacity:
 	mov [%1 + BigInt.capacity], r8d
 
 	mov r8d, [%2 + BigInt.size]
-	newVector %1, r8
+
+	mpush r15, %2, r8
+	mov r15, %1
+	newVector r15, r8
+	mov %1, r15
+	mpop r15, %2, r8
+
+	push rcx
 	xor rcx, rcx
 	xor r10, r10
 	xor r11, r11
@@ -369,6 +382,16 @@ ensureCapacity:
 	inc rcx
 	jmp %%copy_digits
 %%finish:
+	pop rcx
+%endmacro
+
+%macro biNegate 1
+	mpush r15
+	xor r15, r15
+	mov r15b, byte [%1 + BigInt.sign]
+	neg r15
+	mov byte [%1 + BigInt.sign], r15b
+	mpop r15
 %endmacro
 
 ; BigInt biFromInt(int64_t number);
@@ -376,7 +399,8 @@ ensureCapacity:
 ; возвращает RAX
 ; создает длинное число по короткому
 biFromInt:
-    createBigInt                		; создаем число с дефолтной вместимостью
+    xor r8, r8
+	createBigInt                		; создаем число с дефолтной вместимостью
     mov byte [rax + BigInt.sign], 1     ; изначально его знак равен 1
     cmp rdi, 0
     jge .non_negative           
@@ -456,6 +480,7 @@ biFromString:
     cmp byte [rdi + r9], 0
     jne .number_is_not_zero
     mov byte [rax + BigInt.sign], 0
+	mov dword [rax + BigInt.size], 1
     jmp .finish
 .number_is_not_zero:
     mpush rax, rdx
@@ -510,7 +535,7 @@ biFromString:
     pushBack rax, r8
     jmp .finish
 .error_occurred:
-    callFree rax
+    ;callFree rax
     xor rax, rax
 .finish:
     ret
@@ -618,34 +643,46 @@ biSign:
 ; b -- RSI
 ; result in RDI
 biAdd:
+	createBigInt
+	push rdi
+	mov rdi, rax
+	biCopy rdi, rsi
+	mov rax, rdi
+	pop rdi
+
 	xor r10, r10
 	xor r11, r11
 	mov r10b, byte [rdi + BigInt.sign]
-	mov r11b, byte [rsi + BigInt.sign]
+	mov r11b, byte [rax + BigInt.sign]
+	
 	cmp r11, 0
 	je .finish
 	cmp r10, 0
 	je .copy
-	cmp r10, 0
-	jg .first_positive
-	cmp r11, 0
-	jg .first_negative_second_positive
+	cmp r10, 1
+	je .first_positive
+	cmp r11, 1
+	je .first_negative_second_positive
 	jmp .add
 .first_negative_second_positive:
+	biNegate rax
+
+	push rsi
+	mov rsi, rax
 	call biSub
-	push r12
-	xor r12, r12
-	mov r12b, byte [rdi + BigInt.sign]
-	neg r12
-	mov byte [rdi + BigInt.sign], r12b
-	pop r12
+	pop rsi
 	jmp .finish
 .first_positive:
-	cmp r11, 0
-	jl .first_positive_second_negative
+	cmp r11, 1
+	jg .first_positive_second_negative
 	jmp .add
 .first_positive_second_negative:
+	biNegate rax
+
+	push rsi
+	mov rsi, rax	
 	call biSub
+	pop rsi
 	jmp .finish
 .add:
 	xor r10, r10
@@ -658,13 +695,13 @@ biAdd:
 	xor r14, r14
 	xor r15, r15
 	mov r12d, [rdi + BigInt.digits]
-	mov r13d, [rsi + BigInt.digits]
+	mov r13d, [rax + BigInt.digits]
 	xor rcx, rcx
 	mov r14d, [rdi + BigInt.digits]
-	mov r15d, [rsi + BigInt.digits]
+	mov r15d, [rax + BigInt.digits]
 .sum_digits:
 	mov r10d, [rdi + BigInt.size]
-	mov r11d, [rsi + BigInt.size]
+	mov r11d, [rax + BigInt.size]
 	
 	lea rdx, [r14 + r10 * 4]
 	cmp r12, rdx
@@ -703,8 +740,10 @@ biAdd:
 	jl .non_zero
 	mpush r8
 	mov r8, 0
-	mov rax, rdi
-	pushBack rax, r8
+	push rbx
+	mov rbx, rdi
+	pushBack rbx, r8
+	pop rbx
 	mpop r8
 .non_zero:
 	mov [r12], r8d
@@ -715,16 +754,191 @@ biAdd:
 	mpop r12, r13, r14, r15
 	jmp .finish
 .copy:
-	mpush rax, rbx
-	mov rax, rdi
-	mov rbx, rsi
-	biCopy rax, rbx
-	mpop rax, rbx
+	biCopy rdi, rax
+	callFree rax
 .finish:
 	ret
 
+; void biSub(BigInt a, BigInt b);
+; a -= b
+; a -- RDI
+; b -- RSI
+; result -- RDI
 biSub:
-    ret
+	push r15
+	mov r15, 1
+ 	createBigInt
+	push rdi
+	mov rdi, rax
+	biCopy rdi, rsi
+	mov rax, rdi
+	pop rdi
+
+	xor r10, r10
+	xor r11, r11
+	mov r10b, byte [rdi + BigInt.sign]
+	mov r11b, byte [rax + BigInt.sign]
+	cmp r11, 0
+	je .finish
+	cmp r10, 0
+	je .copy
+	cmp r10, 1
+	je .first_positive
+	cmp r11, 1
+	je .first_negative_second_positive
+	mov r15, -1
+	biNegate rdi
+	biNegate rax
+	jmp .sub
+.first_negative_second_positive:
+	biNegate rax
+	push rsi
+	mov rsi, rax
+	call biAdd
+	pop rsi
+	jmp .finish
+.first_positive:
+	cmp r11, 1
+	jg .first_positive_second_negative
+	jmp .sub
+.first_positive_second_negative:
+	biNegate rax
+	push rsi
+	mov rsi, rax
+	call biAdd
+	pop rsi
+	jmp .finish
+.sub:
+	mpush rax, rsi
+	mov rsi, rax
+	call biCmp
+	mov rcx, rax
+	mpop rax, rsi
+
+	cmp rcx, -1
+	jne .are_equal
+
+	mpush rdi, rsi
+	createBigInt
+	mov rsi, rdi
+	mov rdi, rax
+	biCopy rdi, rsi
+	mov r11, rdi
+	mpop rdi, rsi
+	
+	mpush rdi, rsi, r11
+	createBigInt
+	mov rdi, rax
+	biCopy rdi, rsi
+	mov r10, rdi
+	mpop rdi, rsi, r11
+	
+	mpush rdi, rsi
+	mov rdi, r10
+	mov rsi, r11
+	mpush r10, r11
+	call biSub
+	mpop r10, r11
+	mov r10, rdi
+	mpop rdi, rsi
+	
+	push rsi
+	mov rsi, r10
+	biCopy rdi, rsi
+	pop rsi
+	biNegate rdi
+	jmp .finish
+.are_equal:
+	cmp rcx, 0
+	jne .go_sub
+	
+	mov byte [rdi + BigInt.sign], 0
+	mov dword [rdi + BigInt.size], 1
+	mov dword [rdi + BigInt.capacity], DEFAULT_CAPACITY
+	xor r11, r11
+	mov r11d, [rdi + BigInt.digits]
+	mov dword [r11], 0
+	jmp .finish
+.go_sub:
+	xor r10, r10
+	xor r11, r11
+	xor r8, r8
+	xor r9, r9
+	mpush r12, r13, r14, r15
+	xor r12, r12
+	xor r13, r13
+	xor r14, r14
+	xor r15, r15
+	mov r12d, [rdi + BigInt.digits]
+	mov r13d, [rax + BigInt.digits]
+	xor rcx, rcx
+	mov r14d, [rdi + BigInt.digits]
+	mov r15d, [rax + BigInt.digits]
+.sub_digits:
+	mov r10d, [rdi + BigInt.size]
+	mov r11d, [rax + BigInt.size]
+	
+	lea rdx, [r14 + r10 * 4]
+	cmp r12, rdx
+	jl .first_non_zero
+	xor r8, r8
+	jmp .second
+.first_non_zero:
+	mov r8d, [r12]
+.second:
+	lea rdx, [r15 + r11 * 4]
+	cmp r13, rdx
+	jl .second_non_zero
+	xor r9, r9
+	jmp .check_finish
+.second_non_zero:
+	mov r9d, [r13]
+.check_finish:
+	cmp r8, 0
+	jne .ok
+	cmp r9, 0
+	jne .ok
+	cmp rcx, 0
+	jne .ok
+	jmp .sub_is_done
+.ok:
+	sub r8, r9
+	sub r8, rcx
+	xor rcx, rcx
+	cmp r8, 0
+	jge .write_digit
+	mov rcx, 1
+	add r8, BASE
+.write_digit:
+	lea rdx, [r14 + r10 * 4]
+	cmp r12, rdx
+	jl .non_zero
+	mpush r8
+	mov r8, 0
+	push rax
+	mov rax, rdi
+	pushBack rax, r8
+	pop rax
+	mpop r8
+.non_zero:
+	mov [r12], r8d
+	add r12, 4
+	add r13, 4
+	jmp .sub_digits
+.sub_is_done:
+	mpop r12, r13, r14, r15
+	jmp .finish
+.copy:
+	biNegate rax
+	biCopy rdi, rax
+	callFree rax
+.finish:
+	xor r8, r8
+	mov r8b, byte [rdi + BigInt.sign]
+	imul r8, r15
+	mov byte [rdi + BigInt.sign], r8b
+	pop r15
+	ret 
 
 biMul:
     ret
@@ -739,16 +953,30 @@ biDivRem:
 ; сравнивает два длинных числа
 ; возвращает 0, если a = b, < 0, если a < b, > 0, если a > b
 biCmp:
-    xor r8, r8
+    push rcx
+	xor r8, r8
     xor r9, r9
-
+	mov rdx, 1
+	
     mov r8b, byte [rdi + BigInt.sign]
     mov r9b, byte [rsi + BigInt.sign]
-    cmp r8, r9
+    cmp r8, 255
+	jne .ok1
+	sub r8, 256
+.ok1:
+	cmp r9, 255
+	jne .ok2
+	sub r9, 256
+.ok2:
+	cmp r8, r9
     jl .below
     jg .above
 
-    mov r8d, [rdi + BigInt.size]
+	cmp byte [rdi + BigInt.sign], 1
+	je .positive_numbers
+	mov rdx, -1
+.positive_numbers:
+	mov r8d, [rdi + BigInt.size]
     mov r9d, [rsi + BigInt.size]
     cmp r8, r9
     jl .below
@@ -761,7 +989,6 @@ biCmp:
 	mov r12d, [rsi + BigInt.digits]
     lea r9, [r12 + r9 * 4 - 4]
 	pop r12
-	push rcx
 	xor rcx, rcx
 .compare_digits:
     lea r10, [rdi + BigInt.size]
@@ -790,10 +1017,12 @@ biCmp:
     mov rax, 0
     jmp .finish
 .finish:
+	imul rax, rdx
 	pop rcx
     ret
 
 section .data
 
 intFormat:    db '%d', 10, 0
+intFormat2:   db '!!! %d', 10, 0
 stringFormat: db '%s', 10, 0
