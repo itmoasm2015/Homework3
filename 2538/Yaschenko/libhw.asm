@@ -1,5 +1,9 @@
 default rel
 
+%include "macros.mac"
+%include "libhw.i"
+%include "libmyvec.i"
+
 extern calloc
 extern free
 
@@ -9,6 +13,9 @@ extern vectorDelete
 extern vectorSize
 extern vectorBack
 extern vectorGet
+extern vectorSet
+extern vectorEmpty
+extern vectorPopBack
 
 global biFromInt
 global biFromString
@@ -26,22 +33,27 @@ section .text
 
 ;; Bigint stores digits with 1e9 base.
 %assign	BASE		1000000000
-%assign BASE_LEN	9
-%assign SIGN_PLUS	1
-%assign SIGN_MINUS	-1
-
-struc Bigint
-	.vector		resq	1
-	.sign		resq	1
-endstruc
+%assign	BASE_LEN	9
+%assign	SIGN_PLUS	1
+%assign	SIGN_MINUS	-1
+%assign	SIGN_ZERO	0
 
 
-;; Creates new Bigint with empty vector.
+;; Creates new Bigint with empty vector and ZERO_SIGN.
 ;; Returns:
 ;;	* RAX: pointer to newly created Bigint.
 biNew:
-;; Create vector of size 0 to store digits of Bigint.
 	mov	rdi, 0
+	call	_biNew
+	ret
+
+;; Creates new Bigint with vector of size X.
+;; Takes:
+;;	* RDI: size X of vector.
+;; Returns:
+;;	* RAX: pointer to newly created Bigint.
+_biNew:
+;; Create vector of size X to store digits of Bigint.
 	call	vectorNew
 	push	rax
 
@@ -52,50 +64,9 @@ biNew:
 
 	pop	rdx
 	mov	[rax + Bigint.vector], rdx
-	mov	qword [rax + Bigint.sign], SIGN_PLUS
+	mov	qword [rax + Bigint.sign], SIGN_ZERO
 
 	ret
-
-;; Pushes %2 to vector %1.
-%macro vector_push_back 2
-	mov	rdi, %1
-	mov	rsi, %2
-	call	vectorPushBack
-%endmacro
-
-%macro vector_back 1
-	mov	rdi, %1
-	call	vectorBack
-%endmacro
-
-%macro vector_size 1
-	mov	rdi, %1
-	call	vectorSize
-%endmacro
-
-%macro vector_get 2
-	mov	rdi, %1
-	mov	rsi, %2
-	call	vectorGet
-%endmacro
-
-;; Divides given reg by 10
-;; (RAX, RDX and RCX are reserved)
-%macro div10 1
-	push	rax
-	push	rdx
-	push	rcx
-
-	xor	rdx, rdx
-	mov	rax, %1
-	mov	rcx, 10
-	idiv	rcx
-	mov	%1, rax
-
-	pop	rcx
-	pop	rdx
-	pop	rax
-%endmacro
 
 
 ;; BigInt biFromInt(int64_t x);
@@ -113,11 +84,12 @@ biFromInt:
 	push	rax
 	mov	r8, rax
 
+	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_PLUS
 	cmp	rdi, 0
 	jge	.zero_check
 
 .negative:
-	mov	qword [r8 + Bigint.sign], SIGN_MINUS
+	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_MINUS
 	neg	rdi
 
 .zero_check:
@@ -141,7 +113,9 @@ biFromInt:
 	jmp	.div_loop
 
 .zero:
+;; TODO: don't push back 0 if bigint is zero.
 	vector_push_back	[r8 + Bigint.vector], 0
+	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_ZERO
 
 .done:
 	pop	rax
@@ -161,6 +135,21 @@ biDelete:
 	call	free
 	ret
 
+;; int biSign(BigInt bi);
+;;
+;; Returns sign of Bigint BI:
+;;	-1: if BI < 0
+;;	 0: if BI = 0
+;;	 1: if BI > 0
+;; Takes:
+;;	* RDI: pointer to Bigint BI.
+;; Returns:
+;;	* RAX: sign of Bigint BI.
+biSign:
+	mov		rax, [rdi + Bigint.sign]
+	ret
+
+
 
 ;; void biToString(BigInt bi, char *buffer, size_t limit);
 ;;
@@ -171,6 +160,8 @@ biDelete:
 ;;	* RSI: pointer to destination buffer.
 ;;	* RDX: max number of chars.
 biToString:
+
+;; These macros are used only here, so don't move it to macros.
 
 ;; Writes byte %3 to [%1 + %2].
 %macro write_byte 3
@@ -327,4 +318,325 @@ biToString:
 	ret
 
 
+;; int biCmp(BigInt a, BigInt b);
+;;
+;; Compares two Bigints.
+;; Takes:
+;;	* RDI: pointer to first Bigint.
+;;	* RSI: pointer to secont Bigint.
+;; Returns:
+;;	* RAX: -1 if a < b
+;; 	        0 if a = b
+;;	        1 if a > b
+biCmp:
+	mov		rax, [rdi + Bigint.sign]
+	mov		rdx, [rsi + Bigint.sign]
+	cmp		rax, rdx
+	jl		.lt
+	jg		.gt
+	cmp		rax, SIGN_ZERO
+	je		.eq
 
+;; Either -/- or +/+
+	mpush		rdi, rsi, rdx
+	call		biCmpAbs
+	mpop		rdi, rsi, rdx
+
+	cmp		rdx, SIGN_MINUS
+	je		.both_negative
+
+.both_positive:
+	cmp		rax, SIGN_MINUS
+	je		.lt
+	cmp		rax, SIGN_ZERO
+	je		.eq
+	jmp		.gt
+
+.both_negative:
+	cmp		rax, SIGN_MINUS
+	je		.gt
+	cmp		rax, SIGN_ZERO
+	je		.eq
+	jmp		.lt
+
+.lt:
+	mov		rax, SIGN_MINUS
+	jmp		.done
+.gt:
+	mov		rax, SIGN_PLUS
+	jmp		.done
+.eq:
+	mov		rax, SIGN_ZERO
+	jmp		.done
+
+.done:
+	ret
+
+;; int biCmpAbs(BigInt a, BigInt b);
+;;
+;; Compares two Bigints by absolute value.
+;; Takes:
+;;	* RDI: pointer to first Bigint.
+;;	* RSI: pointer to secont Bigint.
+;; Returns:
+;;	* RAX: -1 if |a| < |b|
+;; 	        0 if |a| = |b|
+;;	        1 if |a| > |b|
+biCmpAbs:
+	mpush		rdi, rsi
+	vector_size	[rsi + Bigint.vector]
+	mov		rdx, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi
+	vector_size	[rdi + Bigint.vector]
+	mpop		rdi, rsi
+
+	cmp		rax, rdx
+	jl		.lt
+	jg		.gt
+
+	mov		rcx, rax
+	dec		rcx
+.digit_loop:
+	mpush		rdi, rsi, rcx
+	vector_get	[rsi + Bigint.vector], rcx
+	mov		rdx, rax
+	mpop		rdi, rsi, rcx
+
+	mpush		rdi, rsi, rcx, rdx
+	vector_get	[rdi + Bigint.vector], rcx
+	mpop		rdi, rsi, rcx, rdx
+
+	cmp		rax, rdx
+	jl		.lt
+	jg		.gt
+
+	dec		rcx
+	cmp		rcx, 0
+	jl		.eq
+	jmp		.digit_loop
+
+.lt:
+	mov		rax, SIGN_MINUS
+	jmp		.done
+.gt:
+	mov		rax, SIGN_PLUS
+	jmp		.done
+.eq:
+	mov		rax, SIGN_ZERO
+	jmp		.done
+
+.done:
+	ret
+
+
+
+;; void biMul(BigInt dst, BigInt src);
+;;
+;; Multiplies DST by SRC inplace.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+__biMul:
+	mpush		r12, r13, r14, r15
+
+	mpush		rdi, rsi
+	vector_size	[rsi + Bigint.vector]
+	mov		r9, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi, r9
+	vector_size	[rdi + Bigint.vector]
+	mov		r8, rax
+	mpop		rdi, rsi, r9
+
+	mov		rcx, r8
+	add		rcx, r9
+
+	mpush		rdi, rsi, r8, r9
+	bigint_new	rcx
+	mpop		rdi, rsi, r8, r9
+
+	push		rax
+;; stack: *C | ...
+
+;; void biMul(BigInt dst, BigInt src);
+;;
+;; Multiplies DST by SRC inplace.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+biMul:
+	mpush		r12, r13, r14, r15
+
+	mov		rax, [rdi + Bigint.sign]
+	mov		rdx, [rsi + Bigint.sign]
+
+	cmp		rax, SIGN_ZERO
+	je		.zero
+	cmp		rdx, SIGN_ZERO
+	je		.zero
+
+.mul_signs:
+	mov		rcx, rdx
+	xor		rdx, rdx
+	imul		rcx
+	mov		[rdi + Bigint.sign], rax
+	jmp		.start_mul
+
+.zero:
+	mpush		rdi, rsi
+	vector_delete	[rdi + Bigint.vector]
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi
+	vector_new	0
+	mpop		rdi, rsi
+
+	mov		[rdi + Bigint.vector], rax
+	mov		qword [rdi + Bigint.sign], SIGN_ZERO
+	jmp		.done
+
+.start_mul:
+	mpush		rdi, rsi
+	vector_size	[rsi + Bigint.vector]
+	mov		r8, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi, r8
+	vector_size	[rdi + Bigint.vector]
+	mov		r9, rax
+	mpop		rdi, rsi, r8
+
+	mov		rcx, r8
+	add		rcx, r9
+
+	mpush		rdi, rsi, r8, r9
+	bigint_new	rcx
+	mpop		rdi, rsi, r8, r9
+
+	mov		r15, rax
+
+;; R10: i loop counter.
+	xor		r10, r10
+.loop_i:
+;; R11: j loop counter.
+	xor		r11, r11
+;; R12: carry
+	xor		r12, r12
+.loop_j:
+	mov		rcx, r10
+	add		rcx, r11
+	push		rcx
+
+	mpush		rdi, rsi
+	vector_get	[r15 + Bigint.vector], rcx
+	mpop		rdi, rsi
+
+	push		rax
+;; stack: c[i + j] | i + j | *C | ...
+
+;; R13: a[i]
+	mpush		rdi, rsi
+	vector_get	[rdi + Bigint.vector], r10
+	mov		r13, rax
+	mpop		rdi, rsi
+
+;; RAX: b[j]
+	mpush		rdi, rsi
+	vector_get	[rsi + Bigint.vector], r11
+	mpop		rdi, rsi
+
+;; RAX = a[i] * b[j]
+	xor		rdx, rdx
+	mul		r13
+
+;; RAX = a[i] * b[j] + c[i + j]
+	add		rax, [rsp]
+	add		rsp, 8
+;; stack: i + j | *C | ...
+;; RAX = a[i] * b[j] + c[i + j] + CARRY
+	add		rax, r12
+
+;; RAX = RAX % BASE
+;; RDX = RAX / BASE
+	mpush		rbx
+	mov		rbx, BASE
+	div10		rbx
+	mpop		rbx
+
+;; Update CARRY with new value.
+	mov		r12, rdx
+
+	mpush		rdi, rsi
+	;mov		rdi, [r15 + Bigint.vector]
+	;mov		rsi, [rsp + 16]
+	;mov		rdx, rax
+	;call	vectorSet
+	vector_set	[r15 + Bigint.vector], [rsp + 16], rax
+	mpop		rdi, rsi
+	add		rsp, 8
+
+	inc		r11
+
+;; If CARRY > 0 do extra iteration.
+	cmp		r12, 0
+	jg		.loop_j
+
+	cmp		r11, r9
+	jl		.loop_j
+
+	inc		r10
+	cmp		r10, r8
+	jl		.loop_i
+
+.mul_done:
+	push		rdi
+	mov		rdi, r15
+	call		_biTrimZeros
+	pop		rdi
+
+	push		rdi
+	vector_delete	[rdi + Bigint.vector]
+	pop		rdi
+
+	mov		rdx, [r15 + Bigint.vector]
+	mov		[rdi + Bigint.vector], rdx
+
+	mov		rdx, [r15 + Bigint.sign]
+	mov		[rdi + Bigint.sign], rdx
+
+	mov		rdi, r15
+	call		free
+
+.done:
+	mpop		r12, r13, r14, r15
+	ret
+
+;; Removes leading zeros from Bigint.
+;; Takes:
+;;	* RDI: pointer to Bigint.
+_biTrimZeros:
+.loop:
+	push		rdi
+	vector_empty	[rdi + Bigint.vector]
+	pop		rdi
+
+	cmp		rax, 1
+	je		.done
+
+	push		rdi
+	vector_back	[rdi + Bigint.vector]
+	pop		rdi
+
+	cmp		rax, 0
+	jne		.done
+
+	push		rdi
+	vector_pop_back	[rdi + Bigint.vector]
+	pop		rdi
+	jmp		.loop
+
+.done:
+	ret

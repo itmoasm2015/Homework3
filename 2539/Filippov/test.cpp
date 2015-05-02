@@ -3,100 +3,286 @@
 
 const size_t MAX_SIZE = 100000;
 const size_t INF = 1e9; 
+const int64_t MAX_VALUE = 9223372036854775807LL;
+const int64_t MIN_VALUE = -9223372036854775807LL;
+
+char out[MAX_SIZE];
+
+void assertEquals(BigInt a, int x) {
+	assertEquals(a, (int64_t)x);
+}
+
+void assertEquals(BigInt a, int64_t x) {
+	assert(a != 0);
+	biToString(a, out, INF);
+	assert(!strcmp(out, std::to_string(x).c_str()));
+}
+
+void assertEquals(BigInt a, std::string &x) {
+	assert(a != 0);
+	biToString(a, out, INF);
+	assert(!strcmp(out, x.c_str()));
+}
+
+int randomNumber(int l, int r) {
+	return l + rand() % (r - l + 1);
+}
+
+std::string randomStringNumber(int length) {
+	std::string result = "";
+	result += randomNumber(1, 9) + '0';
+	for (int i = 0; i + 1 != length; ++i) {
+		result += randomNumber(0, 9) + '0';
+	}
+	return result;
+}
+
+void testBiFromInt() {
+	printf("=========================\n");
+    printf("Running testBiFromInt\n");
+
+	std::vector<int64_t> numbers;
+	numbers.push_back(0);
+	numbers.push_back(MAX_VALUE);
+	numbers.push_back(MIN_VALUE);
+	for (int test = 0; test != 100; ++test) {
+		int64_t number = (rand() * rand()) * ((rand() & 1) ? 1 : -1);
+		numbers.push_back(number);
+	}
+	for (int64_t x : numbers) {
+		BigInt a = biFromInt(x);
+		assertEquals(a, x);
+		biDelete(a);
+	}
+	
+	printf("All tests passed\n");
+	printf("=========================\n");
+}
+
+void testBiFromString() {
+    printf("============================\n");
+    printf("Running testBiFromString\n");
+
+	std::vector<std::pair<std::string, std::string>> numbers;
+	numbers.push_back(std::make_pair("00000000000000000000000000000000000000000000000000000000000", "0"));
+	numbers.push_back(std::make_pair("-0000000000000000000000000000000000000000000000000000000000", "0"));
+	numbers.push_back(std::make_pair(std::to_string(MAX_VALUE), std::to_string(MAX_VALUE)));
+	numbers.push_back(std::make_pair(std::to_string(MIN_VALUE), std::to_string(MIN_VALUE)));
+    for (int test = 0; test != 10; ++test) {
+		int length = rand() % 1000 + 1;
+		std::string number = randomStringNumber(length);
+		std::string beforeNumber = number;
+		int zeroes = rand() % 1000;
+		std::reverse(number.begin(), number.end());
+		for (int it = 0; it != zeroes; ++it) {
+			number += '0';
+		}
+		std::reverse(number.begin(), number.end());
+		if (rand() & 1) {
+			number = '-' + number;
+			beforeNumber = '-' + beforeNumber;
+		}
+		numbers.push_back(std::make_pair(number, beforeNumber));
+	}
+	for (std::pair<std::string, std::string> x : numbers) {
+		BigInt a = biFromString(x.first.c_str());
+		assertEquals(a, x.second);
+		biDelete(a);
+	}
+	printf("All tests passed\n");
+    printf("============================\n");
+}
+
+
+void testBiSign() {
+	printf("===========================\n");
+	printf("Running testBiSign\n");
+	assert(biSign(biFromString("-123")) < 0);
+	assert(biSign(biFromString("0000000000000000000000000000000000000000000000")) == 0);
+	assert(biSign(biFromString("00000000000000000000000000000000000000000000001")) > 0);
+	assert(biSign(biFromString("-0000000000000000000000000000000000000000000001")) < 0);
+	assert(biSign(biFromString("-0")) == 0);
+	assert(biSign(biFromInt(-3000000000000000000LL)) < 0);
+	assert(biSign(biFromInt(0)) == 0);
+	assert(biSign(biFromInt(9000000000000000000LL)) > 0);
+	printf("All tests passed!\n");
+	printf("============================\n");
+}
+
+void testBiCmp() {
+	printf("============================\n");
+    printf("Running testBiCmp\n");
+	assert(biCmp(biFromString("000000000000000006"), biFromInt(6)) == 0);
+	assert(biCmp(biFromInt(6), biFromString("007")) < 0);
+    assert(biCmp(biFromString("555555555555555555555555555555"), biFromString("555555555555555555555555555556")) < 0);
+	assert(biCmp(biFromString("555555555555555555555555555555"), biFromString("555555555555555555555555555554")) > 0);
+	assert(biCmp(biFromString("555555555555555555555555555555"), biFromString("1")) > 0);
+	assert(biCmp(biFromString("1"), biFromString("19837219372193217391879387981273921739")) < 0);
+	assert(biCmp(biFromString("938721392173938710387213"), biFromString("1")) > 0);
+	assert(biCmp(biFromString("-2"), biFromString("-1")) < 0);
+	assert(biCmp(biFromString("-2"), biFromString("-3")) > 0);
+	assert(biCmp(biFromString("-100000000000"), biFromString("-100000000001")) > 0);
+	assert(biCmp(biFromString("-100000000000"), biFromString("-99999999999")) < 0);
+	assert(biCmp(biFromString("-2"), biFromString("3")) < 0);
+	assert(biCmp(biFromString("3"), biFromString("-2")) > 0);
+	
+	BigInt a;
+	a = biFromString("9187393798798279387398217392372197");
+	assert(biCmp(a, a) == 0);
+	a = biFromInt(9187123987213876232LL);
+	assert(biCmp(a, a) == 0);
+
+    printf("All tests passed\n");
+    printf("============================\n");
+}
+
+void testBiAdd() {
+	printf("============================\n");
+	printf("Running biAdd\n");
+	
+	BigInt a, b;
+	a = biFromString("2");
+	b = biFromString("3");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("0");
+	b = biFromString("0");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("0");
+	b = biFromString("100");
+	biAdd(a, b);
+	biAdd(a, b);
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("101");
+	b = biFromString("0");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("32");
+	b = biFromString("64");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("-32");
+	b = biFromString("-64");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("1");
+	b = biFromString("103821038103802193891083829837219372193739217392172193871398");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("109382103380183021983021382103821098309218309182039810298099");
+	b = biFromString("1");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("2");
+	b = biFromString("-1");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("1");
+	b = biFromString("-2");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("-2");
+	b = biFromString("1");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("2");
+	b = biFromString("2");
+	biAdd(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	printf("All tests passed!\n");
+	printf("============================\n");			
+}
+
+void testBiSub() {
+	printf("Starting test biSub\n");
+	printf("=======================\n");
+
+	BigInt a, b;
+
+	a = biFromString("2");
+	b = biFromString("2");
+	biSub(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	BigInt d = biFromString("000000000000000000000000");
+	BigInt c = biFromInt(0);
+	assert(biCmp(c, a) == 0);
+	assert(biCmp(d, a) == 0);
+	assert(biCmp(d, c) == 0);
+
+	a = biFromString("2");
+	b = biFromString("1");
+	biSub(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("-2");
+	b = biFromString("-1");
+	biSub(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	a = biFromString("-2");
+	b = biFromString("1");
+	biSub(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("1");
+	b = biFromString("-2");
+	biSub(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("239187397397397982173972198721378372198372193872139821739821721980");
+	b = biFromString("1");
+	biSub(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+	
+	a = biFromString("1");
+	b = biFromString("1237213098721398217398217392183721983739873098127309821730921730929");
+	biSub(a, b);
+	biToString(a, out, 100);
+	printf("%s\n", out);
+
+	printf("All tests passed!\n");
+	printf("=======================\n");
+}
 
 int main() {
     srand(239017);
-    char out[MAX_SIZE];
-    {
-        printf("=========================\n");
-        printf("Starting first group of tests\n");
-        BigInt a = biFromInt(6);
-        biToString(a, out, 100);
-        printf("%s\n", out);
-        BigInt b = biFromInt(2123456789LL);
-        biToString(b, out, 100);
-        printf("%s\n", out);
-        BigInt c = biFromInt(123456789123456789LL);
-        biToString(c, out, 100);
-        printf("%s\n", out);
-        BigInt d = biFromInt(9000000000000000000LL);
-        biToString(d, out, 100);
-        printf("%s\n", out);
-        biToString(d, out, 1);
-        printf("%s\n", out);
-        biToString(d, out, 4);
-        printf("%s\n", out);
-        BigInt e = biFromInt(-9000000000000000000LL);
-        biToString(e, out, 100);
-        printf("%s\n", out);
-        biToString(e, out, 5);
-        printf("%s\n", out);
-        BigInt f = biFromInt(0);
-        biToString(f, out, 100);
-        printf("%s\n", out);
-
-        printf("\n%d\n", biSign(a));
-        printf("%d\n", biSign(b));
-        printf("%d\n", biSign(c));
-        printf("%d\n", biSign(d));
-        printf("%d\n", biSign(e));
-        printf("%d\n", biSign(f));
-        printf("All tests passed\n");
-        printf("============================\n");
-    }
-    {
-        printf("============================\n");
-        printf("Starting second group of tests\n");
-        BigInt a = biFromString("6");
-        biToString(a, out, 100);
-        printf("%s\n", out);
-        BigInt b = biFromString("2123456789");
-        biToString(b, out, 100);
-        printf("%s\n", out);
-        BigInt c = biFromString("00000000000000000000000000000000000000");
-        biToString(c, out, 100);
-        printf("%s\n", out);
-        BigInt d = biFromString("-0000000000000000000000000000000000000");
-        biToString(d, out, 100);
-        printf("%s\n", out);
-        BigInt e = biFromString("9000000000000000000");
-        biToString(e, out, 100);
-        printf("%s\n", out);
-        BigInt f = biFromString("-9000000000000000000");
-        biToString(f, out, 100);
-        printf("%s\n", out);
-        BigInt g = biFromString("1027210398793739217392137219373982173921739218739213879187391273193719373921873921873921387219837");
-        biToString(g, out, 100);
-        printf("%s\n", out);
-        BigInt h = biFromString("+123");
-        assert(!h);
-        BigInt hh = biFromString("00000000000000000000000000000000000000123");
-        biToString(hh, out, 100);
-        printf("%s\n", out);
-        BigInt gg = biFromString("-00000000000000000000000000000000000000000123");
-        biToString(gg, out, 100);
-        printf("%s\n", out);
-        BigInt aa = biFromString("-0000000001234567890123456789032981028302137");
-        biToString(aa, out, 100);
-        printf("%s\n", out);
-        BigInt x = biFromString("-");
-        assert(!x);
-        printf("All tests passed\n");
-        printf("============================\n");
-    }
-    {
-        printf("============================\n");
-        printf("Starting third group of tests\n");
-        BigInt a = biFromInt(6);
-        BigInt b = biFromString("000000000000006");
-        assert(biCmp(a, b) == 0);
-        BigInt c = biFromInt(6);
-        BigInt d = biFromString("07");
-        assert(biCmp(c, d) == -1);
-        BigInt e = biFromString("55555555555555555555555555556");
-        BigInt f = biFromString("55555555555555555555555555555");
-        assert(biCmp(e, f) == 1);
-        printf("All tests passed\n");
-        printf("============================\n");
-    }
+	testBiFromInt();
+	testBiFromString();
+	testBiSign();
+    testBiCmp();
+	testBiAdd();    
+	testBiSub();
 }
+

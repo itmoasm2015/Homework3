@@ -1,17 +1,12 @@
 ;; win64 calling conv.
 ;; https://en.wikipedia.org/wiki/X86_calling_conventions#Microsoft_x64_calling_convention
-extern abort
+;extern abort
 %macro CALL64 1
 	sub rsp, 32 		; shadow space
-	test rsp, 15
-	jnz %%.bad_align
+	; test rsp, 15
+	; jnz abort
 	call %1
 	add rsp, 32
-	jmp %%.ok
-	%%.bad_align:
-        and rsp, ~15
-	call abort
-	%%.ok:
 %endmacro
 	
 %define Arg1 rcx ;; volatile

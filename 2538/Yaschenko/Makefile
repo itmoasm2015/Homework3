@@ -1,5 +1,5 @@
 ASM = yasm
-ASFLAGS = -f elf64
+ASFLAGS = -f elf64 -I./include
 
 CFLAGS = -Wall -I./include -L. -std=c++11
 

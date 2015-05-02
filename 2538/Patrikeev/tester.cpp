@@ -1,4 +1,4 @@
-#include "matrix.h"
+#include "bigint.h"
 #include <cmath>
 #include <iostream>
 #include <stdlib.h>
@@ -6,69 +6,45 @@
 using namespace std;
 
 typedef unsigned int uint;
+typedef unsigned long long ull;
 
 #define EPS 1e-6
 
-//common operations
+const int N = 1000;
 
-/*bool equals(Matrix a, Matrix b) {
-    unsigned int rowsA = matrixGetRows(a);
-    unsigned int colsA = matrixGetCols(a);
-    unsigned int rowsB = matrixGetRows(b);
-    unsigned int colsB = matrixGetCols(b);
-    if (rowsA != rowsB || colsA != colsB) {
-        return false;
-    }
-    for (unsigned int i = 0; i < rowsA; i++) {
-        for (unsigned int j = 0; j < colsA; j++) {
-            if (fabs(matrixGet(a, i, j) - matrixGet(b, i, j)) > EPS) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-*/
+char buf[N];
 
-void printMatrix(Matrix m) {
-    if (m == 0) {
-        cout << "Empty matrix" << endl;
-        return;
-    }
-    uint rows = matrixGetRows(m); 
-    uint cols = matrixGetCols(m); 
-    for (uint i = 0; i < rows; i++) {
-        for (uint j = 0; j < cols; j++) {
-            cout << (float) matrixGet(m, i, j) << ' ';
-        }
-        cout << endl;
-    }
+void printBigInt(BigInt a) {
+    biToString(a, buf, N);
+    cout << buf << endl;
 }
 
-void testScale() {
-    int n = 10;
-    int m = 15;
-    Matrix a = matrixNew(n, m);
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            matrixSet(a, i, j, i);
-        }
-    }
-    printMatrix(a);
+void testDivision() {
+    BigInt * q = new BigInt();
+    BigInt * r = new BigInt();
 
-    Matrix b = matrixScale(a, 10);
-    printMatrix(b);
-    
-    matrixDelete(a);
-    matrixDelete(b);
+    BigInt a = biFromString("340282366920938463463374607431768211456");
+    BigInt b = biFromString("340282366920938463463374607431768211455");
+
+    biDivRem(q, r, a, b);
+
+    if (*q == NULL) {
+        cout << "quotient is NULL" << endl;
+    } else {
+        cout << "quotient = ";
+        printBigInt(*q);
+    }
+
+    if (*r == NULL) {
+        cout << "remainder is NULL" << endl;
+    } else {
+        cout << "remainder = ";
+        printBigInt(*r);
+    }
 }
 
 int main() {    
 
-    int n = 3;
-    int m = 3;
-    
-    testScale();
+    testDivision();    
 
-    return 0;
 }
