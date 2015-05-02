@@ -234,5 +234,14 @@ int main()
     assert(bi1 == NULL);
     cout << "OK 36" << endl;
 
+    bi1 = biFromString("-0");
+    assert(biSign(bi1) == 0);
+    cout << "OK 37" << endl;
+
+    biToString(bi1, buffer, 10);
+    test = buffer;
+    assert(test == "0");
+    cout << "OK 38" << endl;
+
     return 0;
 }

@@ -356,6 +356,9 @@ biDivInt:
 biToString:
 	check_null ; if pointer on bigint is null then i mustn't do something
 	function_start
+	call biSign
+	cmp result, 0
+	je .sign_not_interesting ; if bigint is zero then it can be "-0" and "+0", i must print "0"
 	mov r8, arg1 ; i need to save arg1 and work with it's copy because function changes bigint
 	mov r13, arg2 ; i need to save pointer on buffer because function boCopy changes it
 	mov r12, arg3 ; i need to save it because in biCopy i call memcpy
@@ -459,6 +462,12 @@ biToString:
 	call biDelete ; delete copyied bigint, because it's not need now
 	mov arg1, r8 ; restore value of bigint
 	function_end
+
+.sign_not_interesting:
+	mov byte [arg2], '0'
+	inc arg2
+	mov byte [arg2], 0
+	function_end	
 
 ; arg1 - pointer on bigint
 ; return -1 if arg1 < 0, 1 if arg1 > 0 and 0 if arg1 == 0
