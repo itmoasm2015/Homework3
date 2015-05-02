@@ -42,44 +42,6 @@ sign:   resq    1
 digs:   resq    1
     endstruc
 
-;While I was writing the division I realized that saving over 9000 registers before
-;every function call is painful, so further I will use such convenient macros:
-;NOTE: they don't save RAX, because RAX is used to push result through these macros
-
-;totally 13 regs are pushed, so alignment changes from 8 to 16 and counterwise
-%macro push_all_regs 0
-    push    rdi
-    push    rsi
-    push    rdx
-    push    rcx
-    push    rbx
-    push    r8
-    push    r9
-    push    r10
-    push    r11
-    push    r12
-    push    r13
-    push    r14
-    push    r15
-%endmacro
-
-
-%macro pop_all_regs 0
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
-    pop     r11
-    pop     r10
-    pop     r9
-    pop     r8
-    pop     rbx
-    pop     rcx
-    pop     rdx
-    pop     rsi
-    pop     rdi
-%endmacro
-
 ;;Create a BigInt from 64-bit signed integer.
 ;BigInt biFromInt(int64_t number);
 ;
@@ -1039,6 +1001,23 @@ biAdd:
 ;Returns:
 ;   RAX - sign (-1, 0 or 1)
 biSign:
+    xor     rdx, rdx
+    dec     rdx
+    dec     rdx
+
+    push_all_regs
+    printValue rdx
+    pop_all_regs
+
+    xor     rax, rax
+    neg     rdx
+    xor     rcx, rcx
+    neg     rcx
+    div     rcx
+
+    ret
+
+
     mov     rcx, [rdi + len]    ;length == 0 => BigInt == 0
     cmp     rcx, 0
     je      .zero
@@ -1260,6 +1239,43 @@ biMul:
 
     ret
 
+;While I was writing the division I realized that saving over 9000 registers before
+;every function call is painful, so further I will use such convenient macros:
+;NOTE: they don't save RAX, because RAX is used to push result through these macros
+
+;totally 13 regs are pushed, so alignment changes from 8 to 16 and counterwise
+%macro push_all_regs 0
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    push    rbx
+    push    r8
+    push    r9
+    push    r10
+    push    r11
+    push    r12
+    push    r13
+    push    r14
+    push    r15
+%endmacro
+
+
+%macro pop_all_regs 0
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     r11
+    pop     r10
+    pop     r9
+    pop     r8
+    pop     rbx
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
+%endmacro
 
 
 ;Shifts all digits of given BigInt left by 1 position
@@ -1306,6 +1322,49 @@ shiftLeft:
     inc     rax
     mov     [rdi + len], rax
     ret
+
+;;Prints content of BigInt to console
+;Parameters:
+;   1) address of BigInt
+%macro dumpBigInt 1
+    jmp     %%endstr
+%%len_str:      db  "len: %llu", 10, 0
+%%sign_str:     db  "sign: %lld", 10, 0
+%%format_s:     db  "%s", 10, 0
+%%digs_str:     db  "digs: ", 0
+%%format_ull:   db  "%llu ", 0
+%%format_sll:   db  "%lld", 0  
+%%new_line:     db  " ", 10, 0 
+%%endstr:
+    push    r12
+    mov     r12, %1
+    call_printf %%len_str, [r12 + len]
+    call_printf %%sign_str, [r12 + sign]
+    call_printf %%format_s, %%digs_str
+    push    rcx
+    push    rdx
+    mov     rdx, [r12 + digs]
+    mov     rcx, [r12 + len]
+
+    %%loop:
+        cmp     rcx, 0
+        je      %%endloop
+        dec     rcx
+        push    rcx
+        push    rdx
+        call_printf %%format_ull, [rdx + rcx * 8]
+        pop     rdx
+        pop     rcx
+        jmp     %%loop
+    
+    %%endloop: 
+
+    call_printf %%format_s, %%new_line
+    
+    pop     rdx
+    pop     rcx       
+    pop     r12
+%endmacro
 
 
 ;Takes two BigInt and returns quotient of division 
@@ -1368,10 +1427,10 @@ getQuotient:
                                         ;R9 will be normalization, where
                                         ;normalization = BASE / (den.digits[den.length-1] + 1)
     
-    mov     r9, [rsi + rcx * 8 - 8]     ;R9 = denominator.digits[denomitator.length - 1]
+    mov     r9, [rsi + rcx * 8 - 8]     ;R9 = denominator.digits.back()
     inc     r9                          ;R9 += 1
-    cmp     r9, 0                       ;if (r9 == 0) => overflow => normalization == 2^64
-    jne     .norm_take                  ;=> set normalization to 1
+    cmp     r9, 0                       ;if (r9 == 0) => overflow => normalization == 1
+    jne     .norm_take                 
     mov     r9, 1
     jmp     .norm_got 
 
@@ -1464,6 +1523,7 @@ getQuotient:
     mov     r11, [r11 + r12 * 8]    ;D.length - 1 < R.length => s2 = R.digits[D.length - 1]
 
     .s2_set:
+
                                     ;Next digit(Dig) will be 
                                     ;Dig = (s1 * 2^64 + s2) / R14
     mov     rdx, r10
