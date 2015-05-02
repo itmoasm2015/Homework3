@@ -39,7 +39,9 @@ BASE equ 1000000000
         push rdi
         push rsi
         mov rdi, 8   ; size of address to values
+        sub rsp, 8
         call malloc
+        add rsp, 8
         pop rsi
         pop rdi
 %endmacro
@@ -334,12 +336,14 @@ biFromString:
 ;;
 ;; Input:
 ;;   rdi - BigInt
-%macro biDelteMacro 0
+%macro biDeleteMacro 0
         push rdi
         mov rdi, [rdi]  ; rdi = BigInt.values
         call free       ; delete BigInt.values
         pop rdi
+        sub rsp, 8
         call free       ; delete BigInt
+        add rsp, 8
 %endmacro
 
 ;; Delete BigInt
@@ -619,7 +623,9 @@ biCmp:
         push rbx
             ;;;;; DELETING ;;;;;
         push rsi
+        sub rsp, 8
         call free   ; delete a
+        add rsp, 8
         pop rsi
             ;;;;; ALLOCATION ;;;;;
         push rsi
@@ -635,7 +641,9 @@ biCmp:
         mov edx, [rsi+4]    ; rdx - b.length
         add edx, 2          ; for sign and length
         shl edx, 2          ; rdx = rdx * sizeof(int) (rdx * 4)
+        sub rsp, 8
         call memcpy
+        add rsp, 8
         pop rbx
 %endmacro
 
@@ -741,7 +749,9 @@ biCmp:
         push rdi
         push rsi
         mov rdi, r12
+        sub rsp, 8
         call free       ; delete tmp
+        add rsp, 8
         pop rsi
         pop rdi
 
@@ -809,7 +819,9 @@ biCmp:
         push rdi
         push rsi
         mov rdi, r12
+        sub rsp, 8
         call free       ; delete tmp
+        add rsp, 8
         pop rsi
         pop rdi
 
@@ -1146,7 +1158,9 @@ biAdd:
         push rdi
         push rsi
         mov rdi, r12
+        sub rsp, 8
         call free       ; delete tmp
+        add rsp, 8
         pop rsi
         pop rdi
 
