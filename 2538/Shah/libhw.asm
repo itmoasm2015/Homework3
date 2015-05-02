@@ -722,12 +722,13 @@ biToString:
     jz %%add_ll_end
 
 %%add_ll_loop_skip:
-    add rax, rdx
     mov r13, [r9]
-    adc r13, rax
-    mov [r9], r13
+    add rax, rdx
     mov rdx, 0
     adc rdx, 0
+    add r13, rax
+    adc rdx, 0
+    mov [r9], r13
     lea r9, [r9 + 8]
     dec r11
     jnz %%add_ll_loop
@@ -819,6 +820,7 @@ biAdd:
     jz .add_end
     cmp r8, r9
     jne .diff_signs
+    jmp .add_eq_signs
 
 .add_to_zero:
     mov [rdi + SIGN], r9
