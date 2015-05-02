@@ -10,12 +10,15 @@ typedef unsigned long long ull;
 
 #define EPS 1e-6
 
-const int N = 1000;
+const int N = 3000;
 
 char buf[N];
 
 void printBigInt(BigInt a) {
     biToString(a, buf, N);
+    // for (int i = 0; i < N; i++) {
+        // cout << (int) buf[i] << ' ';
+    // }
     cout << buf << endl;
 }
 
@@ -23,8 +26,11 @@ void testDivision() {
     BigInt * q = new BigInt();
     BigInt * r = new BigInt();
 
-    BigInt a = biFromString("340282366920938463463374607431768211456");
-    BigInt b = biFromString("340282366920938463463374607431768211455");
+    BigInt a = biFromString("1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111");
+    BigInt b = biFromString("100000000000000000000000000000000");
+
+    printBigInt(a);
+    return;
 
     biDivRem(q, r, a, b);
 
@@ -45,6 +51,5 @@ void testDivision() {
 
 int main() {    
 
-    testDivision();    
-
+    testDivision();
 }
