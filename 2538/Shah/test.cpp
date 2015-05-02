@@ -17,7 +17,7 @@ std::mt19937 gen(rd());
 
 mpz_int randBig()
 {
-    boost::random::uniform_int_distribution<mpz_int> dis(0, mpz_int(1) << 1024);
+    boost::random::uniform_int_distribution<mpz_int> dis(0, mpz_int(1) << 2048);
     if (rand() % 6 == 0) {
         // return 0;
     }

@@ -1192,6 +1192,7 @@ biDivRem:
     push rsi
     push rdi
     ; create quotient and save in r8
+    ; size of quotient can't be more than size of numerator
     mov rdi, [rdx + SIZE]
     allocateMemory
     mov rdi, rax
@@ -1220,16 +1221,16 @@ biDivRem:
     ; N - numerator
     ; D - denominator
 
+    ; for i = count of bits - 1 .. 0 do
 .loop:
     ; R << 1
     biShiftOne
     ; sets first bit to bit number i of numerator
     ; R(0) := N(i)
     biSetBitOf
-    push rdi
-    mov rdi, r9
+    xchg rdi, r9
     biDivCmp
-    pop rdi
+    xchg rdi, r9
     cmp rax, -1
     je .loop_cont
     ; if R >= D
@@ -1245,12 +1246,14 @@ biDivRem:
     dec rcx
     jnz .loop
 
+    ; set sign of quotient and remainder
     mov r10, [rdi + SIGN]
     imul r10, [rsi + SIGN]
     mov [r8 + SIGN], r10
     mov r10, [rdi + SIGN]
     mov [r9 + SIGN], r10
 
+    ; clear up numbers
     mov rdi, r8
     biTrim
     isZeroFast
@@ -1259,6 +1262,7 @@ biDivRem:
     isZeroFast
     pop rsi
     pop rdi
+    ; write result
     mov [rdi], r8
     mov [rsi], r9
     POP_REGS
