@@ -61,11 +61,21 @@
 	pop	rax
 %endmacro
 
+%macro vector_new 1
+	mov	rdi, %1
+	call	vectorNew
+%endmacro
+
 ;; Pushes %2 to vector %1.
 %macro vector_push_back 2
 	mov	rdi, %1
 	mov	rsi, %2
 	call	vectorPushBack
+%endmacro
+
+%macro vector_pop_back 1
+	mov	rdi, %1
+	call	vectorPopBack
 %endmacro
 
 %macro vector_back 1
@@ -84,6 +94,16 @@
 	call	vectorGet
 %endmacro
 
+%macro vector_delete 1
+	mov	rdi, %1
+	call	vectorDelete
+%endmacro
+
+%macro vector_empty 1
+	mov	rdi, %1
+	call	vectorEmpty
+%endmacro
+
 %macro vector_set 3
 	mov	rdi, %1
 	mov	rsi, %2
@@ -94,6 +114,7 @@
 %macro bigint_set_sign 2
 	mov	%1, %2
 %endmacro
+
 
 %macro bigint_new 1
 	mov	rdi, %1
