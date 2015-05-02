@@ -227,8 +227,12 @@ int main()
     bi1 = biFromInt(-1);
     biToString(bi1, buffer, 2);
     test = buffer;
-    assert(test == "");
+    assert(test == "-");
     cout << "OK 35" << endl;
+
+    bi1 = biFromString("-");
+    assert(bi1 == NULL);
+    cout << "OK 36" << endl;
 
     return 0;
 }
