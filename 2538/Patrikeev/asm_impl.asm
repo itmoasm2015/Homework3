@@ -2,7 +2,6 @@ default rel
 
 extern calloc
 extern free
-extern printf
 
 global biFromInt
 global biFromString
@@ -24,7 +23,12 @@ section .text
 ;   1) len - number of digits in BigInt
 ;   2) sign - signum of BigInt: either -1 or 1
 ;   3) digs - address in memory where digits begin
+;      (they are stored from less-significant to most-significant ones)
 ;BigInt is 0 if and only if (len == 0 && sign == 1)
+;
+;Note: len is not necessarily equals real amount of allocated qwords,
+;that is digs may be pointed to more wide area of memory,
+;but in any case this memory will be deallocated via biDelete invocation
     struc BigInt_t
 len:    resq    1
 sign:   resq    1
@@ -80,7 +84,7 @@ biFromInt:
 
     ret
 
-;Allocates N bytes and copies M from SRC to newly allocated
+;Allocates N qwords and copies M from SRC to newly allocated
 ;memory starting from its beginning
 ;(convenient way in all kinds of copying BigInts)
 ;
@@ -97,18 +101,18 @@ biFromInt:
     push    r13
     push    r14
     mov     r12, %1     ;move parameters to callee-saved registers
-    mov     r13, %2     ;to preserve them across calloc-invokation
+    mov     r13, %2     ;to preserve them across calloc-invocation
     mov     r14, %3
 
-    mov     rdi, r12
-    mov     rsi, 8
+    mov     rdi, r12    ;N
+    mov     rsi, 8      ;size of qword
     call    calloc
 
-    mov     rdi, rax
-    mov     rsi, r13
-    mov     rcx, r14
-    cld
-    repnz   movsq
+    mov     rdi, rax    ;RDI - beginning of destination
+    mov     rsi, r13    ;RSI - beginning of source
+    mov     rcx, r14    ;RCX - M qwords to be copied
+    cld                 ;clear direction flag_set
+    repnz   movsq       ;copy M qwords
 
     pop     r14
     pop     r13
@@ -117,36 +121,37 @@ biFromInt:
 
 ;Trims digits of specified BigInt while the last digit equals 0
 ;(this method is applicable after about every arithmetic operation
-;to hold correct values length and sign of BigInt)
+;to hold correct values of len and sign of BigInt)
 ;
 ;;void trimZeros(BigInt bi)
 ;
 ;Parameters:
 ;   1) RDI - BigInt
 trimZeros:
-    mov     rcx, [rdi + len]
-    mov     rsi, [rdi + digs]
+    mov     rcx, [rdi + len]    ;RCX = length
+    mov     rsi, [rdi + digs]   ;RSI = digits
 .loop:
-    cmp     rcx, 0
+    cmp     rcx, 0      ;while last digit is 0, decrement length
     je      .endloop
-    mov     rax, [rsi + rcx * 8 - 8]
-    cmp     rax, 0
-    jne     .endloop
+    mov     rax, [rsi + rcx * 8 - 8]    ;store last digit
+    cmp     rax, 0  
+    jne     .endloop 
     dec     rcx
     jmp     .loop
 
 .endloop:
-    mov     rdx, [rdi + len]
-    cmp     rcx, rdx
-    je      .return
-    xor     rax, rax
-    cmp     rcx, 0
-    je      .dealloc_old
-
+    mov     rdx, [rdi + len]    ;RDX = old_length
+    cmp     rcx, rdx            ;compare new_length and old_length
+    je      .return             ;if no changes, then return
+    xor     rax, rax            ;else we should deallocated old digits
+    cmp     rcx, 0              
+    je      .dealloc_old        ;if new_length == 0, then simply deallocate
+                                ;without allocating new digits
     push    rdi
     push    rsi
     push    rcx
-    alloc_N_and_copy_M rcx, rsi, rcx 
+    alloc_N_and_copy_M rcx, rsi, rcx    ;allocate RCX qwords and fill them with
+                                        ;RCX qwords from old memory
     pop     rcx
     pop     rsi
     pop     rdi
@@ -155,21 +160,24 @@ trimZeros:
     push    rax
     push    rcx
     push    rdi
-    mov     rdi, [rdi + digs]
+    mov     rdi, [rdi + digs]   ;deallocate old digits
     call    free 
     pop     rdi
     pop     rcx
     pop     rax
 
-    mov     [rdi + len], rcx
-    mov     [rdi + digs], rax
+    mov     [rdi + len], rcx    ;set new_length
+    mov     [rdi + digs], rax   ;set newly allocated digits
 
     cmp     rcx, 0
     jne     .return
-    mov     qword [rdi + sign], 1
+    mov     qword [rdi + sign], 1   ;if (new_length == 0) then BigInt == 0
 
 .return:
     ret
+
+;This macro simplifies allocating qwords
+;void * alloc_N_qwords(int n)
 
 ;Parameters:
 ;   1) N - number of qwords to be allocated
@@ -185,108 +193,84 @@ trimZeros:
     pop     rdi
 %endmacro
 
-;Parameters:
-;   1) address
-%macro dealloc_memory 1
-    push    rdi
-    mov     rdi, %1
-    call    free 
-    pop     rdi
-%endmacro
+;Multiplies given BigInt by given unsigned_int64_t number
 
-;void copy_N_qwords(void * dst, void * src, void * cnt)
-;Parameters:
-;   1) DST - destination
-;   2) SRC - source
-;   3) CNT - number of qwords
-%macro copy_N_qwords 3
-    push    rdi
-    push    rsi
-    push    rcx
-    mov     rdi, %1
-    mov     rsi, %2
-    mov     rcx, %3
-    cld
-    repnz   movsq 
-    pop     rcx
-    pop     rsi
-    pop     rdi
-%endmacro
-
-
-;void mulLongShort(BigInt bi, unsigned_int64_t mt)
+;void mulLongShort(BigInt bi, unsigned_int64_t x)
 ;Parameters
 ;   1) RDI - BigInt to be multiplied
 ;   2) RSI - multiplier
 mulLongShort:
-    mov     r8, rdi
-    mov     rdi, [r8 + digs]
-    mov     rcx, [r8 + len]
+    mov     r8, rdi             
+    mov     rdi, [r8 + digs]    ;RDI = digits
+    mov     rcx, [r8 + len]     ;RCX = length
 
     cmp     rcx, 0
-    je      .return
+    je      .return             ;length == 0 => BigInt == 0 => result == 0
     
-    cmp     rsi, 0
+    cmp     rsi, 0              ;multiplier == 0 => result == 0
     jne     .multi
 
     push    r8
-    mov     rdi, [r8 + digs]
+    mov     rdi, [r8 + digs]    ;deallocate digits
     call    free 
     pop     r8
 
-    mov     qword [r8 + digs], 0         
+    mov     qword [r8 + digs], 0    ;set BigInt to 0        
     mov     qword [r8 + len], 0
     mov     qword [r8 + sign], 1
     jmp     .return
 
 .multi:
-    xor     r9, r9
+    xor     r9, r9      ;carry
 .loop:
-    mov     rax, [rdi]
-    mul     rsi
-    add     rax, r9
-    adc     rdx, 0
-    mov     [rdi], rax
-    add     rdi, 8
-    mov     r9, rdx
+    mov     rax, [rdi]  ;RAX = digits[i]
+    mul     rsi         ;RDX:RAX = digits[i] * x
+    add     rax, r9     
+    adc     rdx, 0      ;digits[i] * x + carry
+    mov     [rdi], rax  ;RAX = i-th digit of result
+    add     rdi, 8      ;move RDI to next digit
+    mov     r9, rdx     ;R9 = new_carry
 
-    dec     rcx
+    dec     rcx         ;go to next digit
     jnz     .loop
 
 .endloop:
     cmp     r9, 0
-    je      .return
-
+    je      .return     ;if carry == 0 => done
+                        ;else we should increase length of BigInt by 1
+                        ;and place carry as most-significant digit
     push    r8
     push    r9
-    mov     rax, [r8 + len]
-    inc     rax
+    mov     rax, [r8 + len]     ;length
+    inc     rax                 ;length + 1
     mov     rsi, [r8 + digs]
     mov     rcx, [r8 + len]
-    alloc_N_and_copy_M rax, rsi, rcx
+    alloc_N_and_copy_M rax, rsi, rcx    ;allocate (length + 1) qwords and fill first (length)
+                                        ;with old digits
     pop     r9
     pop     r8
 
     push    r8
     push    r9
     push    rax
-    mov     rdi, [r8 + digs]
+    mov     rdi, [r8 + digs]    ;deallocate old digits
     call    free 
     pop     rax
     pop     r9
     pop     r8
 
     mov     [r8 + digs], rax
-    mov     rax, [r8 + len]
+    mov     rax, [r8 + len]     ;RAX = old_length + 1
     inc     rax
-    mov     [r8 + len], rax
+    mov     [r8 + len], rax     ;set new_length
     mov     rdi, [r8 + digs]
-    mov     [rdi + rax * 8 - 8], r9
+    mov     [rdi + rax * 8 - 8], r9 ;store carry as most-significant digit
 
 .return:
     ret
 
 
+;Adds specified unsigned_int64_t number to BigInt
 ;void addLongShort(BigInt bi, unsigned_int64_t x)
 ;
 ;Parameters:
@@ -294,37 +278,37 @@ mulLongShort:
 ;   2) RSI - value to be added
 addLongShort: 
     mov     r8, rdi
-    mov     rdi, [r8 + digs]
-    mov     rcx, [r8 + len]
+    mov     rdi, [r8 + digs]    ;RDI = digits
+    mov     rcx, [r8 + len]     ;RCX = length
 
-    cmp     rcx, 0
+    cmp     rcx, 0      ;if length == 0 => BigInt == 0 => result == x
     jne     .add_ls
 
     push    r8
     push    rsi
-    alloc_N_qwords 1
+    alloc_N_qwords 1    ;allocate 1 digit
     pop     rsi
     pop     r8
     
     mov     [rax], rsi
-    mov     [r8 + digs], rax    
-    mov     qword [r8 + len], 1
-    mov     qword [r8 + sign], 1
+    mov     [r8 + digs], rax        ;save this digit
+    mov     qword [r8 + len], 1     ;set length
+    mov     qword [r8 + sign], 1    ;and sign
     jmp     .return
 
 .add_ls:
-    xor     rdx, rdx
+    xor     rdx, rdx    ;new_carry = 0
 .loop:
-    add     [rdi], rsi
-    adc     rdx, 0
-    mov     rsi, rdx
-    xor     rdx, rdx
-    add     rdi, 8
+    add     [rdi], rsi  ;digits[i] += old_carry (== x on 1-st iteration)
+    adc     rdx, 0      ;new_carry += (digits[i] + old_carry) % (2^64)
+    mov     rsi, rdx    ;RSI = new_carry
+    xor     rdx, rdx    
+    add     rdi, 8      ;move to next digit
     dec     rcx
     jnz     .loop
 
 .endloop:
-    cmp     rsi, 0
+    cmp     rsi, 0      ;if carry != 0 after adding => we should allocate 1 more digit for carry
     je      .return
 
     push    r8
@@ -333,25 +317,26 @@ addLongShort:
     inc     rax
     mov     rdx, [r8 + digs]
     mov     rcx, [r8 + len]
-    alloc_N_and_copy_M rax, rdx, rcx
+    alloc_N_and_copy_M rax, rdx, rcx    ;allocate (length + 1) digits and fill first (length) of them
+                                        ;with old digits
     pop     rsi
     pop     r8
 
     push    rax
     push    rsi    
     push    r8
-    mov     rdi, [r8 + digs]
+    mov     rdi, [r8 + digs]    ;deallocate old digits
     call    free 
     pop     r8
     pop     rsi
     pop     rax
 
-    mov     [r8 + digs], rax
-    mov     rax, [r8 + len]
+    mov     [r8 + digs], rax    ;set new digits
+    mov     rax, [r8 + len]     ;set new_length
     inc     rax
     mov     [r8 + len], rax
-    mov     rdi, [r8 + digs]
-    mov     [rdi + rax * 8 - 8], rsi
+    mov     rdi, [r8 + digs]    ;set digits
+    mov     [rdi + rax * 8 - 8], rsi    ;set most-significant digit to carry
 
 .return:
     ret
@@ -362,17 +347,17 @@ addLongShort:
 ;Parameters:
 ;   1) RDI - BigInt to be deleted
 biDelete:
-    cmp     rdi, 0
+    cmp     rdi, 0      ;if RDI == NULL => nothing to delete
     je      .done
-    mov     rsi, [rdi + digs]
-    cmp     rsi, 0
+    mov     rsi, [rdi + digs] 
+    cmp     rsi, 0              ;if digits == NULL => nothing to delete (i.e. BigInt == 0)
     je      .digs_done
     push    rdi
     mov     rdi, [rdi + digs]
-    call    free
+    call    free                ;deallocate digits
     pop     rdi
 .digs_done: 
-    call free
+    call free       ;deallocate BigInt structure
 .done:
     ret
 
@@ -387,23 +372,23 @@ biDelete:
 biFromString:
     push    rdi
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt   ;create BigInt == 0
     mov     r8, rax
     pop     rdi
 
     xor     rax, rax
-    mov     r9, 1
-    mov     byte al, [rdi]
+    mov     r9, 1           ;r9 = 1 (sign)
+    mov     byte al, [rdi]  ;if '-' => r9 = (-1)
     cmp     byte al, '-'
     jne     .read_digs
     inc     rdi
     mov     r9, (-1)
 
 .read_digs:
-    xor     rcx, rcx
+    xor     rcx, rcx        ;number of read digits
 .loop:
-    mov     byte al, [rdi]
-    cmp     al, 0
+    mov     byte al, [rdi]  ;load next char
+    cmp     al, 0           ;if EOF => exit
     je      .endloop
     inc     rdi
 
@@ -412,10 +397,10 @@ biFromString:
     cmp     byte al, '9'
     jg      .incorrect
     
-    sub     rax, '0'
-    inc     rcx
+    sub     rax, '0'    ;rax == next digit
+    inc     rcx         ;one more digit
 
-    push    rax
+    push    rax         ;save important regs
     push    rcx
     push    rdi
     push    r8
@@ -423,7 +408,7 @@ biFromString:
 
     mov     rdi, r8
     mov     rsi, 10
-    call    mulLongShort
+    call    mulLongShort    ;BigInt *= 10
 
     pop     r9
     pop     r8
@@ -437,9 +422,9 @@ biFromString:
     push    r8
     push    r9
 
-    mov     rdi, r8
-    mov     rsi, rax
-    call    addLongShort
+    mov     rdi, r8         ;r8 = BigInt
+    mov     rsi, rax        ;rax = digit
+    call    addLongShort    ;BigInt += digit
 
     pop     r9
     pop     r8
@@ -450,58 +435,59 @@ biFromString:
     jmp     .loop
 
 .endloop:
-    cmp     rcx, 0
+    cmp     rcx, 0      ;if RCX == 0 => no digits are read => incorrect
     jne     .return
 
 .incorrect:
     mov     rdi, r8
-    call    biDelete
-    xor     rax, rax
+    call    biDelete    ;deallocate memory for BigInt
+    xor     rax, rax    ;result = NULL
     ret
 
 .return:
     mov     rax, r8
-    mov     [rax + sign], r9
+    mov     [rax + sign], r9 ;set sign 1 or (-1) depends on '-' char in beginning
     push    rax
     mov     rdi, rax
-    call    trimZeros
+    call    trimZeros   ;trim BigInt of leading zeros
     pop     rax
 
     ret
 
-;;unsigned_int64_t divLongShort(BigInt bi, unsigned_int64_t x)
+;;Divides given BigInt by given unsigned_int64_t number and returns remainder of operation
+;;unsigned_int64_t divLongShort(BigInt bi, unsigned_int64_t number)
 ;
 ;Parameters:
 ;   1) RDI - BigInt to be divided
-;   2) RSI - divisor
+;   2) RSI - unsigned_int64_t divisor
 ;Returns:
-;   RAX - remainder of division (or -1 if error)
+;   RAX - remainder of division (or -1 if number was 0)
 divLongShort:
     mov     r8, rdi
-    mov     rdi, [r8 + digs]
-    mov     rcx, [r8 + len]
+    mov     rdi, [r8 + digs]    ;RDI = digits
+    mov     rcx, [r8 + len]     ;RCX = length
 
-    cmp     rsi, 0
+    cmp     rsi, 0      ;if divisor == 0 => error
     je      .incorrect
     
     xor     rax, rax
-    cmp     rcx, 0
+    cmp     rcx, 0      ;if length == 0 => result = 0
     je      .return
 
-    xor     rdx, rdx
+    xor     rdx, rdx    ;(RDX:RAX) will hold carry
 .loop:
-    mov     rdx, rax
-    mov     rax, [rdi + rcx * 8 - 8]
-    div     rsi
-    mov     [rdi + rcx * 8 - 8], rax
-    mov     rax, rdx
+    mov     rdx, rax                    ;carry << 64
+    mov     rax, [rdi + rcx * 8 - 8]    ;carry += next digit
+    div     rsi                         ;(RDX:RAX) /= RSI
+    mov     [rdi + rcx * 8 - 8], rax    ;RAX is next resulting digit
+    mov     rax, rdx                    ;RDX is next carry 
     xor     rdx, rdx
     dec     rcx
     jnz     .loop
 
     push    rax
     mov     rdi, r8
-    call    trimZeros
+    call    trimZeros   ;trim BigInt of leading zeros
     pop     rax
     jmp     .return
 
@@ -516,30 +502,30 @@ divLongShort:
 ; void biToString(BigInt bi, char *buffer, size_t limit);
 ;
 ;Parameters:
-;   1) RDI - bi
-;   2) RSI - buffer
-;   3) RDX - limit
+;   1) RDI - BigInt number to be printed
+;   2) RSI - buffer where to store resulting representation
+;   3) RDX - maximum number of chars to be printed
 biToString:
     push    rdi
     push    rsi
     push    rdx
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt   ;create copy of bi to divide it by 10 and print remainder every time
     mov     r8, rax
     pop     rdx
     pop     rsi
     pop     rdi
 
-    mov     rcx, [rdi + len]
+    mov     rcx, [rdi + len]        ;copy length
     mov     [r8 + len], rcx
-    mov     qword [r8 + sign], 1
+    mov     qword [r8 + sign], 1    ;copy sign
 
     push    r8
     push    rdi
     push    rsi
     push    rdx
 
-    alloc_N_and_copy_M [rdi + len], [rdi + digs], [rdi + len]
+    alloc_N_and_copy_M [rdi + len], [rdi + digs], [rdi + len]   ;copy digits
     mov     r9, rax
 
     pop     rdx
@@ -547,9 +533,9 @@ biToString:
     pop     rdi
     pop     r8
 
-    mov     [r8 + digs], r9
+    mov     [r8 + digs], r9     ;now R8 is full copy of given BigInt
 
-    xor     rcx, rcx
+    xor     rcx, rcx    ;number of digits pushed onto stack
 .loop:  
     push    rdi
     push    rsi
@@ -559,8 +545,8 @@ biToString:
 
     mov     rdi, r8
     mov     rsi, 10
-    call    divLongShort
-    mov     r9, rax
+    call    divLongShort        ;R8 /= 10
+    mov     r9, rax             ;R9 = R8 % 10 == rightmost decimal digit
 
     pop     r8
     pop     rcx
@@ -568,43 +554,44 @@ biToString:
     pop     rsi
     pop     rdi
 
-    add     r9, '0'
-    push    r9
-    inc     rcx
+    add     r9, '0'     ;set r9 to be char of digit
+    push    r9          ;push r9 onto stack to be popped in future
+    inc     rcx         ;one more digit pushed
 
-    mov     rax, [r8 + len]
+    mov     rax, [r8 + len]     ;if length == 0 => BigInt == 0 => done
     cmp     rax, 0
     jnz     .loop
 
-    mov     rax, [rdi + sign]
+    mov     rax, [rdi + sign]   
     cmp     rax, (-1)
-    jne     .loop_reverse
+    jne     .loop_reverse       ;check if negative number
 
     cmp     rdx, 1
     jle     .loop_reverse
 
-    mov     byte [rsi], '-'
+    mov     byte [rsi], '-'     ;print '-' as first char
     inc     rsi
-    dec     rdx
+    dec     rdx             ;RDX - holds limit
 
-.loop_reverse:
-    cmp     rcx, 0
+.loop_reverse:              ;this loop will pop RCX digits from stack to get forward 
+                            ;decimal representation of BigInt
+    cmp     rcx, 0          ;if all digits popped => print EOF
     je      .print_eof
-    pop     rax
+    pop     rax             ;pop next digit
     dec     rcx
 
-    cmp     rdx, 0
-    je      .loop_reverse
+    cmp     rdx, 0          ;if limit == 0 => simply pop remaining chars
+    je      .loop_reverse 
 
-    cmp     rdx, 1
+    cmp     rdx, 1          ;if limit == 1 => print EOF
     jg      .print_symbol
 
     mov     byte [rsi], 0
-    xor     rdx, rdx
+    xor     rdx, rdx        ;print EOF and set limit to 0
     jmp     .loop_reverse
 
 .print_symbol:
-    mov     byte [rsi], al 
+    mov     byte [rsi], al  ;print next digit
     inc     rsi
     dec     rdx
     jmp     .loop_reverse
