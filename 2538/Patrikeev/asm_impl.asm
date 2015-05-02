@@ -88,6 +88,17 @@ biFromInt:
     pop     rdi
 %endmacro
 
+%macro printValue 1
+    jmp     %%endstr
+%%form:   db  "%llu ", 10, 0
+%%endstr:
+    push    r12
+    mov     r12, %1
+    call_printf %%form, r12
+    pop     r12
+%endmacro
+
+
 ;;Prints content of BigInt to console
 ;Parameters:
 ;   1) address of BigInt
@@ -746,8 +757,8 @@ compareDigs:
     mov     rax, [rdi + r9 * 8]
     mov     r10, [rsi + r9 * 8]
     cmp     rax, r10
-    jg      .first_gt
-    jl      .second_gt
+    ja      .first_gt
+    jb      .second_gt
     jmp     .loop    
 
 .diff_lens:
@@ -949,9 +960,6 @@ biAdd:
 ;Returns:
 ;   RAX - sign
 biSign:
-    call    shiftLeft
-    ret
-
     mov     rcx, [rdi + len]
     cmp     rcx, 0
     je      .zero
@@ -1241,17 +1249,24 @@ shiftLeft:
     ret
 
 
-;void* digsDiv(void * v1, void * v2, int n, int m)
+;BigInt getQuotient(BigInt numerator, BigInt denominator)
 ;
 ;Parameters:
-;   1) RDI - address of numerator digs vector
-;   2) RSI - address of denominator digs vector
-;   3) RDX - size of numerator
-;   4) RCX - size of denominator
+;   1) RDI - numerator BigInt
+;   2) RSI - denominator BigInt
 ;Returns:
 ;   RAX - address of resultion quotient BigInt
-digsDiv:
+getQuotient:
     push_all_regs
+
+    mov     rax, [rdi + sign]
+    mov     r15, [rsi + sign]
+    imul    r15, rax
+
+    mov     rdx, [rdi + len]
+    mov     rcx, [rsi + len]
+    mov     rdi, [rdi + digs]
+    mov     rsi, [rsi + digs]
 
     push_all_regs
     alloc_N_and_copy_M rdx, rdi, rdx
@@ -1277,7 +1292,7 @@ digsDiv:
     call    biFromInt
     pop_all_regs
     mov     r11, rax
-    mov     [r11 + digs], rdi
+    mov     [r11 + digs], rsi
     mov     [r11 + len], rcx
     mov     qword [r11 + sign], 1
 
@@ -1370,11 +1385,8 @@ digsDiv:
     mov     r11, [r11 + r12 * 8]
 
     .s2_set:
-    mov     rdx, 1
-    mov     rax, 0
-    mul     r10
-    add     rax, r11
-    adc     rdx, 0
+    mov     rdx, r10
+    mov     rax, r11
     div     r14
     pop_all_regs
     mov     r14, rax
@@ -1407,18 +1419,56 @@ digsDiv:
         mov     rax, [r9 + sign]
         cmp     rax, 1
         je      .end_while_neg_loop
+        
         push_all_regs
         mov     rdi, r9
         mov     rsi, r11
         call    biAdd
         pop_all_regs
+        
         dec     r14
         jmp     .while_neg_loop
     .end_while_neg_loop:
 
     mov     [r8 + r13 * 8], r14
     jmp     .loop
+
 .endloop:
+    push_all_regs
+    xor     rdi, rdi
+    call    biFromInt
+    pop_all_regs
+    mov     r14, rax
+
+    mov     [r14 + digs], r8
+    mov     [r14 + len], rdx
+    mov     qword [r14 + sign], 1
+
+    push_all_regs
+    mov     rdi, r14
+    call    trimZeros
+    pop_all_regs
+
+    cmp     r15, 1
+    je      .sign_set
+
+    xor     rcx, rcx
+    mov     rax, [r9 + len]
+    cmp     rax, 0
+    je      .flag_set
+    mov     rcx, 1
+
+.flag_set:
+
+    push_all_regs
+    mov     rdi, r14
+    mov     rsi, rcx
+    call    addLongShort
+    pop_all_regs
+
+    mov     qword [r14 + sign], (-1)
+
+.sign_set:
     push_all_regs
     mov     rdi, r9
     call    biDelete
@@ -1439,18 +1489,35 @@ digsDiv:
     call    biDelete
     pop_all_regs
 
-    mov     rax, r8
-    pop_all_regs
+    mov     rax, r14
+    pop_all_regs    
 
-    mov     rdi, rax
+    ret
+
+;BigInt copyBigInt(BigInt bi)
+;
+;Parameters:
+;   1) RDI - BigInt to be copied
+;Returns:
+;   RAX - copy of given BigInt
+copyBigInt:
+    push_all_regs
+    alloc_N_and_copy_M [rdi + len], [rdi + digs], [rdi + len]
+    pop_all_regs
+    mov     r8, rax
+
     push_all_regs
     xor     rdi, rdi
     call    biFromInt
     pop_all_regs
-    mov     [rdi + digs], rax
-    mov     [rdi + len], rdx
-    mov     qword [rdi + sign], 1
+    mov     r9, rax
 
+    mov     [r9 + digs], r8
+    mov     rax, [rdi + len]
+    mov     [r9 + len], rax
+    mov     rax, [rdi + sign]
+    mov     [r9 + sign], rax
+    mov     rax, r9
     ret
 
 ;; Compute quotient and remainder by divising numerator by denominator.
@@ -1458,8 +1525,8 @@ digsDiv:
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 ;
 ;Parameters:
-;   1) RDI - resulting quotient address-holder
-;   2) RSI - resulting remainder address-holder
+;   1) RDI - quotient address-holder
+;   2) RSI - remainder address-holder
 ;   3) RDX - numerator BigInt
 ;   4) RCX - denominator BigInt
 biDivRem:
@@ -1496,14 +1563,43 @@ biDivRem:
 
 .numer_not_zero:
     push_all_regs
-    mov     rdx, [rdi + len]
-    mov     rcx, [rsi + len]
-    mov     rdi, [rdi + digs]
-    mov     rsi, [rsi + digs]
-    call    digsDiv
+    call    getQuotient
+    pop_all_regs
+    mov     r8, rax 
+
+    push_all_regs
+    mov     rdi, r8
+    call    copyBigInt
+    pop_all_regs
+    mov     r9, rax
+
+    push_all_regs
+    mov     rdi, r9
+    call    biMul
     pop_all_regs
 
-    
+    mov     rax, [r9 + sign]
+    imul    rax, (-1)
+    mov     [r9 + sign], rax
 
+    push_all_regs
+    dumpBigInt r9
+    pop_all_regs
+
+    push_all_regs
+    dumpBigInt rdi
+    pop_all_regs
+
+    push_all_regs
+    mov     rsi, rdi
+    mov     rdi, r9
+    call    biAdd
+    pop_all_regs
+
+    pop     rsi
+    pop     rdi
+
+    mov     [rdi], r8
+    mov     [rsi], r9
 .return:
     ret
