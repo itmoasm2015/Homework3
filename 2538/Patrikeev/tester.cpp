@@ -19,8 +19,7 @@ void printBigInt(BigInt a) {
     cout << buf << endl;
 }
 
-int main() {    
-
+void testDivision() {
     BigInt * q = new BigInt();
     BigInt * r = new BigInt();
 
@@ -42,6 +41,13 @@ int main() {
         cout << "remainder = ";
         printBigInt(*r);
     }
+}
+
+int main() {    
+
+    BigInt a = biFromString("-");
+    cout << a << endl;
+    cout << biCmp(a, a) << endl; 
 
     
 

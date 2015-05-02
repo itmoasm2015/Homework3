@@ -1583,14 +1583,6 @@ biDivRem:
     mov     [r9 + sign], rax
 
     push_all_regs
-    dumpBigInt r9
-    pop_all_regs
-
-    push_all_regs
-    dumpBigInt rdi
-    pop_all_regs
-
-    push_all_regs
     mov     rsi, rdi
     mov     rdi, r9
     call    biAdd
