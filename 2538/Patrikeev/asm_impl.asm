@@ -1469,7 +1469,7 @@ copyBigInt:
 ;   1) RDI - quotient address-holder
 ;   2) RSI - remainder address-holder
 ;   3) RDX - numerator BigInt
-;   4) RCX - denominator BigInt
+;   4) RCX - denominfator BigInt
 biDivRem:
     push    rdi
     push    rsi

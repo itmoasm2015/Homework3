@@ -47,5 +47,4 @@ int main() {
 
     testDivision();    
 
-    return 0;
 }

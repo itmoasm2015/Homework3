@@ -20,7 +20,23 @@ bool biFromInt_test() {
     return true;
 }
 
+bool biFromString_test() {
+    BigInt a = biFromString("1000000000000000000000123");
+    BigInt b = biFromString("-19000000000000001212121212");
+    BigInt c = biFromString("1lffdlkjkfdjkfdjk3434kjdkf");
+    if (c != 0)
+        return false;
+    BigInt d = biFromString("");
+    if (d != 0)
+        return false;
+    BigInt e = biFromString("-");
+    if (e != 0)
+        return false;
+    return true;
+}
+
 int main() {
     TEST(biFromInt_test);
+    TEST(biFromString_test);
     return 0;
 }
