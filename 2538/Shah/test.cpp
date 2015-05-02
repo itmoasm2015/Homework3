@@ -1,6 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
-#include "bigint.h"
+#include <bigint.h>
 #include <boost/multiprecision/gmp.hpp>
 #include <boost/multiprecision/random.hpp>
 #include <random>
@@ -19,7 +19,7 @@ mpz_int randBig()
 {
     boost::random::uniform_int_distribution<mpz_int> dis(0, mpz_int(1) << 1024);
     if (rand() % 6 == 0) {
-        return 0;
+        // return 0;
     }
     return ((dis(gen)%2 == 1) ? -1 : 1) * dis(gen);
 }
@@ -126,6 +126,8 @@ void test_str()
     printf("====== TESTING STRING BUILD ======\n");
     char str[100500];
     size_t str_size = 100500;
+    BigInt bi1 = biFromString("-");
+    assert(bi1 == NULL);
     for (int lp = 0; lp < TEST_COUNT; lp++)
     {
         mpz_int var = randBig();
@@ -231,6 +233,44 @@ void test_mul()
     printf("time GMP: %lld\ntime My : %lld\n", allGmp, allMy);
     printf("tests: OK\n");
 }
+
+void test_divide()
+{
+    printf("====== TESTING %s ======\n", "DIVISION");
+    char str[100500];
+    char str2[100500];
+    size_t str_size = 100500;
+    for (int lp = 0; lp < TEST_COUNT; lp++)
+    {
+        mpz_int var = randBig();
+        mpz_int var2 = randBig();
+        BigInt b1 = biFromString(var.str().c_str());
+        BigInt b2 = biFromString(var2.str().c_str());
+        BigInt quotient;
+        BigInt remainder;
+        mpz_int var3;
+        var3 = var / var2;
+        mpz_int var4 = var % var2;
+        biDivRem(&quotient, &remainder, b1, b2);
+        biToString(quotient, str, str_size);
+        biToString(remainder, str2, str_size);
+        if (strcmp(str, var3.str().c_str()) != 0
+                || strcmp(str2, var4.str().c_str()) != 0)
+        {
+            cout << "First: " << var << "\n" 
+                << "Secon: " << var2 << "\n";
+            printf("test: %d failure \nMy: %s\nGM: %s\n", lp + 1, 
+                    str, var3.str().c_str());
+            biToString(remainder, str, str_size);
+            var3 = var%var2;
+            printf("GMP Rem: %s\nRemainder: %s\n", var3.str().c_str(), str);
+            return;
+        }
+        biDelete(b1);
+        biDelete(b2);
+    }
+    printf("tests: OK\n");
+}
 int main() 
 {
     srand(time(NULL));
@@ -239,4 +279,5 @@ int main()
     test_add(true);
     test_add(false);
     test_mul();
+    test_divide();
 }
