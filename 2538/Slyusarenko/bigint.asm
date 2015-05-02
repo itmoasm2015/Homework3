@@ -116,6 +116,7 @@ expand_vector:
 	lea arg3, [r14 * 8] ; size of vector in bytes
 	call memcpy ; copy data to new place in memory
 	mov arg1, r15
+	and rsp, ~15
 	call free ; free memory where was data before the function
 	mov rsp, r13
 	pop arg1
@@ -236,6 +237,7 @@ biDelete:
 	mov arg1, [arg1 + bigint.data] ; free data
 	call free
 	mov arg1, r14 ; free struct
+	and rsp, ~15
 	call free
 	mov rsp, r15
 	function_end
