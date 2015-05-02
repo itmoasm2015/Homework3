@@ -18,6 +18,7 @@ global vectorPushBack
 global vectorBack
 global vectorCapacity
 global vectorPopBack
+global vectorEmpty
 
 %assign DEFAULT_CAPACITY 8
 %assign ELEM_SIZE        4
@@ -39,6 +40,7 @@ vectorNew:
 
 .round_up:
 	round_next_2_power rdi
+
 	push	rdi
 	mov	rsi, ELEM_SIZE
 	call	calloc
@@ -164,7 +166,8 @@ vectorBack:
 	dec	rsi
 
 	mov	rdi, [rdi + Vector.data]
-	mov	rax, [rdi + rsi * ELEM_SIZE]
+	xor	rax, rax
+	mov	eax, dword [rdi + rsi * ELEM_SIZE]
 
 	ret
 .out_of_bounds:
@@ -185,7 +188,7 @@ vectorSet:
 	jge	.out_of_bounds
 
 	mov	rax, [rdi + Vector.data]
-	mov	[rax + rsi * ELEM_SIZE], rdx
+	mov	[rax + rsi * ELEM_SIZE], edx
 
 	ret
 .out_of_bounds
@@ -214,6 +217,27 @@ vectorCapacity:
 	ret
 
 
+;; int vectorEmpty(Vector v);
+;;
+;; Determines whether VECTOR is empty or not.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+;; Returns:
+;;	* RAX: 1 if VECTOR is empty,
+;;	       0 otherwise
+vectorEmpty:
+	cmp	qword [rdi + Vector.size], 0
+	je	.true
+
+.false:
+	mov	rax, 0
+	jmp	.done
+.true:
+	mov	rax, 1
+	jmp	.done
+.done:
+	ret
+
 ;; void vectorPushBack(Vector v, unsigned element);
 ;;
 ;; Adds ELEMENT at the end of VECTOR.
@@ -230,7 +254,7 @@ vectorPushBack:
 
 	mov	rax, [rdi + Vector.data]
 	mov	rcx, [rdi + Vector.size]
-	mov	[rax + rcx * ELEM_SIZE], rsi
+	mov	dword [rax + rcx * ELEM_SIZE], esi
 	inc	rcx
 	mov	[rdi + Vector.size], rcx
 
