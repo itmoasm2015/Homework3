@@ -14,6 +14,8 @@ extern vectorSize
 extern vectorBack
 extern vectorGet
 extern vectorSet
+extern vectorEmpty
+extern vectorPopBack
 
 global biFromInt
 global biFromString
@@ -37,7 +39,7 @@ section .text
 %assign	SIGN_ZERO	0
 
 
-;; Creates new Bigint with empty vector.
+;; Creates new Bigint with empty vector and ZERO_SIGN.
 ;; Returns:
 ;;	* RAX: pointer to newly created Bigint.
 biNew:
@@ -429,6 +431,36 @@ biCmpAbs:
 	ret
 
 
+
+;; void biMul(BigInt dst, BigInt src);
+;;
+;; Multiplies DST by SRC inplace.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+__biMul:
+	mpush		r12, r13, r14, r15
+
+	mpush		rdi, rsi
+	vector_size	[rsi + Bigint.vector]
+	mov		r9, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi, r9
+	vector_size	[rdi + Bigint.vector]
+	mov		r8, rax
+	mpop		rdi, rsi, r9
+
+	mov		rcx, r8
+	add		rcx, r9
+
+	mpush		rdi, rsi, r8, r9
+	bigint_new	rcx
+	mpop		rdi, rsi, r8, r9
+
+	push		rax
+;; stack: *C | ...
+
 ;; void biMul(BigInt dst, BigInt src);
 ;;
 ;; Multiplies DST by SRC inplace.
@@ -438,6 +470,35 @@ biCmpAbs:
 biMul:
 	mpush		r12, r13, r14, r15
 
+	mov		rax, [rdi + Bigint.sign]
+	mov		rdx, [rsi + Bigint.sign]
+
+	cmp		rax, SIGN_ZERO
+	je		.zero
+	cmp		rdx, SIGN_ZERO
+	je		.zero
+
+.mul_signs:
+	mov		rcx, rdx
+	xor		rdx, rdx
+	imul		rcx
+	mov		[rdi + Bigint.sign], rax
+	jmp		.start_mul
+
+.zero:
+	mpush		rdi, rsi
+	vector_delete	[rdi + Bigint.vector]
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi
+	vector_new	0
+	mpop		rdi, rsi
+
+	mov		[rdi + Bigint.vector], rax
+	mov		qword [rdi + Bigint.sign], SIGN_ZERO
+	jmp		.done
+
+.start_mul:
 	mpush		rdi, rsi
 	vector_size	[rsi + Bigint.vector]
 	mov		r8, rax
@@ -445,8 +506,8 @@ biMul:
 
 	mpush		rdi, rsi, r8
 	vector_size	[rdi + Bigint.vector]
-	mpop		rdi, rsi, r8
 	mov		r9, rax
+	mpop		rdi, rsi, r8
 
 	mov		rcx, r8
 	add		rcx, r9
@@ -454,7 +515,6 @@ biMul:
 	mpush		rdi, rsi, r8, r9
 	bigint_new	rcx
 	mpop		rdi, rsi, r8, r9
-	push		rax
 
 	mov		r15, rax
 
@@ -501,18 +561,22 @@ biMul:
 
 ;; RAX = RAX % BASE
 ;; RDX = RAX / BASE
-	push		rbx
+	mpush		rbx
 	mov		rbx, BASE
 	div10		rbx
-	pop		rbx
+	mpop		rbx
 
 ;; Update CARRY with new value.
 	mov		r12, rdx
 
-	pop		rdx
 	mpush		rdi, rsi
-	vector_set	[r15 + Bigint.vector], rdx, rax
+	;mov		rdi, [r15 + Bigint.vector]
+	;mov		rsi, [rsp + 16]
+	;mov		rdx, rax
+	;call	vectorSet
+	vector_set	[r15 + Bigint.vector], [rsp + 16], rax
 	mpop		rdi, rsi
+	add		rsp, 8
 
 	inc		r11
 
@@ -527,11 +591,52 @@ biMul:
 	cmp		r10, r8
 	jl		.loop_i
 
-.done
-	mov		rax, [r15 + Bigint.vector]
-	mov		rdx, [rax + Vector.data]
-	call		biDelete
-	pop		rax
+.mul_done:
+	push		rdi
+	mov		rdi, r15
+	call		_biTrimZeros
+	pop		rdi
+
+	push		rdi
+	vector_delete	[rdi + Bigint.vector]
+	pop		rdi
+
+	mov		rdx, [r15 + Bigint.vector]
+	mov		[rdi + Bigint.vector], rdx
+
+	mov		rdx, [r15 + Bigint.sign]
+	mov		[rdi + Bigint.sign], rdx
+
+	mov		rdi, r15
+	call		free
+
+.done:
 	mpop		r12, r13, r14, r15
 	ret
 
+;; Removes leading zeros from Bigint.
+;; Takes:
+;;	* RDI: pointer to Bigint.
+_biTrimZeros:
+.loop:
+	push		rdi
+	vector_empty	[rdi + Bigint.vector]
+	pop		rdi
+
+	cmp		rax, 1
+	je		.done
+
+	push		rdi
+	vector_back	[rdi + Bigint.vector]
+	pop		rdi
+
+	cmp		rax, 0
+	jne		.done
+
+	push		rdi
+	vector_pop_back	[rdi + Bigint.vector]
+	pop		rdi
+	jmp		.loop
+
+.done:
+	ret
