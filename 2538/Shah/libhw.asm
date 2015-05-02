@@ -645,9 +645,7 @@ biToString:
     mov rdi, rdx
     shl rdi, 3
     PUSH_REGS
-    sub rsp, 8
     call malloc
-    add rsp, 8
     POP_REGS
     pop rdi
     mov r8, [rdi + SIZE]
