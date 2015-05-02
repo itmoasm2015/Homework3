@@ -19,7 +19,7 @@ mpz_int randBig()
 {
     boost::random::uniform_int_distribution<mpz_int> dis(0, mpz_int(1) << 2048);
     if (rand() % 6 == 0) {
-        // return 0;
+        return 0;
     }
     return ((dis(gen)%2 == 1) ? -1 : 1) * dis(gen);
 }
@@ -242,18 +242,29 @@ void test_divide()
     size_t str_size = 100500;
     for (int lp = 0; lp < TEST_COUNT; lp++)
     {
-        mpz_int var = randBig();
         mpz_int var2 = randBig();
+        mpz_int var = var2 * randBig() + randBig();
         BigInt b1 = biFromString(var.str().c_str());
         BigInt b2 = biFromString(var2.str().c_str());
         BigInt quotient;
         BigInt remainder;
         mpz_int var3;
+        biDivRem(&quotient, &remainder, b1, b2);
+        if (var2 == 0)
+        {
+            assert(quotient == NULL);
+            assert(remainder == NULL);
+            continue;
+        }
         var3 = var / var2;
         mpz_int var4 = var % var2;
-        biDivRem(&quotient, &remainder, b1, b2);
         biToString(quotient, str, str_size);
         biToString(remainder, str2, str_size);
+        if (var4.sign() != var2.sign() && var4 != 0)
+        {
+            var4 += var2;
+            var3 += -1;
+        }
         if (strcmp(str, var3.str().c_str()) != 0
                 || strcmp(str2, var4.str().c_str()) != 0)
         {

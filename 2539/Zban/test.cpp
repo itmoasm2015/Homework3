@@ -518,6 +518,7 @@ void gmpDivision(mpz_class a1, mpz_class a2, mpz_class &x1, mpz_class &x2) {
         }
     }
     assert(x1 * a2 + x2 == a1);
+    if (a2 < 0) assert(x2 <= 0);
 }
 
 void testDelete(string s1, string s2, bool &ok) {

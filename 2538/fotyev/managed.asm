@@ -211,6 +211,10 @@ biFromString:
         mov qword [ArgR + BigInt.sign], 1
 .positive:
         push ArgR
+        
+        cmp byte [Arg3], 0 ; if(!s[0]) return NULL
+        je .invalid
+        
         ; read_long(data, size, str)
         mov Arg1, [ArgR + BigInt.data]
         mov Arg2, [ArgR + BigInt.size]

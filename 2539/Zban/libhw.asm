@@ -26,6 +26,51 @@ global biCmp
 ;  int64_t* data
 ;  base is 2^64
 
+; call malloc with rsp aligned by 16 bytes
+; rdi -- num of bytes to alloc
+; assume that rsp mod 8 = 0
+myMalloc:
+    test rsp, 15
+    jz .callMalloc
+        push rdi
+        call malloc
+        pop rdi
+        ret
+    .callMalloc
+    call malloc
+    ret
+
+
+; call calloc with rsp aligned by 16 bytes
+; rdi -- cnt of elements to alloc
+; rsi -- size of each element
+; assume that rsp mod 8 = 0
+myCalloc:
+    test rsp, 15
+    jz .callCalloc
+        push rdi
+        call calloc
+        pop rdi
+        ret
+    .callCalloc
+    call calloc
+    ret
+
+
+; call free with rsp aligned by 16 bytes
+; rdi -- ptr to free
+; assume that rsp mod 8 = 0
+myFree:
+    test rsp, 15
+    jz .callFree
+        push rdi
+        call free
+        pop rdi
+        ret
+    .callFree
+    call free
+    ret
+
 
 ; BigInt biFromInt(int64_t x);
 ; create BigInt from one signed 64-bit integer
@@ -35,10 +80,10 @@ biFromInt:
     push rbx ; save rbx by convention
     push rdi
     mov rdi, 16 ; 4 + 4 + 8 allocate bytes
-    call malloc
+    call myMalloc
     mov rbx, rax ; rbx now ptr to BigInt
     mov rdi, 8 ; one 8-byte integer
-    call malloc ; rax now ptr to data array
+    call myMalloc ; rax now ptr to data array
     pop rdi
     
     mov [rbx + 8], rax ; ptr to data is assigned
@@ -72,7 +117,7 @@ biFromSignLenArray:
     push rsi
     push rdx
     mov rdi, 16 ; 4 + 4 + 8 allocate bytes
-    call malloc
+    call myMalloc
     pop rdx
     pop rsi
     pop rdi
@@ -96,14 +141,14 @@ biCopy:
     push rdi
     mov rbx, rdi       ; save rdi
     mov rdi, 16        ; 4 + 4 + 8
-    call malloc
+    call myMalloc
     mov r8D, [rbx]
     mov [rax], r8D     ; sign is copied
     mov r8D, [rbx + 4]
     mov [rax + 4], r8D ; size is copied
     mov rbx, rax       ; save pointer to BigInt
     lea rdi, [r8 * 8]
-    call malloc        ; rax now is new data array
+    call myMalloc        ; rax now is new data array
     pop rdi
 
     mov [rbx + 8], rax ; data ptr is assigned
@@ -178,7 +223,7 @@ biFromString:
     mov rcx, rdi
     push rcx
     mov rsi, 8
-    call calloc ; rax now -- array of longs
+    call myCalloc ; rax now -- array of longs
     pop rcx ; len of array of longs
     pop rdi
     mov r8, rdi ; ptr to string
@@ -280,7 +325,7 @@ biToString:
     mov r8D, [rdi + 4]
     imul r8, 21 ; if BigInt consists of x 64-bit fields than it will be approximately ~21 * x chars long in decimal representation
     mov rdi, r8
-    call malloc ; rax -- ptr to string representation of BigInt
+    call myMalloc ; rax -- ptr to string representation of BigInt
     pop rdi 
     push rdi
     push rax
@@ -314,7 +359,7 @@ biToString:
     mov byte [rsi + 1], 0
     push r11
     mov rdi, rax
-    call free ; free temp array
+    call myFree ; free temp array
     pop r11
     mov rdi, r11
     call biDelete ; free copied BigInt
@@ -397,7 +442,7 @@ biToString:
 
     push r11
     mov rdi, rax
-    call free ; free temp array
+    call myFree ; free temp array
     pop r11    
 
     mov rdi, r11
@@ -410,9 +455,9 @@ biToString:
 biDelete:
     push rdi
     mov rdi, [rdi + 8]
-    call free ; free data array
+    call myFree ; free data array
     pop rdi
-    call free ; free ptr to BigInt
+    call myFree ; free ptr to BigInt
     ret
 
 
@@ -441,14 +486,14 @@ biSwapAndDelete:
     push rdi
     push rsi
     mov rdi, [rdi + 8]
-    call free ; free old array
+    call myFree ; free old array
     pop rsi
     pop rdi
 
     mov r8, [rsi + 8]
     mov [rdi + 8], r8 ; swap data
     mov rdi, rsi
-    call free ; free ptr to b
+    call myFree ; free ptr to b
     ret
 
 
@@ -471,7 +516,7 @@ addUnsigned:
     push rcx
     lea rdi, [rsi + 1]
     imul rdi, 8
-    call malloc ; new array will be sizeof(unsigned long long) * (a.size + 1) bytes long
+    call myMalloc ; new array will be sizeof(unsigned long long) * (a.size + 1) bytes long
     pop rcx
     pop rdx
     pop rsi
@@ -552,7 +597,7 @@ mulUnsigned:
     add r8D, ecx
     mov rdi, r8
     mov rsi, 8
-    call calloc ; 8 * (a.length + b.length) bytes
+    call myCalloc ; 8 * (a.length + b.length) bytes
     pop rcx
     pop rbx
     pop rsi
@@ -662,7 +707,7 @@ subUnsigned:
     cmp rax, 0
     jne .isNotZero ; if a=b then return 0
         mov rdi, 8
-        call malloc
+        call myMalloc
         mov qword [rax], 0
         mov r8, 1
         mov r11, 0
@@ -680,7 +725,7 @@ subUnsigned:
     push r11
     mov rdi, rsi
     imul rdi, 8
-    call malloc ; result will be 8 * a.length bytes
+    call myMalloc ; result will be 8 * a.length bytes
     pop r11
     pop rcx
     pop rdx
@@ -958,7 +1003,7 @@ biMulNew:
     push rdi
     push rsi
     mov rdi, 16
-    call malloc
+    call myMalloc
     pop rsi
     pop rdi
 
