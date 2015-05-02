@@ -181,6 +181,7 @@ biFromString:
 	cmp byte [arg1], '-'
 	je .set_minus_sign
 	mov byte [result + bigint.sign], 0 ; sign '+'
+	mov arg1, result
 	jmp .after_setting_sign
 
 .after_setting_sign:
@@ -193,7 +194,6 @@ biFromString:
 .skipped:
 	cmp byte [r14], 0
 	je .empty_string ; string isn't actually empty, but it contains only '0' symbols, so returned bigint is like in case of empty string
-	mov arg1, result
 	.get_bigint:
 		xor rbx, rbx
 		mov bl, byte [r14]
@@ -215,6 +215,7 @@ biFromString:
 .set_minus_sign:
 	mov byte [result + bigint.sign], 1 ; sign '-'
 	inc r14 ; look on next symbol
+	mov arg1, result
 	cmp byte [r14], 0
 	je .wrong_string_format ; only symbol of string is '-'
 	jmp .after_setting_sign
@@ -223,7 +224,6 @@ biFromString:
 	function_end
 
 .wrong_string_format:
-	mov arg1, result
 	call biDelete ; free memory which was allocated to this bigint
 	xor result, result ; return NULL
 	function_end		
