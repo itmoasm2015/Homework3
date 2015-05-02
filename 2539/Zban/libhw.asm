@@ -1033,6 +1033,7 @@ biShrUnsignedPartBy1:
 ; *remainder in rsi
 ; numerator in rdx
 ; denominator in rcx
+; division of n-bit BigInt on m-bit BigInt works in n^2 / 64 operations.
 biDivRem: ; it has not done yet
     push rdi
     push rsi
