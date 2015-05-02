@@ -18,7 +18,7 @@ global biCmp
 ;main:
     ;ret
 
-extern calloc, free, memcpy
+extern calloc, free
 
 BASE equ 1 << 64
 DEFAULT_SIZE equ 10
@@ -26,10 +26,10 @@ DEFAULT_SIZE equ 10
 ;
 ; stored bigNumber like this:
 ; struct bigNum {
-;   unsigned long long capacity;              8 bytes
-;   unsigned long long size;                  8 bytes
-;   long long sign;                           8 byte
-;   unsigned int64_t digits[capacity];  8 * capacity bytes
+;   unsigned long long capacity;   8 bytes
+;   unsigned long long size;       8 bytes
+;   unsigned long long sign;       8 byte
+;   unsigned long long *digits   
 ; }
 ;  
 ; forall i < capacity: digits[i] < BASE
