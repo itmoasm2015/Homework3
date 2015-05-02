@@ -673,7 +673,9 @@ biToString:
     mov rdi, [rdi + VALUE]
     ; delete previous values
     PUSH_REGS
+    sub rsp, 8
     call free
+    add rsp, 8
     POP_REGS
     pop rdi
     pop rax
