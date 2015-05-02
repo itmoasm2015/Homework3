@@ -177,15 +177,15 @@ biFromString:
 	mov arg1, 0
 	call biFromInt
 	mov arg1, r14
-	cmp byte [arg1], 0
-	je .empty_string
 	cmp byte [arg1], '-'
 	je .set_minus_sign
 	mov byte [result + bigint.sign], 0 ; sign '+'
-	mov arg1, result
 	jmp .after_setting_sign
 
 .after_setting_sign:
+	mov arg1, result
+	cmp byte [r14], 0
+	je .wrong_string_format ; string is '-' or empty
 	.skip_zeros:
 		cmp byte [r14], '0'
 		jne .skipped
@@ -216,9 +216,6 @@ biFromString:
 .set_minus_sign:
 	mov byte [result + bigint.sign], 1 ; sign '-'
 	inc r14 ; look on next symbol
-	mov arg1, result
-	cmp byte [r14], 0
-	je .wrong_string_format ; only symbol of string is '-'
 	jmp .after_setting_sign
 
 .empty_string:

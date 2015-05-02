@@ -247,5 +247,9 @@ int main()
     assert(bi1 == NULL);
     cout << "OK 39" << endl;
 
+    bi1 = biFromString("");
+    assert(bi1 == NULL);
+    cout << "OK 40" << endl;
+
     return 0;
 }
