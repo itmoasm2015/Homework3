@@ -29,6 +29,12 @@ section .text
 ;Note: len is not necessarily equals real amount of allocated qwords,
 ;that is digs may be pointed to more wide area of memory,
 ;but in any case this memory will be deallocated via biDelete invocation
+
+;Note: as far as it's required to align stack by 16 bytes before invocation
+;any external function I would like to accept the agreement that all macros
+;are called after alignment of stack (simply as functions) and that's why at
+;the beginning of every macros stack is already aligned(unlike functions)
+
     struc BigInt_t
 len:    resq    1
 sign:   resq    1
@@ -67,11 +73,13 @@ biFromInt:
 .fill_digs:
     push    rdx
     push    rdi
+    sub     rsp, 8      ;align stack by 16 bytes
 
     mov     rdi, 1
     mov     rsi, 8
     call    calloc      ;calloc one digit
-
+    
+    add     rsp, 8      ;restore stack
     pop     rdi
     pop     rdx
 
@@ -100,6 +108,8 @@ biFromInt:
     push    r12
     push    r13
     push    r14
+    sub     rsp, 8      ;align stack by 16 bytes
+    
     mov     r12, %1     ;move parameters to callee-saved registers
     mov     r13, %2     ;to preserve them across calloc-invocation
     mov     r14, %3
@@ -114,6 +124,7 @@ biFromInt:
     cld                 ;clear direction flag_set
     repnz   movsq       ;copy M qwords
 
+    add     rsp, 8
     pop     r14
     pop     r13
     pop     r12
@@ -131,7 +142,7 @@ trimZeros:
     mov     rcx, [rdi + len]    ;RCX = length
     mov     rsi, [rdi + digs]   ;RSI = digits
 .loop:
-    cmp     rcx, 0      ;while last digit is 0, decrement length
+    cmp     rcx, 0              ;while last digit is 0, decrement length
     je      .endloop
     mov     rax, [rsi + rcx * 8 - 8]    ;store last digit
     cmp     rax, 0  
@@ -241,12 +252,15 @@ mulLongShort:
                         ;and place carry as most-significant digit
     push    r8
     push    r9
+    sub     rsp, 8              ;align stack by 16 bytes
+
     mov     rax, [r8 + len]     ;length
     inc     rax                 ;length + 1
     mov     rsi, [r8 + digs]
     mov     rcx, [r8 + len]
     alloc_N_and_copy_M rax, rsi, rcx    ;allocate (length + 1) qwords and fill first (length)
                                         ;with old digits
+    add     rsp, 8
     pop     r9
     pop     r8
 
@@ -286,7 +300,9 @@ addLongShort:
 
     push    r8
     push    rsi
+    sub     rsp, 8      ;align stack by 16 bytes
     alloc_N_qwords 1    ;allocate 1 digit
+    add     rsp, 8
     pop     rsi
     pop     r8
     
@@ -313,12 +329,16 @@ addLongShort:
 
     push    r8
     push    rsi
+    sub     rsp, 8      ;align stack by 16 bytes
+
     mov     rax, [r8 + len]
     inc     rax
     mov     rdx, [r8 + digs]
     mov     rcx, [r8 + len]
     alloc_N_and_copy_M rax, rdx, rcx    ;allocate (length + 1) digits and fill first (length) of them
                                         ;with old digits
+    
+    add     rsp, 8
     pop     rsi
     pop     r8
 
@@ -356,8 +376,10 @@ biDelete:
     mov     rdi, [rdi + digs]
     call    free                ;deallocate digits
     pop     rdi
-.digs_done: 
-    call free       ;deallocate BigInt structure
+.digs_done:
+    sub     rsp, 8      ;align stack by 16 bytes 
+    call free           ;deallocate BigInt structure
+    add     rsp, 8
 .done:
     ret
 
@@ -440,7 +462,9 @@ biFromString:
 
 .incorrect:
     mov     rdi, r8
+    sub     rsp, 8      ;align stack by 16 bytes
     call    biDelete    ;deallocate memory for BigInt
+    add     rsp, 8
     xor     rax, rax    ;result = NULL
     ret
 
@@ -510,24 +534,26 @@ biToString:
     push    rsi
     push    rdx
     xor     rdi, rdi
-    call    biFromInt   ;create copy of bi to divide it by 10 and print remainder every time
+    call    biFromInt   ;create copy of BigInt to divide it by 10 and print remainder every time
     mov     r8, rax
     pop     rdx
     pop     rsi
     pop     rdi
 
-    mov     rcx, [rdi + len]        ;copy length
-    mov     [r8 + len], rcx
-    mov     qword [r8 + sign], 1    ;copy sign
+    mov     rcx, [rdi + len]        
+    mov     [r8 + len], rcx         ;copy length
+    mov     qword [r8 + sign], 1    ;sign is processed separately
 
     push    r8
     push    rdi
     push    rsi
     push    rdx
+    sub     rsp, 8
 
     alloc_N_and_copy_M [rdi + len], [rdi + digs], [rdi + len]   ;copy digits
     mov     r9, rax
 
+    add     rsp, 8
     pop     rdx
     pop     rsi
     pop     rdi
@@ -734,8 +760,10 @@ digsSub:
     push    rsi
     push    rdx
     push    rcx
+    sub     rsp, 8
     call compareDigs    ;get sign of comparison
     mov     r10, rax    ;r10 = sign of comparison
+    add     rsp, 8
     pop     rcx
     pop     rdx
     pop     rsi
@@ -763,8 +791,10 @@ digsSub:
     push    rcx
     push    r10
     push    rax
+    sub     rsp, 8
     alloc_N_qwords rax  ;allocate max(length_1, length_2) of qwords for resulting vector
     mov     r8, rax
+    add     rsp, 8
     pop     rax
     pop     r10
     pop     rcx
@@ -821,7 +851,9 @@ biAdd:
 
     push    rdi
     push    rsi
+    sub     rsp, 8
     alloc_N_and_copy_M [rsi + len], [rsi + digs], [rsi + len] ;copy digits from SRC to DST
+    add     rsp, 8
     pop     rsi
     pop     rdi
     mov     [rdi + digs], rax   ;copy length
@@ -840,11 +872,13 @@ biAdd:
 
     push    rdi
     push    rsi
+    sub     rsp, 8
     mov     rdx, [rdi + len]
     mov     rcx, [rsi + len]
     mov     rdi, [rdi + digs]
     mov     rsi, [rsi + digs]
     call    digsAdd             ;result.digits = digsAdd(a.digits, b.digits)
+    add     rsp, 8
     pop     rsi
     pop     rdi
 
@@ -868,11 +902,13 @@ biAdd:
                                 ;result.signum = a.signum * signum_of_digsSub(a.digits, b.digits)
     push    rdi
     push    rsi
+    sub     rsp, 8
     mov     rdx, [rdi + len]
     mov     rcx, [rsi + len]
     mov     rdi, [rdi + digs]
     mov     rsi, [rsi + digs]
     call    digsSub             ;result.digits = digsSub(a.signum, b.signum)
+    add     rsp, 8
     pop     rsi
     pop     rdi
 
@@ -880,8 +916,10 @@ biAdd:
     push    r9                  ;R9 = resulting length
     push    r10                 ;R10 = signum of digsSub(a.digits, b.digits)
     push    rdi
+    sub     rsp, 8
     mov     rdi, [rdi + digs]   ;deallocate old digits
     call    free 
+    add     rsp, 8
     pop     rdi
     pop     r10
     pop     r9
@@ -893,7 +931,9 @@ biAdd:
     imul    rcx, r10
     mov     [rdi + sign], rcx   ;result.signum = a.signum * R10
 
+    sub     rsp, 8
     call trimZeros          ;trim leading zeros
+    add     rsp, 8
     ret
 
 ;; Get sign of given BigInt.
@@ -930,7 +970,9 @@ biSub:
     mov     [rsi + sign], rax   ;invert signum of src (-b)
     push    rax
     push    rsi
+    sub     rsp, 8
     call    biAdd               ;a += (-b)
+    add     rsp, 8
     pop     rsi
     pop     rax
     
@@ -999,8 +1041,10 @@ digsMul:
     push    rsi
     push    rdx
     push    rcx
+    sub     rsp, 8
     alloc_N_qwords rax  ;allocate (length_1 + length_2) qwords for result
     mov     r8, rax
+    add     rsp, 8
     pop     rcx
     pop     rdx
     pop     rsi
@@ -1082,6 +1126,7 @@ biMul:
 .src_not_zero:
     push    rdi
     push    rsi
+    sub     rsp, 8
 
     mov     rdx, [rdi + len]
     mov     rcx, [rsi + len]
@@ -1089,6 +1134,7 @@ biMul:
     mov     rsi, [rsi + digs]
     call    digsMul             ;multiply dst.digits * src.digits
 
+    add     rsp, 8
     pop     rsi
     pop     rdi
 
@@ -1096,8 +1142,10 @@ biMul:
     push    r9                  ;R9 - size of resulting vector
     push    rdi
     push    rsi
+    sub     rsp, 8
     mov     rdi, [rdi + digs]
     call    free                ;deallocate old digits
+    add     rsp, 8
     pop     rsi
     pop     rdi
     pop     r9
@@ -1121,7 +1169,7 @@ biMul:
 ;every function call is painful, so further I will use such convenient macros:
 ;NOTE: they don't save RAX, because RAX is used to push result through these macros
 
-;obvious
+;totally 13 regs are pushed, so alignment changes from 8 to 16 and counterwise
 %macro push_all_regs 0
     push    rdi
     push    rsi
@@ -1138,7 +1186,7 @@ biMul:
     push    r15
 %endmacro
 
-;obvious
+
 %macro pop_all_regs 0
     pop     r15
     pop     r14
@@ -1214,6 +1262,7 @@ shiftLeft:
 ;   RAX - address of resultion quotient BigInt
 getQuotient:
     push_all_regs   ;save all registers, including callee-saved ones
+    sub     rsp, 8  ;make stack unaligned for future convenience
 
     mov     rax, [rdi + sign]
     mov     r15, [rsi + sign]   ;R15 holds signum of resulting quotient
@@ -1470,8 +1519,9 @@ getQuotient:
     pop_all_regs
 
     mov     rax, r14
-    pop_all_regs        ;restore callee-saved registers
 
+    add     rsp, 8      ;restore stack
+    pop_all_regs        ;restore callee-saved registers
     ret
 
 ;obvious
@@ -1532,7 +1582,9 @@ biDivRem:
     jne     .numer_not_zero
                                 ;numerator == 0 => quotient = remainder = 0
     xor     rdi, rdi
+    sub     rsp, 8
     call    biFromInt           ;allocate BigInt 0
+    add     rsp, 8
     pop     rsi
     mov     [rsi], rax
 
