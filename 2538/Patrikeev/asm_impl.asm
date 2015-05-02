@@ -602,28 +602,30 @@ biToString:
 .return:
     ret
 
+;Sums two non-empty vectors of digits as they were positive BigInts
+;and returns resulting vector
 ;void * digsAdd(void * v1, void * v2, int n, int m)
 ;
 ;Parameters:
-;   1) RDI - summand #1 address
-;   2) RSI - summand #2 address
-;   3) RDX - summand #1 size
-;   4) RCX - summand #2 size
+;   1) RDI - summand #1 vector
+;   2) RSI - summand #2 vector
+;   3) RDX - vector #1 length
+;   4) RCX - vector #2 length
 ;Returns:
 ;   RAX - address of resulting vector
 ;   R9  - size of resulting vector
 digsAdd:
     mov     rax, rdx
-    cmp     rax, rcx
-    cmovl   rax, rcx
-    inc     rax
+    cmp     rax, rcx    ;rax = rcx
+    cmovl   rax, rcx    ;rax = max(rcx, rdx) = max(length_1, length_2)
+    inc     rax         ;rax = max(length_1, length_2) + 1
 
     push    rdi
     push    rsi
     push    rdx
     push    rcx
     push    rax
-    alloc_N_qwords rax
+    alloc_N_qwords rax  ;allocate max(length_1, length_2) + 1 qwords to hold result
     mov     r8, rax
     pop     rax
     pop     rcx
@@ -631,72 +633,73 @@ digsAdd:
     pop     rsi
     pop     rdi
 
-    push    r12
+    push    r12     ;save callee-saved register
 
-    xor     r9, r9
-    xor     r10, r10
+    xor     r9, r9      ;"i"
+    xor     r10, r10    ;carry
 .loop:
-    xor     r11, r11
-    xor     r12, r12
-    cmp     r9, rdx
-    jge     .add_second
-    mov     r11, [rdi + r9 * 8]
+    xor     r11, r11    ;current digit
+    xor     r12, r12    ;new_carry
+    cmp     r9, rdx     ;i < length_1 ???
+    jge     .add_second 
+    mov     r11, [rdi + r9 * 8] ;if (i < length_1) digit += a.digits[i]
 
 .add_second:
-    cmp     r9, rcx
+    cmp     r9, rcx     ;i < length_2 ???
     jge     .add_carry
-    add     r11, [rsi + r9 * 8]
-    adc     r12, 0
+    add     r11, [rsi + r9 * 8] ;if (i < length_2) digit += b.digits[i]
+    adc     r12, 0      ;r12 = new_carry (if a.digits[i] + b.digits[i] >= 2^64)
 
 .add_carry:
-    add     r11, r10
-    adc     r12, 0
+    add     r11, r10    ;carry += old_carry
+    adc     r12, 0      ;new_carry += 1 if overflow
 
-    mov     [r8 + r9 * 8], r11
-    mov     r10, r12
-    inc     r9
-    cmp     r9, rax
+    mov     [r8 + r9 * 8], r11 ;r11 holds current digit
+    mov     r10, r12           ;carry = new_carry
+    inc     r9                 ;move "i" to next digit
+    cmp     r9, rax            ;if (i == RAX == max(length_1, length_2) + 1) => adding is done
     jne     .loop
 
 .set_size:
-    mov     r9, rax
-    dec     r9
-    mov     r10, [r8 + rax * 8 - 8]
-    cmp     r10, 0
-    cmovg   r9, rax
+    mov     r9, rax     ;r9 = max(length_1, length_2) + 1
+    dec     r9          ;r9 = max(length_1, length_2)
+    mov     r10, [r8 + rax * 8 - 8] ;r10 = most-significant digit (if carry of a.digits + b.digits != 0)
+    cmp     r10, 0      ;if (last carry > 0)
+    cmovg   r9, rax     ;then new_size += 1 (because last carry != 0)
 
 .return:
-    pop     r12
-    mov     rax, r8
+    pop     r12         ;restore callee-saved register
+    mov     rax, r8     ;resulting vector address
     ret
 
+;Compares two vectors of digits (maybe of zero-length) as they were non-negative BigInts
 ;int compareDigs(void * v1, void * v2, int n, int m)
 ;
 ;Parameters:
-;   1) RDI - 1st vector
-;   2) RSI - 2nd vector
-;   3) RDX - length of 1st vector
-;   4) RCX - length of 2nd vector
+;   1) RDI - vector of digits #1
+;   2) RSI - vector of digits #2
+;   3) RDX - length of vector #1
+;   4) RCX - length of vector #2
 ;Returns:
-;   RAX - sign of comparison (v1 - v2) : -1, 0, 1
+;   RAX - sign of comparison v1 and v2 : -1, 0 or 1
 compareDigs:
     cmp     rdx, rcx
-    jne     .diff_lens
+    jne     .diff_lens  ;check if different lengths
     
-    mov     r9, rdx
+    mov     r9, rdx     ;if length_1 == length_2 => compare one by one
 .loop:
-    cmp     r9, 0
+    cmp     r9, 0       ;if empty vectors => equals
     je      .equals
     dec     r9
-    mov     rax, [rdi + r9 * 8]
-    mov     r10, [rsi + r9 * 8]
+    mov     rax, [rdi + r9 * 8]     ;load digits from most-significant to less-significant
+    mov     r10, [rsi + r9 * 8]     ;and compare accordingly
     cmp     rax, r10
     ja      .first_gt
     jb      .second_gt
     jmp     .loop    
 
 .diff_lens:
-    cmp     rdx, rcx
+    cmp     rdx, rcx    ;if different length => compare length_1 and length_2
     jg      .first_gt
     jmp     .second_gt
 
@@ -712,7 +715,10 @@ compareDigs:
     xor     rax, rax
     ret
 
-;void digsSub(void * v1, void * v2, int n, int m)
+;Subs one non-empty vector of digits from another one as they were non-negative BigInts
+;and returns resulting vector and sign of such subtracting
+;
+;;void digsSub(void * v1, void * v2, int n, int m)
 ;
 ;Parameters:
 ;   1) RDI - 1st vector
@@ -722,34 +728,34 @@ compareDigs:
 ;Returns:
 ;   1) RAX - address of resulting vector
 ;   2) R9 - size of resulting vector
-;   3) R10 - signum of subtracting (-1 or 1)
+;   3) R10 - signum of subtracting (-1 or 1): (-1) if v1 < v2 and 1 otherwise
 digsSub:
     push    rdi
     push    rsi
     push    rdx
     push    rcx
-    call compareDigs
-    mov     r10, rax
+    call compareDigs    ;get sign of comparison
+    mov     r10, rax    ;r10 = sign of comparison
     pop     rcx
     pop     rdx
     pop     rsi
     pop     rdi
 
-    cmp     r10, 0
-    jne     .maybe_swap
-    mov     r10, 1
+    cmp     r10, 0      ;if r10 == 0 => equal vectors
+    jne     .maybe_swap ;
+    mov     r10, 1      ;if r10 > 0 => v1 > v2 => good order
     jmp     .make_sub
 
 .maybe_swap:
-    cmp     r10, (-1)
-    jne     .make_sub
-    xchg    rdi, rsi
-    xchg    rdx, rcx
+    cmp     r10, (-1)   ;if r10 < 0 => swap vectors to get convenient order
+    jne     .make_sub   ;(that is subtracting will be performed as (v1 - v2)
+    xchg    rdi, rsi    ;swap vectors
+    xchg    rdx, rcx    ;swap lengths
 
 .make_sub:
     mov     rax, rdx
     cmp     rax, rcx
-    cmovl   rax, rcx
+    cmovl   rax, rcx    ;rax = max(length_1, length_2)
 
     push    rdi
     push    rsi
@@ -757,7 +763,7 @@ digsSub:
     push    rcx
     push    r10
     push    rax
-    alloc_N_qwords rax
+    alloc_N_qwords rax  ;allocate max(length_1, length_2) of qwords for resulting vector
     mov     r8, rax
     pop     rax
     pop     r10
@@ -766,32 +772,32 @@ digsSub:
     pop     rsi
     pop     rdi
 
-    push    r10
+    push    r10     ;callee-saved registers
     push    r12
 
-    xor     r9, r9
-    xor     r10, r10
+    xor     r9, r9      ;"i"
+    xor     r10, r10    ;borrow
 .loop:
-    xor     r12, r12
+    xor     r12, r12    ;new borrow
 
-    mov     r11, [rdi + r9 * 8]
-    cmp     r9, rcx
+    mov     r11, [rdi + r9 * 8]     ;load v1.digit[i]
+    cmp     r9, rcx                 ;i < length2 ???
     jge     .sub_borrow
-    sub     r11, [rsi + r9 * 8]
-    adc     r12, 0
+    sub     r11, [rsi + r9 * 8]     ;if (i < length2) => r11 -= v2.digit[i]
+    adc     r12, 0                  ;maybe borrow?
 .sub_borrow:
-    sub     r11, r10
-    adc     r12, 0
+    sub     r11, r10                ;r11 -= borrow (from previous step)
+    adc     r12, 0                  ;r12 = new_borrow
 
-    mov     [r8 + r9 * 8], r11
+    mov     [r8 + r9 * 8], r11      ;r11 = current digit
     mov     r10, r12
     inc     r9
-    cmp     r9, rax
+    cmp     r9, rax                 ;move to next digits
     jne     .loop
 
-    mov     r9, rax
-    mov     rax, r8
-    pop     r12
+    mov     r9, rax     ;r9 = max(length_1, length_2)
+    mov     rax, r8     ;rax = address of resulting vector
+    pop     r12         ;restore callee-saved registers
     pop     r10
 
     ret
@@ -806,28 +812,30 @@ digsSub:
 biAdd:
     mov     rax, [rsi + len]
     cmp     rax, 0
-    jne     .src_not_zero
+    jne     .src_not_zero       ;if src == 0 => result == dst
     ret
 .src_not_zero:
     mov     rax, [rdi + len]
     cmp     rax, 0
-    jne     .dst_not_zero
+    jne     .dst_not_zero       ;if dst == 0 => result = src => copy BigInt
 
     push    rdi
     push    rsi
-    alloc_N_and_copy_M [rsi + len], [rsi + digs], [rsi + len]
+    alloc_N_and_copy_M [rsi + len], [rsi + digs], [rsi + len] ;copy digits from SRC to DST
     pop     rsi
     pop     rdi
-    mov     [rdi + digs], rax
+    mov     [rdi + digs], rax   ;copy length
     mov     rax, [rsi + len]
     mov     [rdi + len], rax
-    mov     rax, [rsi + sign]
+    mov     rax, [rsi + sign]   ;copy sign
     mov     [rdi + sign], rax
     ret
+
 .dst_not_zero:
-    mov     rax, [rdi + sign]
-    mov     rdx, [rsi + sign]
-    cmp     rax, rdx
+    mov     rax, [rdi + sign]   ;a.signum
+    mov     rdx, [rsi + sign]   ;b.signum
+    cmp     rax, rdx            ;if (a.signum == b.signum) => result.signum = a.signum
+                                ;and result.digits = digsAdd(a.digits, b.digits)
     jne     .diff_signs
 
     push    rdi
@@ -836,54 +844,56 @@ biAdd:
     mov     rcx, [rsi + len]
     mov     rdi, [rdi + digs]
     mov     rsi, [rsi + digs]
-    call    digsAdd
+    call    digsAdd             ;result.digits = digsAdd(a.digits, b.digits)
     pop     rsi
     pop     rdi
 
     push    rax
     push    r9
     push    rdi
-    mov     rdi, [rdi + digs]
+    mov     rdi, [rdi + digs]   ;deallocate old digits of dst
     call    free 
     pop     rdi
     pop     r9
     pop     rax
 
-    mov     [rdi + digs], rax
-    mov     [rdi + len], r9
+    mov     [rdi + digs], rax   ;set new length
+    mov     [rdi + len], r9     ;set new digits
 
-    call    trimZeros
+    call    trimZeros           ;trim leading zeros
     ret
 
-.diff_signs:
+.diff_signs:                    ;a.signum != b.signum => we should do digsSub(a.digits, b.digits)
+                                ;and set appropriate signum of result:
+                                ;result.signum = a.signum * signum_of_digsSub(a.digits, b.digits)
     push    rdi
     push    rsi
     mov     rdx, [rdi + len]
     mov     rcx, [rsi + len]
     mov     rdi, [rdi + digs]
     mov     rsi, [rsi + digs]
-    call    digsSub
+    call    digsSub             ;result.digits = digsSub(a.signum, b.signum)
     pop     rsi
     pop     rdi
 
-    push    rax
-    push    r9
-    push    r10
+    push    rax                 ;RAX = resulting digits
+    push    r9                  ;R9 = resulting length
+    push    r10                 ;R10 = signum of digsSub(a.digits, b.digits)
     push    rdi
-    mov     rdi, [rdi + digs]
+    mov     rdi, [rdi + digs]   ;deallocate old digits
     call    free 
     pop     rdi
     pop     r10
     pop     r9
     pop     rax
 
-    mov     [rdi + digs], rax
-    mov     [rdi + len], r9
-    mov     rcx, [rdi + sign]
+    mov     [rdi + digs], rax   ;set new digits
+    mov     [rdi + len], r9     ;set new length
+    mov     rcx, [rdi + sign]   
     imul    rcx, r10
-    mov     [rdi + sign], rcx
+    mov     [rdi + sign], rcx   ;result.signum = a.signum * R10
 
-    call trimZeros
+    call trimZeros          ;trim leading zeros
     ret
 
 ;; Get sign of given BigInt.
@@ -892,12 +902,12 @@ biAdd:
 ;Parameters:
 ;   1) RDI - address of BigInt
 ;Returns:
-;   RAX - sign
+;   RAX - sign (-1, 0 or 1)
 biSign:
-    mov     rcx, [rdi + len]
+    mov     rcx, [rdi + len]    ;length == 0 => BigInt == 0
     cmp     rcx, 0
     je      .zero
-    mov     rax, [rdi + sign]
+    mov     rax, [rdi + sign]   ;get signum == -1 or 1
     ret
 .zero:
     xor     rax, rax
@@ -907,59 +917,59 @@ biSign:
 ; void biSub(BigInt dst, BigInt src);
 ;
 ;Parameters:
-;   1) RDI - dst
-;   2) RSI - src
+;   1) RDI - dst BigInt
+;   2) RSI - src BigInt
 biSub:
     mov     rax, [rsi + len]
     cmp     rax, 0
-    jne     .src_not_zero
+    jne     .src_not_zero       ;src == 0 => result == 0
     ret
 .src_not_zero:
-    mov     rax, [rsi + sign]
+    mov     rax, [rsi + sign]   ;a - b = a + (-b)
     imul    rax, (-1)
-    mov     [rsi + sign], rax
+    mov     [rsi + sign], rax   ;invert signum of src (-b)
     push    rax
     push    rsi
-    call    biAdd
+    call    biAdd               ;a += (-b)
     pop     rsi
     pop     rax
     
     imul    rax, (-1)
-    mov     [rsi + sign], rax
+    mov     [rsi + sign], rax   ;restore signum of src (b)
     ret
 
 ;; Compare two BigInts. Returns sign(a - b)
 ; int biCmp(BigInt a, BigInt b)
 ;
 ;Parameters:
-;   1) RDI - 1st BigInt
-;   2) RSI - 2nd BigInt
+;   1) RDI - 1-st BigInt
+;   2) RSI - 2-nd BigInt
 ;Returns:
-;   RAX - sign
+;   RAX - sign (-1, 0 or 1)
 biCmp:
-    mov     rax, [rdi + sign]
-    mov     rcx, [rsi + sign]
+    mov     rax, [rdi + sign]   ;signum_1 (-1 or 1)
+    mov     rcx, [rsi + sign]   ;signum_2 (-1 or 1)
     cmp     rax, rcx
-    jne     .diff_signs
+    jne     .diff_signs         ;signum_1 == signum_2 ???
 
     push    rax
     mov     rdx, [rdi + len]
     mov     rcx, [rsi + len]
     mov     rdi, [rdi + digs]
     mov     rsi, [rsi + digs]
-    call    compareDigs
-    mov     r8, rax
+    call    compareDigs         ;compare a.digits and b.digits
+    mov     r8, rax             ;R8 = result of comparison a.digits and b.digits
     pop     rax
 
-    cmp     r8, 0
+    cmp     r8, 0           ;signum_1 == signum_2 && a.digits == b.digits => result = 0
     je      .equals
-    imul    rax, r8
+    imul    rax, r8         ;a.digits != b.digits => result == (signum_1 * comparison)
     ret
 
-.diff_signs:
-    cmp     rax, 1
-    je      .first_gt
-    jmp     .second_gt
+.diff_signs:                ;signum_1 == (1 or -1) and signum_2 == -signum_1
+    cmp     rax, 1      
+    je      .first_gt       ;signum_1 = 1 && signum_2 == -1 => result = 1
+    jmp     .second_gt      ;signum_1 = 1 && signum_2 == -1 => result = -1
 
 .first_gt:
     mov     rax, 1
@@ -976,95 +986,95 @@ biCmp:
 ;Parameters:
 ;   1) RDI - multiplier #1 address
 ;   2) RSI - multiplier #2 address
-;   3) RDX - length of #1
-;   4) RCX - length of #2
+;   3) RDX - length of #1 BigInt
+;   4) RCX - length of #2 BigInt
 ;Returns:
 ;   1) RAX - address of resulting vector
 ;   2) R9 - length of resulting vector
 digsMul:
-    mov     rax, rdx
-    add     rax, rcx
+    mov     rax, rdx    ;RAX = length of result
+    add     rax, rcx    ;RAX = (length_1 + length_2)
 
     push    rdi
     push    rsi
     push    rdx
     push    rcx
-    alloc_N_qwords rax
+    alloc_N_qwords rax  ;allocate (length_1 + length_2) qwords for result
     mov     r8, rax
     pop     rcx
     pop     rdx
     pop     rsi
     pop     rdi
 
-    push    r12
+    push    r12         ;callee-saved registers
     push    r13
-    mov     r11, rcx
-    mov     r12, rdx
+    mov     r11, rcx    ;r11 == length_2
+    mov     r12, rdx    ;r12 == length_1
 
-    xor     r9, r9
+    xor     r9, r9      ;"i"
 .loop_outer:
-    xor     r10, r10
-    xor     r13, r13
+    xor     r10, r10    ;"j"
+    xor     r13, r13    ;old_carry
 
 .loop_inner:
-    xor     rdx, rdx
-    mov     rax, r13
-    cmp     r10, r11
+    xor     rdx, rdx    ;(RDX:RAX) holds carry
+    mov     rax, r13    ;carry = old_carry
+    cmp     r10, r11    ;j < length_2 ???
     jge     .add_to_ans
-    mov     rax, [rsi + r10 * 8]
-    mov     rcx, [rdi + r9 * 8]
-    mul     rcx
-    add     rax, r13
-    adc     rdx, 0
+    mov     rax, [rsi + r10 * 8]    ;RAX = b.digits[j] 
+    mov     rcx, [rdi + r9 * 8]     ;RCX = a.digits[i]
+    mul     rcx                     ;carry = a.digits[i] * b.digits[j]
+    add     rax, r13                ;
+    adc     rdx, 0                  ;carry += old_carry
 
 .add_to_ans:
-    mov     rcx, r9
-    add     rcx, r10
-    add     rax, [r8 + rcx * 8]
-    adc     rdx, 0
-    mov     [r8 + rcx * 8], rax
-    mov     r13, rdx
+    mov     rcx, r9     ;rcx = "i"
+    add     rcx, r10    ;rcx = "i" + "j"
+    add     rax, [r8 + rcx * 8]     ;
+    adc     rdx, 0                  ;carry += result.digits[i + j]
+    mov     [r8 + rcx * 8], rax     ;result.digits[i + j] = carry & (2^64 - 1)
+    mov     r13, rdx                ;next_carry = carry
 
-    inc     r10
-    cmp     r10, r11
-    jl      .loop_inner
+    inc     r10         ;"j"++
+    cmp     r10, r11    ;
+    jl      .loop_inner ;j < length2 => continue inner_loop
     cmp     r13, 0
-    jne     .loop_inner
+    jne     .loop_inner ;carry != 0 => continue inner_loop
 
-    inc     r9
-    cmp     r9, r12
-    jne     .loop_outer
+    inc     r9          ;"i"++
+    cmp     r9, r12     ;
+    jne     .loop_outer ;i < length_1 => continue outer_loop
 
-    mov     r9, r11
-    add     r9, r12
-    mov     rax, r8
+    mov     r9, r11     
+    add     r9, r12     ;r9 = length_1 + length_2
+    mov     rax, r8     ;rax = address of resulting vector
 
     pop     r13
     pop     r12
     ret
 
-;; dst *= src */
+;; dst *= src
 ; void biMul(BigInt dst, BigInt src)
 ;
 ;Parameters:
-;   1) RDI - dst
-;   2) RSI - src
+;   1) RDI - dst BigInt
+;   2) RSI - src BigInt
 biMul:
     mov     rax, [rdi + len]
     cmp     rax, 0
-    jnz     .dst_not_zero
+    jnz     .dst_not_zero   ;dst == 0 => result == 0
     ret
 .dst_not_zero:
     mov     rax, [rsi + len]
     cmp     rax, 0
-    jnz     .src_not_zero
+    jnz     .src_not_zero   ;src == 0 => result == 0 => emptify dst
 
     push    rdi
-    mov     rdi, [rdi + digs]
+    mov     rdi, [rdi + digs]   ;deallocate dst digits
     call    free
     pop     rdi
 
-    mov     qword [rdi + digs], 0
+    mov     qword [rdi + digs], 0   ;set BigInt to 0
     mov     qword [rdi + sign], 1
     mov     qword [rdi + len], 0
     ret
@@ -1077,36 +1087,41 @@ biMul:
     mov     rcx, [rsi + len]
     mov     rdi, [rdi + digs]
     mov     rsi, [rsi + digs]
-    call    digsMul
+    call    digsMul             ;multiply dst.digits * src.digits
 
     pop     rsi
     pop     rdi
 
-    push    rax
-    push    r9
+    push    rax                 ;RAX - address of resulting vector
+    push    r9                  ;R9 - size of resulting vector
     push    rdi
     push    rsi
     mov     rdi, [rdi + digs]
-    call    free 
+    call    free                ;deallocate old digits
     pop     rsi
     pop     rdi
     pop     r9
     pop     rax
 
-    mov     [rdi + digs], rax
-    mov     [rdi + len], r9
+    mov     [rdi + digs], rax   ;set new digits
+    mov     [rdi + len], r9     ;set new length
 
     mov     rax, [rdi + sign]
-    mov     rcx, [rsi + sign]
+    mov     rcx, [rsi + sign]   ;result.signum = a.signum * b.signum
     imul    rax, rcx
     mov     [rdi + sign], rax
 
     push    rdi
-    call    trimZeros
+    call    trimZeros           ;trim leading zeros
     pop     rdi
 
     ret
 
+;While I was writing the division I realized that saving over 9000 registers before
+;every function call is painful, so further I will use such convenient macros:
+;NOTE: they don't save RAX, because RAX is used to push result through these macros
+
+;obvious
 %macro push_all_regs 0
     push    rdi
     push    rsi
@@ -1123,6 +1138,7 @@ biMul:
     push    r15
 %endmacro
 
+;obvious
 %macro pop_all_regs 0
     pop     r15
     pop     r14
@@ -1139,30 +1155,32 @@ biMul:
     pop     rdi
 %endmacro
 
-;void shiftLeft(BigInt bi)
+;Shifts all digits of given BigInt left by 1 position
+;So it's equivalent to dst *= 2^64
+;void shiftLeft(BigInt dst)
 ;
 ;Parameters:
-;   1) RDI - address of BigInt to be shifted one digit left (that is *= BASE)
+;   1) RDI - address of BigInt to be shifted one digit left
 shiftLeft:
     mov     rax, [rdi + len]
     cmp     rax, 0
-    jne     .not_zero
+    jne     .not_zero   ;dst == 0 => result == 0
     ret
 .not_zero:
     mov     rax, [rdi + len]
-    inc     rax
+    inc     rax                 ;rax = old_length + 1
     push_all_regs
-    alloc_N_qwords rax
+    alloc_N_qwords rax          ;allocate (old_length + 1) qwords for result
     pop_all_regs
     mov     r8, rax
 
-    mov     rsi, [rdi + digs]
-    mov     rcx, [rdi + len]
-    mov     r9, r8
-    add     r9, 8
+    mov     rsi, [rdi + digs]   ;RSI - old digits position
+    mov     rcx, [rdi + len]    ;RCX = old_length
+    mov     r9, r8              ;R9 - new digits position
+    add     r9, 8               ;move R9 to second right away
 .loop:
     cmp     rcx, 0
-    je      .endloop
+    je      .endloop            ;simply copy [i] to [i+1]
     dec     rcx
     mov     rax, [rsi]
     mov     [r9], rax
@@ -1172,17 +1190,21 @@ shiftLeft:
 .endloop:
     
     push_all_regs
-    mov     rdi, [rdi + digs]
+    mov     rdi, [rdi + digs]   ;deallocate old digits
     call    free
     pop_all_regs
 
-    mov     [rdi + digs], r8
-    mov     rax, [rdi + len]
+    mov     [rdi + digs], r8    ;set new digits
+    mov     rax, [rdi + len]    ;set new length 
     inc     rax
     mov     [rdi + len], rax
     ret
 
 
+;Takes two BigInt and returns quotient of division 
+;1st of them by 2nd one. Initial BigInts are not affected.
+;Quotient's signum is set appropriately.
+;
 ;BigInt getQuotient(BigInt numerator, BigInt denominator)
 ;
 ;Parameters:
@@ -1191,250 +1213,268 @@ shiftLeft:
 ;Returns:
 ;   RAX - address of resultion quotient BigInt
 getQuotient:
-    push_all_regs
+    push_all_regs   ;save all registers, including callee-saved ones
 
     mov     rax, [rdi + sign]
-    mov     r15, [rsi + sign]
-    imul    r15, rax
+    mov     r15, [rsi + sign]   ;R15 holds signum of resulting quotient
+    imul    r15, rax            ;R15 = numerator.signum * denominator.signum
+                                ;if (R15 < 0 and numerator % denominator != 0)
+                                ;then resulting quotient will be decremented by 1
 
-    mov     rdx, [rdi + len]
-    mov     rcx, [rsi + len]
-    mov     rdi, [rdi + digs]
-    mov     rsi, [rsi + digs]
+    mov     rdx, [rdi + len]    ;numerator length
+    mov     rcx, [rsi + len]    ;denominator length
+    mov     rdi, [rdi + digs]   ;RDI = numerator digits
+    mov     rsi, [rsi + digs]   ;RSI = denominator digits
 
     push_all_regs
-    alloc_N_and_copy_M rdx, rdi, rdx
+    alloc_N_and_copy_M rdx, rdi, rdx    ;copy numerator digits
     pop_all_regs
     mov     rdi, rax
 
     push_all_regs
-    alloc_N_and_copy_M rcx, rsi, rcx
+    alloc_N_and_copy_M rcx, rsi, rcx    ;copy denominator digits
     pop_all_regs
     mov     rsi, rax
 
+                                        ;let's denote D as copy of denominator
+                                        ;let's denote N as copy of numerator
+
     push_all_regs
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt                   ;create copy of numerator
     pop_all_regs
-    mov     r10, rax
+    mov     r10, rax                    ;R10 = N
     mov     [r10 + digs], rdi
     mov     [r10 + len], rdx
     mov     qword [r10 + sign], 1
 
     push_all_regs
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt                   ;create copy of denominator
     pop_all_regs
-    mov     r11, rax
+    mov     r11, rax                    ;R11 = D
     mov     [r11 + digs], rsi
     mov     [r11 + len], rcx
     mov     qword [r11 + sign], 1
 
-    mov     r9, [rsi + rcx * 8 - 8]
-    inc     r9
-    cmp     r9, 0
-    jne     .norm_take
+                                        ;R9 will be normalization, where
+                                        ;normalization = BASE / (den.digits[den.length-1] + 1)
+    
+    mov     r9, [rsi + rcx * 8 - 8]     ;R9 = denominator.digits[denomitator.length - 1]
+    inc     r9                          ;R9 += 1
+    cmp     r9, 0                       ;if (r9 == 0) => overflow => normalization == 2^64
+    jne     .norm_take                  ;=> set normalization to 1
     mov     r9, 1
     jmp     .norm_got 
 
 .norm_take:
-    push    rdx
+    push    rdx         
     mov     rdx, 1
-    mov     rax, 0
-    div     r9
-    mov     r9, rax
+    mov     rax, 0      ;RDX:RAX = BASE = 2^64
+    div     r9          ;RDX:RAX = 2 ^ 64 / (b.digits[size - 1] + 1)
+    mov     r9, rax     ;R9 = normalization
     pop     rdx
 
 .norm_got:
     push_all_regs
     mov     rdi, r10
     mov     rsi, r9
-    call    mulLongShort
+    call    mulLongShort    ;N *= normalization
     pop_all_regs
 
     push_all_regs
     mov     rdi, r11
     mov     rsi, r9
-    call    mulLongShort
+    call    mulLongShort    ;D *= normalization
     pop_all_regs
 
-    mov     rdi, [r10 + digs]
-    mov     rdx, [r10 + len]
-    mov     rsi, [r11 + digs]
-    mov     rcx, [r11 + len]
+    mov     rdi, [r10 + digs]   ;RDI = N.digits
+    mov     rdx, [r10 + len]    ;RDX = N.length
+    mov     rsi, [r11 + digs]   ;RSI = D.digits
+    mov     rcx, [r11 + len]    ;RCX = D.length
 
     push_all_regs
-    alloc_N_qwords rdx
+    alloc_N_qwords rdx          ;allocate N.digits qwords for result
     pop_all_regs
     mov     r8, rax
 
     push_all_regs
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt           ;create BigInt R(remainder): R = 0
     pop_all_regs
     mov     r9, rax
 
     push_all_regs
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt           ;create BigInt T(temp): T = 0
     pop_all_regs
     mov     r12, rax
 
-    mov     r13, rdx
+    mov     r13, rdx            ;R13 = "i" = N.length 
 .loop:
     cmp     r13, 0
-    je      .endloop
+    je      .endloop            ;for "i" = N.length - 1; "i" >= 0; i--
     dec     r13
 
     push_all_regs
     mov     rdi, r9
-    call    shiftLeft
+    call    shiftLeft               ;R *= BASE
     pop_all_regs
 
-    mov     rax, [rdi + r13 * 8]    
+    mov     rax, [rdi + r13 * 8]     
     push_all_regs
     mov     rdi, r9
     mov     rsi, rax
-    call    addLongShort
+    call    addLongShort            ;R += N.digits["i"]
     pop_all_regs
 
-    push_all_regs
-    mov     rdx, [r10 + len]
-    mov     rcx, [r11 + len]
+    push_all_regs                   ;save registers for arithmetic magic
+    mov     rdx, [r10 + len]        ;update N.length
+    mov     rcx, [r11 + len]        ;update D.length
 
     mov     r14, [r11 + digs]
-    mov     r14, [r14 + rcx * 8 - 8]
+    mov     r14, [r14 + rcx * 8 - 8] ;R14 = D.digits[D.length - 1], that is last digit of D
 
-    xor     r10, r10
-    mov     r12, rcx
-    mov     r8, [r9 + len]
-    cmp     r12, r8
+    xor     r10, r10                ;R10 = s1
+    mov     r12, rcx                ;R12 = D.length
+    mov     r8, [r9 + len]          ;R8 = R.length
+    cmp     r12, r8                 ;D.length < R.length ???
     jge     .s1_set
     
     mov     r10, [r9 + digs]
-    mov     r10, [r10 + r12 * 8]
+    mov     r10, [r10 + r12 * 8]    ;D.length < R.length => s1 = R.digits[D.length]
 
     .s1_set:
-    xor     r11, r11
-    mov     r12, rcx
-    dec     r12
-    mov     r8, [r9 + len]
-    cmp     r12, r8
+    xor     r11, r11                ;R11 = s2
+    mov     r12, rcx                ;R12 = D.length
+    dec     r12                     ;R12 = D.length - 1
+    mov     r8, [r9 + len]          ;R8 = R.length
+    cmp     r12, r8                 ;D.length - 1 < R.length ???
     jge     .s2_set
 
     mov     r11, [r9 + digs]
-    mov     r11, [r11 + r12 * 8]
+    mov     r11, [r11 + r12 * 8]    ;D.length - 1 < R.length => s2 = R.digits[D.length - 1]
 
     .s2_set:
+                                    ;Next digit(Dig) will be 
+                                    ;Dig = (s1 * 2^64 + s2) / R14
     mov     rdx, r10
     mov     rax, r11
     div     r14
-    pop_all_regs
+    pop_all_regs                    ;Restore all registers
+                                    ;R10 = N(copy of numerator), 
+                                    ;R11 = D(copy of denominator), 
+                                    ;R9 = R(remainder), 
+                                    ;R12 = T(temp)
     mov     r14, rax
 
     push_all_regs
-    mov     rdi, [r12 + digs]
-    call    free 
+    mov     rdi, [r12 + digs]       
+    call    free                    ;deallocate digits of T (temp)
     pop_all_regs
 
     push_all_regs
-    alloc_N_and_copy_M [r11 + len], [r11 + digs], [r11 + len]
+    alloc_N_and_copy_M [r11 + len], [r11 + digs], [r11 + len] 
     pop_all_regs
-    mov     [r12 + digs], rax
+    mov     [r12 + digs], rax       ;now T(temp) = D
     mov     [r12 + len], rcx
     mov     qword [r12 + sign], 1
 
     push_all_regs
     mov     rdi, r12
     mov     rsi, r14
-    call    mulLongShort
+    call    mulLongShort            ;T *= Dig
     pop_all_regs
 
     push_all_regs
     mov     rdi, r9
-    mov     rsi, r12
+    mov     rsi, r12                ;R(remainder) -= T(temp)
     call    biSub
     pop_all_regs
 
-    .while_neg_loop:
+    .while_neg_loop:                ;while (R < 0) {
+                                    ;   R += D 
+                                    ;   Dig--
+                                    ;}
         mov     rax, [r9 + sign]
         cmp     rax, 1
         je      .end_while_neg_loop
         
         push_all_regs
-        mov     rdi, r9
-        mov     rsi, r11
-        call    biAdd
+        mov     rdi, r9         ;RDI = R(remainder)
+        mov     rsi, r11        ;RSI = D(denominator)
+        call    biAdd           ;R += D
         pop_all_regs
         
-        dec     r14
+        dec     r14             ;Dig--
         jmp     .while_neg_loop
     .end_while_neg_loop:
 
-    mov     [r8 + r13 * 8], r14
+    mov     [r8 + r13 * 8], r14 ;Move current digit to answer
     jmp     .loop
 
 .endloop:
     push_all_regs
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt           ;create resulting BigInt
     pop_all_regs
     mov     r14, rax
 
-    mov     [r14 + digs], r8
-    mov     [r14 + len], rdx
-    mov     qword [r14 + sign], 1
+    mov     [r14 + digs], r8        ;set resulting vector
+    mov     [r14 + len], rdx        ;set resulting length
+    mov     qword [r14 + sign], 1   ;sign is '+' yet...
 
     push_all_regs
     mov     rdi, r14
-    call    trimZeros
+    call    trimZeros               ;trim leading zeros
     pop_all_regs
 
-    cmp     r15, 1
+    cmp     r15, 1                  ;if (result.signum == '+') => signum is correct already
     je      .sign_set
 
     xor     rcx, rcx
-    mov     rax, [r9 + len]
-    cmp     rax, 0
+    mov     rax, [r9 + len]         ;check if R(remainder) != 0
+    cmp     rax, 0  
     je      .flag_set
-    mov     rcx, 1
+    mov     rcx, 1                  ;R(remainder) != 0 => we should decrement quotient by 1
 
 .flag_set:
 
     push_all_regs
     mov     rdi, r14
-    mov     rsi, rcx
-    call    addLongShort
+    mov     rsi, rcx                ;RCX = 0 if (numerator % denominator == 0) and 1 otherwise
+    call    addLongShort            ;calibrate quotient
     pop_all_regs
 
-    mov     qword [r14 + sign], (-1)
+    mov     qword [r14 + sign], (-1)    ;set quotient's sign to '-'
 
 .sign_set:
     push_all_regs
-    mov     rdi, r9
+    mov     rdi, r9         ;delete R(remainder) BigInt
     call    biDelete
     pop_all_regs
 
     push_all_regs
-    mov     rdi, r10
+    mov     rdi, r10        ;delete N(copy of numerator) BigInt
     call    biDelete
     pop_all_regs
 
     push_all_regs
-    mov     rdi, r11
+    mov     rdi, r11        ;delete D(copy of denominator) BigInt
     call    biDelete
     pop_all_regs
 
     push_all_regs
-    mov     rdi, r12
+    mov     rdi, r12        ;delete T(temp) BigInt
     call    biDelete
     pop_all_regs
 
     mov     rax, r14
-    pop_all_regs    
+    pop_all_regs        ;restore callee-saved registers
 
     ret
 
+;obvious
 ;BigInt copyBigInt(BigInt bi)
 ;
 ;Parameters:
@@ -1443,17 +1483,17 @@ getQuotient:
 ;   RAX - copy of given BigInt
 copyBigInt:
     push_all_regs
-    alloc_N_and_copy_M [rdi + len], [rdi + digs], [rdi + len]
+    alloc_N_and_copy_M [rdi + len], [rdi + digs], [rdi + len]   ;allocate copy of digits
     pop_all_regs
     mov     r8, rax
 
     push_all_regs
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt   ;create resulting BigInt
     pop_all_regs
     mov     r9, rax
 
-    mov     [r9 + digs], r8
+    mov     [r9 + digs], r8     ;set fields
     mov     rax, [rdi + len]
     mov     [r9 + len], rax
     mov     rax, [rdi + sign]
@@ -1471,33 +1511,33 @@ copyBigInt:
 ;   3) RDX - numerator BigInt
 ;   4) RCX - denominfator BigInt
 biDivRem:
-    push    rdi
-    push    rsi
-    mov     rdi, rdx
-    mov     rsi, rcx
+    push    rdi         ;save address-holder of quotient
+    push    rsi         ;save address-holder of remainder
+    mov     rdi, rdx    ;RDI = numerator 
+    mov     rsi, rcx    ;RSI = denominator
     
-    mov     rax, [rsi + len]
+    mov     rax, [rsi + len]    ;denominator == 0 ???
     cmp     rax, 0
     jne     .denom_not_zero
 
     pop     rsi
     pop     rdi
-    mov     qword [rdi], 0
+    mov     qword [rdi], 0      ;denominator == 0 => quotient = remainder = NULL
     mov     qword [rsi], 0
     ret
 
 .denom_not_zero:
-    mov     rax, [rdi + len]
+    mov     rax, [rdi + len]    ;numerator == 0 ???   
     cmp     rax, 0
     jne     .numer_not_zero
-
+                                ;numerator == 0 => quotient = remainder = 0
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt           ;allocate BigInt 0
     pop     rsi
     mov     [rsi], rax
 
     xor     rdi, rdi
-    call    biFromInt
+    call    biFromInt           ;allocate BigInt 0
     pop     rdi
     mov     [rdi], rax
     ret
@@ -1506,33 +1546,36 @@ biDivRem:
     push_all_regs
     call    getQuotient
     pop_all_regs
-    mov     r8, rax 
+    mov     r8, rax             ;R8 = quotient of division
+
+                                ;calculate R(remainder) as 
+                                ;R = numerator - quotient * denominator
 
     push_all_regs
     mov     rdi, r8
-    call    copyBigInt
+    call    copyBigInt          ;R9 = Q (quotient)
     pop_all_regs
     mov     r9, rax
 
     push_all_regs
-    mov     rdi, r9
+    mov     rdi, r9             ;R9 *= D (denominator)
     call    biMul
     pop_all_regs
 
-    mov     rax, [r9 + sign]
+    mov     rax, [r9 + sign]    ;R9 = -R9 = -Q * D
     imul    rax, (-1)
     mov     [r9 + sign], rax
 
     push_all_regs
-    mov     rsi, rdi
+    mov     rsi, rdi 
     mov     rdi, r9
-    call    biAdd
+    call    biAdd               ;R9 = N + (-Q * D) = N - Q * D = R
     pop_all_regs
 
-    pop     rsi
+    pop     rsi                 ;restore address-holders
     pop     rdi
 
-    mov     [rdi], r8
-    mov     [rsi], r9
+    mov     [rdi], r8           ;write resulting quotient address
+    mov     [rsi], r9           ;write resulting remainder address
 .return:
     ret
