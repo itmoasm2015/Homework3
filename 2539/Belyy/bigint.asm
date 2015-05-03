@@ -628,7 +628,7 @@ biSign:             xor rax, rax
 ;   RDI - bigint * quotient
 ;   RSI - bigint * remainder
 ;   RDX - bigint numerator
-;   RDX - bigint denominator
+;   RCX - bigint denominator
 
 biDivRem:           ret
 

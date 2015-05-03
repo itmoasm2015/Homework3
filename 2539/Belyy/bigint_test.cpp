@@ -30,6 +30,7 @@ extern "C" {
 #define BEGIN()         bool __result = true;
 #define END()           return __result;
 
+int n_prev = 0;
 
 uint64_t get_digit(BigInt bi, unsigned digit) {
     return ((uint64_t*)(*(int*)((char*)bi + 1)))[2 + digit];
@@ -85,7 +86,6 @@ bool bigint_short_comparison(int n) {
     END();
 }
 
-int n_prev = 0;
 bool bigint_short_addition(int n) {
     BEGIN();
 
@@ -100,7 +100,6 @@ bool bigint_short_addition(int n) {
     biDelete(b);
     biDelete(c);
 
-    n_prev = n;
     END();
 }
 
@@ -278,10 +277,10 @@ bool bigint_from_mail(int n) {
         BigInt one = biFromInt(1);
         biSub(almostHuge, one);
 
-        BigInt minusOne = biFromInt(-1ll);
+        BigInt minusOne = biFromInt(1ll);
 
-        BigInt result = biFromBigInt(almostHuge);
-        biSub(result, minusOne);
+        BigInt result = biFromBigInt(minusOne);
+        biAdd(result, almostHuge);
 
         EXPECT(biCmp(result, huge) == 0);
 
@@ -291,6 +290,29 @@ bool bigint_from_mail(int n) {
         biDelete(one);
         biDelete(minusOne);
         biDelete(result);
+    }
+
+    END();
+}
+
+bool bigint_various_tests(int n) {
+    BEGIN();
+
+    // test #1
+    // combinations of signs in biMul()
+    {
+        int n1 = n & 1 ? n : -n;
+        int n2 = n_prev & 1 ? n_prev : -n_prev;
+        BigInt bi1 = biFromInt(n1);
+        BigInt bi2 = biFromInt(n2);
+        BigInt bi3 = biFromInt((int64_t) n1 * n2);
+        biMul(bi1, bi2);
+
+        EXPECT(biCmp(bi1, bi3) == 0);
+
+        biDelete(bi1);
+        biDelete(bi2);
+        biDelete(bi3);
     }
 
     END();
@@ -313,7 +335,10 @@ int main() {
         TEST(t + salt, bigint_long_creation);
         TEST(t + salt, bigint_long_power_two);
 
+        TEST(t + salt, bigint_various_tests);
         TEST(t + salt, bigint_from_mail);
+
+        n_prev = t + salt;
     }
 
     cout << "OK " << passed_tests << "/" << all_tests << " tests\n";
