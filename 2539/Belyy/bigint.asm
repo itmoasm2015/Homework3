@@ -641,5 +641,5 @@ biDivRem:           ret
 
 biToString:         mov byte [rsi + 0], 'N'
                     mov byte [rsi + 1], 'A'
-                    mov byte [rsi + 2], '\0'
+                    mov byte [rsi + 2], 0
                     ret
