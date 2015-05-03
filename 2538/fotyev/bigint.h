@@ -3,7 +3,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
-typedef void* BigInt;
+struct BigInt_t
+{
+  uint64_t size;
+  uint64_t * ptr;
+  uint64_t sign;
+};
+
+typedef BigInt_t * BigInt;
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +40,7 @@ void biDelete(BigInt bi);
 int biSign(BigInt bi);
 
 /** dst += src */
-int biAdd(BigInt dst, BigInt src);
+void biAdd(BigInt dst, BigInt src);
 
 /** dst -= src */
 void biSub(BigInt dst, BigInt src);
@@ -53,6 +60,9 @@ void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt deno
  * \returns sign(a - b)
  */
 int biCmp(BigInt a, BigInt b);
+
+
+  int normal_size(BigInt bi);
 
 #ifdef __cplusplus
 }
