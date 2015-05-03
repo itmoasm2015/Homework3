@@ -266,6 +266,33 @@ bool bigint_from_mail(int n) {
         biDelete(bi2);
     }
 
+    // test #6
+    {
+        BigInt huge = biFromInt(1ll);
+        BigInt base = biFromInt(2ll);
+        for (int i = 0; i < 1024; i++) {
+            biMul(huge, base);
+        }
+
+        BigInt almostHuge = biFromBigInt(huge);
+        BigInt one = biFromInt(1);
+        biSub(almostHuge, one);
+
+        BigInt minusOne = biFromInt(-1ll);
+
+        BigInt result = biFromBigInt(almostHuge);
+        biSub(result, minusOne);
+
+        EXPECT(biCmp(result, huge) == 0);
+
+        biDelete(huge);
+        biDelete(base);
+        biDelete(almostHuge);
+        biDelete(one);
+        biDelete(minusOne);
+        biDelete(result);
+    }
+
     END();
 }
 
