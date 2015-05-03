@@ -16,9 +16,6 @@ char buf[N];
 
 void printBigInt(BigInt a) {
     biToString(a, buf, N);
-    // for (int i = 0; i < N; i++) {
-        // cout << (int) buf[i] << ' ';
-    // }
     cout << buf << endl;
 }
 
@@ -47,8 +44,5 @@ void testDivision() {
 }
 
 int main() {    
-    BigInt a = biFromString("1");
-    biSign(a);
-
-    // testDivision();
+    testDivision();
 }

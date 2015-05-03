@@ -897,9 +897,9 @@ digsSub:
 ;   1) RDI - dst BigInt
 ;   2) RSI - src BigInt
 biAdd:
-    mov     rax, [rsi + len]
+    mov     rax, [rsi + len]    ;src length
     cmp     rax, 0
-    jne     .src_not_zero       ;if src == 0 => result == dst
+    jne     .src_not_zero       ;src == 0 => result == dst
     ret
 .src_not_zero:
     mov     rax, [rdi + len]
@@ -913,6 +913,7 @@ biAdd:
     add     rsp, 8
     pop     rsi
     pop     rdi
+    
     mov     [rdi + digs], rax   ;copy length
     mov     rax, [rsi + len]
     mov     [rdi + len], rax
@@ -1001,23 +1002,6 @@ biAdd:
 ;Returns:
 ;   RAX - sign (-1, 0 or 1)
 biSign:
-    xor     rdx, rdx
-    dec     rdx
-    dec     rdx
-
-    push_all_regs
-    printValue rdx
-    pop_all_regs
-
-    xor     rax, rax
-    neg     rdx
-    xor     rcx, rcx
-    neg     rcx
-    div     rcx
-
-    ret
-
-
     mov     rcx, [rdi + len]    ;length == 0 => BigInt == 0
     cmp     rcx, 0
     je      .zero
@@ -1426,7 +1410,9 @@ getQuotient:
 
                                         ;R9 will be normalization, where
                                         ;normalization = BASE / (den.digits[den.length-1] + 1)
-    
+                                        ;normalization is needed to make high digit of
+                                        ;denominator >= BASE / 2
+
     mov     r9, [rsi + rcx * 8 - 8]     ;R9 = denominator.digits.back()
     inc     r9                          ;R9 += 1
     cmp     r9, 0                       ;if (r9 == 0) => overflow => normalization == 1
@@ -1525,10 +1511,24 @@ getQuotient:
     .s2_set:
 
                                     ;Next digit(Dig) will be 
-                                    ;Dig = (s1 * 2^64 + s2) / R14
-    mov     rdx, r10
-    mov     rax, r11
-    div     r14
+                                    ;Dig = (s1 * 2^64 + s2) / R14,
+                                    ;where R14 = last_digit
+    
+    mov     rdx, r10        ;RDX=(s1)
+    mov     rax, r11        ;RAX=(s2)
+                            ;RDX:RAX = s1:s2
+                            ;R14 = (RDX:RAX) / D.last
+
+    cmp     rdx, r14
+    jae     .overflow       ;RDX >= R14 => overflow => R14 = digit = 2^64 - 1
+    div     r14 
+    jmp     .got_digit
+
+.overflow:
+    mov     rax, (-1)       ;RAX = 0x111...111
+
+.got_digit:    
+                                    ;RAX - current digit, pass it through pop_all_regs
     pop_all_regs                    ;Restore all registers
                                     ;R10 = N(copy of numerator), 
                                     ;R11 = D(copy of denominator), 
