@@ -239,11 +239,13 @@ biFromString:
     push rsi
     mov rdi, 8
     push rcx                ; malloc can do harm to rcx
-    sub rsp, 8
+    push r15
+    mov r15, rsp
+    and rsp, 0xFFFFFFF0
     call malloc
-    add rsp, 8
+    mov rsp, r15
+    pop r15
     pop rcx
-
     pop rsi
     pop rdi
     mov [rax], rsi          ; save values
