@@ -99,9 +99,14 @@ biFromInt:
     push rdi
     push rsi
     mov rdi, 8              ; malloc and now pointer in rax
-    sub rsp, 8
+    ;push r15
+    ;mov r15, rsp
+    ;and rsp, 0xFFFFFFF0
+    sub rsp, 16
     call malloc
-    add rsp, 8
+    add rsp, 16
+    ;mov rsp, r15
+    ;pop r15
     pop rsi
     pop rdi
     pop r9
@@ -241,12 +246,10 @@ biFromString:
     push rcx                ; malloc can do harm to rcx
     push r15
     mov r15, rsp
-    
     and rsp, 0xFFFFFFF0
     call malloc
     mov rsp, r15
     pop r15
-    
     pop rcx
     pop rsi
     pop rdi
