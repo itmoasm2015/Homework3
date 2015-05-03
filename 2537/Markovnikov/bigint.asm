@@ -241,10 +241,12 @@ biFromString:
     push rcx                ; malloc can do harm to rcx
     push r15
     mov r15, rsp
+    
     and rsp, 0xFFFFFFF0
     call malloc
     mov rsp, r15
     pop r15
+    
     pop rcx
     pop rsi
     pop rdi
