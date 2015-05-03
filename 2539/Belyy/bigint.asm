@@ -354,14 +354,14 @@ _set_zero:          push rdi
 ;   RSI - bigint src
 
 biAdd:
-    ; rdi = rsi?
+    ; rdi == rsi?
                     cmp rdi, rsi
                     je .clone_src
                     push 0
     ; state is stored in the following flags:
-    ; al = sgn(abs(dst) - abs(src))
-    ; cl = dst.negative
-    ; ch = src.negative
+    ; al == sgn(abs(dst) - abs(src))
+    ; cl == dst.negative
+    ; ch == src.negative
 .entry:             mov cl, [rdi + bigint.negative]
                     mov ch, [rsi + bigint.negative]
                     push rdi
@@ -402,7 +402,7 @@ biAdd:
 .finally:           pop rdi
     ; remove leading zeros
                     call _normalize
-    ; were dst = src?
+    ; were dst == src?
                     pop rax
                     test rax, rax
                     jnz .free_src
@@ -479,7 +479,7 @@ _mul:               push rdi
 ;   RSI - bigint b
 
 biMul:
-    ; rdi = rsi?
+    ; rdi == rsi?
                     cmp rdi, rsi
                     je .clone_src
                     push 0
@@ -551,7 +551,7 @@ biMul:
                     pop r13
                     pop r12
                     pop rbx
-    ; were dst = src?
+    ; were dst == src?
                     pop rax
                     test rax, rax
                     jnz .free_src
@@ -609,12 +609,12 @@ biCmp:              mov cl, [rdi + bigint.negative]
 
 biSign:             xor rax, rax
                     cmp byte [rdi + bigint.negative], 0
-    ; if negative = false, `bi` definitely < 0
+    ; if negative == true, `bi` definitely < 0
                     jne .negative
                     mov r8, [rdi + bigint.qwords]
                     cmp qword [r8 + vector.data], 0
                     jne .positive
-    ; if qwords[0] = 0 and qwords.size == 1, `bi` == 0
+    ; if qwords[0] == 0 and qwords.size == 1, `bi` == 0
                     cmp qword [r8  + vector.size], 1
                     je .zero
 .positive:          inc rax 
