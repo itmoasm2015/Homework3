@@ -25,15 +25,15 @@ int main() {
 
     BigInt bb = biFromInt(777);
     printbBigNum(bb);
-    //unsigned long long* b = new unsigned long long[20];
-    //b[0] = 20;
-    //b[1] = 15;
-    //b[2] = 19;
+    unsigned long long* b = new unsigned long long[20];
+    b[0] = 20;
+    b[1] = 15;
+    b[2] = 19;
 
-    //cout << endl;
-    //cout << biAdd(bb, b) << endl;
-    //cout << endl;
-    //printbBigNum(bb);
+    cout << endl;
+    cout << biAdd(bb, b) << endl;
+    cout << endl;
+    printbBigNum(bb);
     
     return 0;
 }
