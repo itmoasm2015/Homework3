@@ -222,11 +222,110 @@ bool bigint_short_division(int n) {
     END();
 }
 
+bool bigint_long_division_simple(int n) {
+    BEGIN();
+    
+    BigInt zero = biFromInt(0);
+
+    BigInt quotient;
+    BigInt remainder;
+
+    BigInt numerator = biFromInt(1);
+    BigInt denominator = biFromInt(1);
+
+    //numerator = n^13
+    for (int i = 0; i < 13; i++) {
+        BigInt helper = biFromInt(n);
+        biMul(numerator, helper);
+        biDelete(helper);
+    }
+
+    // denominator = n_prev^1
+    for (int i = 0; i < 1; i++) {
+        BigInt helper = biFromInt(n_prev);
+        biMul(denominator, helper);
+        biDelete(helper);
+    }
+
+    biDivRem(&quotient, &remainder, numerator, denominator);
+
+    if (n_prev == 0) {
+        EXPECT(quotient == NULL && remainder == NULL);
+    } else {
+        EXPECT(quotient != NULL && remainder != NULL);
+        if (biSign(denominator) > 0) {
+            EXPECT(biCmp(remainder, zero) >= 0 && biCmp(remainder, denominator) < 0);
+        } else {
+            EXPECT(biCmp(remainder, denominator) > 0 && biCmp(remainder, zero) <= 0);
+        }
+
+        /*char buf[128];
+        biToString(numerator, buf, sizeof(buf));
+        cout << buf << " / ";
+        biToString(denominator, buf, sizeof(buf));
+        cout << buf << " = ";
+        biToString(quotient, buf, sizeof(buf));
+        cout << buf << " (mod ";
+        biToString(remainder, buf, sizeof(buf));
+        cout << buf << ")" << endl;*/
+
+        BigInt result = biFromBigInt(quotient);
+        biMul(result, denominator);
+        biAdd(result, remainder);
+        EXPECT(biCmp(result, numerator) == 0);
+
+        biDelete(result);
+        biDelete(quotient);
+        biDelete(remainder);
+    }
+    
+    biDelete(zero);
+    biDelete(numerator);
+    biDelete(denominator);
+
+    END();
+}
+
+bool bigint_long_division_hard(int n) {
+    BEGIN();
+
+    BigInt numerator = biFromString("200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+    BigInt denominator = biFromString("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
+    BigInt quotient, remainder;
+
+    biDivRem(&quotient, &remainder, numerator, denominator);
+
+    char buf[128];
+    biToString(numerator, buf, sizeof(buf));
+    cout << buf << " / ";
+    biToString(denominator, buf, sizeof(buf));
+    cout << buf << " = ";
+    biToString(quotient, buf, sizeof(buf));
+    cout << buf << " (mod ";
+    biToString(remainder, buf, sizeof(buf));
+    cout << buf << ")" << endl;
+
+    END();
+}
+
 bool bigint_to_string_simple(int n) {
     BEGIN();
 
     BigInt bi1 = biFromInt(n);
     BigInt bi2 = biFromInt(n);
+
+    // to_string(from_int(0))
+    {
+        char buf[2];
+        BigInt zero = biFromInt(0);
+        biToString(zero, buf, sizeof(buf));
+
+        EXPECT(buf[0] == '0');
+        EXPECT(buf[1] == 0);
+
+        biDelete(zero);
+    }
     
     // one digit conversion
     {
@@ -544,6 +643,8 @@ int main() {
         TEST(t + salt, bigint_long_power_two);
 
         TEST(t + salt, bigint_short_division);
+        TEST(t + salt, bigint_long_division_simple);
+        //TEST(t + salt, bigint_long_division_hard); doesn't work yet
         
         TEST(t + salt, bigint_to_string_simple);
         TEST(t + salt, bigint_to_string_hard);

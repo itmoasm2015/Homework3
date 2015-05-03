@@ -243,12 +243,13 @@ _add:               push rdi
                     jc .propagate_carry
                     ret
 
-; internal void sub(bigint a, bigint b);
-; Subtracts two unsigned bigints.
+; internal void sub(bigint a, bigint b, size_t shift);
+; Subtracts two unsigned bigints, starting from `shift` digit in `b`.
 ;
 ; Takes:
 ;   RDI - bigint a
 ;   RSI - bigint b
+;   RDX - size_t shift
 
 _sub:               mov rdi, [rdi + bigint.qwords]
                     mov rsi, [rsi + bigint.qwords]
@@ -257,9 +258,9 @@ _sub:               mov rdi, [rdi + bigint.qwords]
                     add rsi, vector.data
                     clc
                     lahf
-.sub_numbers:       mov rdx, [rsi]
+.sub_numbers:       mov r8, [rsi]
                     sahf
-                    sbb [rdi], rdx
+                    sbb [rdi + rdx], r8
                     lahf
                     add rdi, 8
                     add rsi, 8
@@ -268,7 +269,7 @@ _sub:               mov rdi, [rdi + bigint.qwords]
                     sahf
                     jc .subtract_carry
                     ret
-.subtract_carry:    sbb qword [rdi], 0
+.subtract_carry:    sbb qword [rdi + rdx], 0
                     lea rdi, [rdi + 8]
                     jc .subtract_carry
                     ret
@@ -298,6 +299,50 @@ _abs_compare:       mov rdi, [rdi + bigint.qwords]
                     ja .greater
                     test r8, r8
                     jnz .compare_loop
+    ; bigints are equal
+                    ret
+.less:              dec rax
+                    ret
+.greater:           inc rax
+                    ret
+
+; internal int abs_compare(bigint a, bigint b, size_t shift);
+; Compares absolute values of two bigints with second shifted by `shift` digits.
+;
+; Takes:
+;   RDI - bigint a
+;   RSI - bigint b
+;   RDX - size_t shift
+
+_abs_compare_shift: mov rdi, [rdi + bigint.qwords]
+                    mov rsi, [rsi + bigint.qwords]
+                    mov r8, [rdi + vector.size]
+                    mov r9, [rsi + vector.size]
+                    add r9, rdx
+                    xor rax, rax
+                    cmp r8, r9
+    ; compare bigint lengths
+                    jb .less
+                    ja .greater
+                    add rdi, vector.data
+                    add rsi, vector.data
+.compare_loop:      dec r8
+                    sub r8, rdx
+                    mov rcx, [rsi + 8 * r8]
+                    add r8, rdx
+                    cmp [rdi + 8 * r8], rcx
+    ; compare bigint digits
+                    jb .less
+                    ja .greater
+                    cmp r8, rdx
+                    jge .compare_loop
+    ; bigints are almost equal
+                    mov r8, rdx
+.descend_loop:      dec r8
+                    cmp qword [rdi + 8 * r8], 0
+                    jne .greater
+                    cmp r8, 0
+                    jge .descend_loop
     ; bigints are equal
                     ret
 .less:              dec rax
@@ -379,6 +424,7 @@ biAdd:
                     js .b_minus_a
     ; in other cases it's (a - b)
 .a_minus_b:         mov rdi, [rsp]
+                    xor rdx, rdx
                     call _sub
                     jmp .finally
 .a_plus_b:          mov rdi, [rsp]
@@ -397,6 +443,7 @@ biAdd:
                     xchg rcx, [rdi + bigint.qwords]
                     mov [rsi + bigint.qwords], rcx
                     push rsi
+                    xor rdx, rdx
                     call _sub
                     pop rdi
                     call biDelete
@@ -653,7 +700,293 @@ biDivShort:         mov r8, [rdi + bigint.qwords]
 ;   RDX - bigint numerator
 ;   RCX - bigint denominator
 
-biDivRem:           ret
+biDivRem:
+    ; TO ENABLE ONE DIGIT DIVISION, COMMENT THE FOLLOWING LINE
+    ;               ret
+    ; save sysv registers
+                    push rbx
+                    push rbp
+                    push r12
+                    push r13
+                    push r14
+                    push r15
+                    mov rbx, rdi
+                    mov rbp, rsi
+                    mov r12, rdx
+                    mov r13, rcx
+    ; denominator = 0?
+                    mov rdi, r13
+                    call biSign
+                    test rax, rax
+                    jz .npe
+    ; if denominator consists of a single digit, it's a simple case
+                    mov r8, [r13 + bigint.qwords]
+                    mov r9, [r8 + vector.size]
+                    cmp r9, 1
+                    je .div_short
+    ; Unfortunately, the code below doesn not work yet.
+                    ret
+    
+    ; else, let's do it the hard way
+    ; clone numerator and denominator
+                    push r12
+                    push r13
+                    mov rdi, r12
+                    call biFromBigInt
+                    mov r12, rax
+                    mov rdi, r13
+                    call biFromBigInt
+                    mov r13, rax
+    ; allocate quotient = 0
+                    xor rdi, rdi
+                    call biFromInt
+                    mov [rbx], rax
+    ; quotient.negative = numerator.negative ^ denominator.negative
+                    mov r10, [rbx]
+                    mov al, [r12 + bigint.negative]
+                    xor al, [r13 + bigint.negative]
+                    mov [r10 + bigint.negative], al
+    ; quotient.qwords.size = numerator.qwords.size - denominator.qwords.size + 1
+                    mov r8, [r12 + bigint.qwords]
+                    mov rsi, [r8 + vector.size]
+                    mov r8, [r13 + bigint.qwords]
+                    sub rsi, [r8 + vector.size]
+                    inc rsi
+    ; if quotient.qwords.size <= 0, set denominator = 0 and exit
+                    cmp rsi, 0
+                    jle .set_zero
+                    mov rdi, [r10 + bigint.qwords]
+                    push rsi
+                    call vecResize
+                    mov r10, [rbx]
+                    mov [r10 + bigint.qwords], rax
+    ; is highest digit long enough?
+                    mov r8, [r13 + bigint.qwords]
+                    mov r9, [r8 + vector.size]
+                    mov r8, [r8 + 8 * (r9 - 1) + vector.data]
+                    test r8, r8
+                    jns .scale_highest
+.after_scale:       pop r14
+.div_loop:          dec r14
+                    mov r8, [r12 + bigint.qwords]
+                    mov r8, [r8 + vector.size]
+                    mov r9, [r13 + bigint.qwords]
+                    mov r9, [r9 + vector.size]
+    ; r10 = numerator.data[r8 - 1]
+                    mov r10, [r12 + bigint.qwords]
+    ; rcx = numerator.data[r8 - 2]
+                    mov rcx, [r10 + 8 * (r8 - 2) + vector.data]
+                    mov r10, [r10 + 8 * (r8 - 1) + vector.data]
+    ; r11 = denominator.data[r9 - 1]
+                    mov r11, [r13 + bigint.qwords]
+                    mov r11, [r11 + 8 * (r9 - 1) + vector.data]
+    ; (rdx:rax) = r10 > r11 ? (0:r10) : (r10:rcx)
+                    xor rdx, rdx
+                    mov rax, r10
+                    cmp r10, r11
+                    cmovbe rdx, r10
+                    cmovbe rax, rcx
+    ; (rdx:rax) /= r11
+                    div r11
+                    mov rcx, rdx
+    ; r10 = denominator.data[r9 - 2]
+.iter_1:            mov r10, [r13 + bigint.qwords]
+                    mov r10, [r10 + 8 * (r9 - 2) + vector.data]
+                    push rax
+                    mul r10
+    ; r11 = numerator.data[r8 - 3]
+                    mov r11, [r12 + bigint.qwords]
+                    mov r11, [r11 + 8 * (r8 - 3) + vector.data]
+    ; (rdx:rax) > (rcx:r11) ?
+                    cmp rdx, rcx
+                    jb .break_guess
+                    ja .iter_1_do
+                    cmp rax, r11
+                    jbe .break_guess
+.iter_1_do:         pop rax
+                    dec rax
+                    push rax
+    ; r11 = denominator.data[r9 - 1]
+                    mov r11, [r13 + bigint.qwords]
+                    mov r11, [r11 + 8 * (r9 - 1) + vector.data]
+                    add rcx, r11
+                    jc .break_guess
+    ; r10 = denominator.data[r9 - 2]
+.iter_2:            mov r10, [r13 + bigint.qwords]
+                    mov r10, [r10 + 8 * (r9 - 2) + vector.data]
+                    mul r10
+    ; r11 = numerator.data[r8 - 3]
+                    mov r11, [r12 + bigint.qwords]
+                    mov r11, [r11 + 8 * (r8 - 3) + vector.data]
+    ; (rdx:rax) > (rcx:r11) ?
+                    cmp rdx, rcx
+                    jb .break_guess
+                    ja .iter_2_do
+                    cmp rax, r11
+                    jbe .break_guess
+.iter_2_do:         pop rax
+                    dec rax
+                    push rax
+    ; [rsp] contains q_guess - new digit of quotient
+.break_guess:
+                    mov rdi, r13
+    ; clone denominator once again
+                    call biFromBigInt
+                    mov r15, rax
+                    mov rdi, r15
+                    mov rsi, [rsp]
+    ; multiply it by q_guess
+                    call _mul
+                    mov rdi, r12
+                    mov rsi, r15
+                    mov rdx, r14
+                    call _abs_compare_shift
+                    mov r10, [rbx]
+                    mov r10, [r10 + bigint.qwords]
+                    lea r8, [r10 + 8 * r14 + vector.data]
+                    pop r9
+                    cmp rax, 0
+    ; numerator < cloned denominator => qwords[r14] = 0
+                    jl .zero_digit
+    ; else, qwords[r14] = q_guess, and numerator is decremented
+                    push rax
+                    push r8
+                    push r9
+                    mov rdi, r12
+                    mov rsi, r15
+                    mov rdx, r14
+                    call _sub
+                    mov rdi, r12
+                    call _normalize
+                    pop r9
+                    pop r8
+    ; finally, qwords[r14] = q_guess
+                    mov [r8], r9
+    ; numerator == cloned denominator => break
+                    pop rax
+                    test rax, rax
+                    jz .break_div
+.after_digit:       cmp r14, 0
+                    jge .div_loop
+.break_div:         mov rdi, [rbx]
+                    call _normalize
+    ; free cloned numerator and denominator
+                    mov rdi, r12
+                    call biDelete
+                    mov rdi, r13
+                    call biDelete
+                    pop r13
+                    pop r12
+.calc_rem_and_exit: mov rdi, r12
+                    mov rsi, r13
+                    mov rdx, [rbx]
+                    call _calculate_rem
+                    mov [rbp], rax
+.cleanup:
+    ; restore sysv registers
+                    pop r15
+                    pop r14
+                    pop r13
+                    pop r12
+                    pop rbp
+                    pop rbx
+                    ret
+
+.npe:               mov qword [rbx], 0
+                    mov qword [rbp], 0
+                    jmp .cleanup
+
+.set_zero:          mov rdi, [rbx]
+                    call _set_zero
+                    jmp .calc_rem_and_exit
+
+.zero_digit:        mov qword [r8], 0
+                    jmp .after_digit
+
+.scale_highest:     xor rax, rax
+                    xor rdx, rdx
+                    inc rdx
+                    inc r8
+    ; rax = 2^64 / (highest_digit + 1)
+                    div r8
+                    mov rdi, r12
+                    mov rsi, rax
+                    push rax
+                    call _mul
+                    mov rdi, r13
+                    pop rsi
+                    call _mul
+                    jmp .after_scale
+
+.div_short:
+    ; allocate quotient = numerator
+                    mov rdi, r12
+                    call biFromBigInt
+                    mov [rbx], rax
+    ; quotient.negative ^= denominator.negative
+                    mov r10, [rbx]
+                    mov al, [r13 + bigint.negative]
+                    xor al, [r10 + bigint.negative]
+                    test al, al
+    ; if result < 0, let quotient = nominator - denominator - 1
+    ; to account for rather unintuitive division rules
+                    jnz .dec_quotient
+    ; quotient = quotient / denominator.qwords[0]
+.after_dec:         mov r10, [rbx]
+                    mov byte [r10 + bigint.negative], al
+                    mov r8, [r13 + bigint.qwords]
+                    mov rdi, [rbx]
+                    mov rsi, [r8 + vector.data]
+                    call biDivShort
+    ; calculate remainder
+                    jmp .calc_rem_and_exit
+
+.dec_quotient:      mov rdi, r10
+                    mov rsi, r13
+                    push rax
+                    call biSub
+                    xor rdi, rdi
+    ; decrement quotient by 1
+                    inc rdi
+                    call biFromInt
+                    push rax
+                    mov rdi, r10
+                    mov rsi, rax
+                    call biSub
+                    pop rdi
+                    call biDelete
+                    pop rax
+                    jmp .after_dec
+
+; internal bigint calculate_rem(bigint numerator, bigint denominator, bigint quotient);
+; Returns the remainder of numerator / denominator.
+;
+; Takes:
+;   RDI - bigint numerator
+;   RSI - bigint denominator
+;   RDX - bigint quotient
+; Returns:
+;   RAX - remainder
+
+_calculate_rem:
+    ; create remainder bigint = quotient
+                    push rbx
+                    push rdi
+                    push rsi
+                    mov rdi, rdx
+                    call biFromBigInt
+                    mov rbx, rax
+                    mov rdi, rbx
+                    pop rsi
+    ; remainder = -quotient * denominator + numerator
+                    call biMul
+                    negate_bigint rbx
+                    mov rdi, rbx
+                    pop rsi
+                    call biAdd
+                    mov rax, rbx
+                    pop rbx
+                    ret
 
 ; void biToString(bigint bi, char * buffer, size_t limit);
 ;
@@ -675,6 +1008,10 @@ biToString:
                     push rdx
                     mov al, [rdi + bigint.negative]
                     push rax
+    ; if bi == 0, write it's representation directly
+                    call biSign
+                    test rax, rax
+                    jz .zero_bigint
     ; clone source bigint
                     call biFromBigInt
                     mov rbx, rax
@@ -725,7 +1062,7 @@ biToString:
                     mov rdi, rbp
                     call freeAlign
     ; restore sysv registers
-                    pop r12
+.cleanup:           pop r12
                     pop rbp
                     pop rbx
                     ret
@@ -734,3 +1071,7 @@ biToString:
                     jmp .after_negative
 .zero_string:       mov byte [rsi], 0
                     ret
+.zero_bigint:       mov byte [rsi], '0'
+                    mov byte [rsi + 1], 0
+                    add rsp, 24
+                    jmp .cleanup
