@@ -1,9 +1,9 @@
 CC = g++
 ASM = yasm
 AR = ar
-CXX_FLAGS = -std=c++11 -m64 -L. -I../../include -g
+CXX_FLAGS = -std=c++11 -m64 -L. -I../../include
 LD_FLAGS = -L. -lgmp -lgmpxx -lpthread -lhw
-ASM_FLAGS = -f elf64 -g dwarf2
+ASM_FLAGS = -f elf64
 GTEST = gtest/gtest-all.cc gtest/gtest.h gtest/gtest_main.cc
 
 all: libhw.a test clean_obj

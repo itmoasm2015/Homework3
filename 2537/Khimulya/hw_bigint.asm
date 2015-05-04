@@ -107,7 +107,7 @@ endstruc
         mov     %2, 0
         jmp     %%done
      %%neg:
-        mov     %2, [MINUS1_64]
+        mov     %2, -1
      %%done:
         pop     rax
 %endmacro
@@ -136,7 +136,7 @@ endstruc
 ;
 ; @arg %1 address of bigint to be shorten
 ; corrupts rax, rcx, rdx
-%macro  BI_SHORTEN 1
+%macro  SHORTEN 1
         mov     rcx, [%1 + bigint.len]
         sub     rcx, 16                         ; next after most significant quadword
         cmp     rcx, -8
@@ -152,7 +152,7 @@ endstruc
                 jmp     %%done
 
             %%neg:
-                cmp     rax, [MINUS1_64]
+                cmp     rax, -1
                 jne     %%done                  ; most significant quadword neither 0 nor -1
                 mov     rax, [rdx + rcx]
                 test    rax, [MSB]
@@ -179,8 +179,8 @@ endstruc
         mov     rcx, [%1 + bigint.len]
         mov     %1, [%1 + bigint.data]
         lahf
-        or      ah, 1                       ; set carry flag
-        %%loop:                             ; not and add 1 in single cycle
+        or      ah, 1                           ; set carry flag
+            %%loop:                             ; not and add 1 in single cycle
                 mov     rdx, [%1]
                 not     rdx
                 sahf
@@ -209,11 +209,11 @@ endstruc
         mov     r11, [%1 + bigint.data]
         xor     rdx, rdx
         %%loop:
-                mov     r8, rdx             ; old carry
+                mov     r8, rdx                 ; old carry
                 mov     rax, [r11]
                 mul     %2
                 add     rax, r8
-                adc     rdx, 0              ; update new carry in case of rax overflow
+                adc     rdx, 0                  ; update new carry in case of rax overflow
                 %if %0 == 3
                         mov     [%3], rax
                 %else
@@ -263,9 +263,7 @@ endstruc
 section .rodata
         align   8
     MSB:
-        dq      0x8000000000000000  ; only MSB is true
-    MINUS1_64:
-        dq      0xffffffffffffffff
+        dq      0x8000000000000000              ; only MSB is true
 
 section .text
 
@@ -358,7 +356,7 @@ biFromString:
         NEGATE  r9
 
     .return:
-        BI_SHORTEN r9
+        SHORTEN r9
         mov     rax, r9        
         pop     rbx
         ret
@@ -367,7 +365,7 @@ biFromString:
         DEL_BI  r9
     .fail_:
         mov     rax, 0
-        pop     rbx             ; sign quadword
+        pop     rbx                             ; sign quadword
         pop     rbx
         ret
 
@@ -377,34 +375,34 @@ biFromString:
 biToString:
         push    r13
         push    r12
-        push    rbx                     ; stack: routine
+        push    rbx                             ; stack: routine
 
-        push    rsi                     ; stack: routine, buffer
-        push    rdx                     ; stack: routine, buffer, limit
+        push    rsi                             ; stack: routine, buffer
+        push    rdx                             ; stack: routine, buffer, limit
         COPY_BI rdi, rdi
 
-        mov     rax, [rdi + bigint.len] ; allocate len / 8 * 19 + 1 bytes for tmp string:
-        shr     rax, 3                  ; maximum 19 characters per quadword
-        mov     rdx, 19                 ; extra byte for sign
+        mov     rax, [rdi + bigint.len]         ; allocate len / 8 * 19 + 1 bytes for tmp string:
+        shr     rax, 3                          ; maximum 19 characters per quadword
+        mov     rdx, 19                         ; extra byte for sign
         mul     rdx
         inc     rax
-        push    rdi                     ; stack: routine, buffer, limit, bi copy
+        push    rdi                             ; stack: routine, buffer, limit, bi copy
         mov     rdi, rax
         CALL    malloc
-        mov     rbx, rax                ; temporary string
-        xor     r13, r13                ; counter for actually written characters
+        mov     rbx, rax                        ; temporary string
+        xor     r13, r13                        ; counter for actually written characters
 
-        pop     rdi                     ; stack: routine, buffer, limit
-        pop     r8                      ; stack: routine, buffer
-        pop     rsi                     ; stack: routine
-        SIGN    rdi, r12                ; check if bigint is negative
+        pop     rdi                             ; stack: routine, buffer, limit
+        pop     r8                              ; stack: routine, buffer
+        pop     rsi                             ; stack: routine
+        SIGN    rdi, r12                        ; check if bigint is negative
         cmp     r12, 0
         je      .pos
-        push    1                       ; stack: routine, sign
+        push    1                               ; stack: routine, sign
         NEGATE  rdi
         jmp     .neg
     .pos:
-        push    0                       ; stack: routine, sign
+        push    0                               ; stack: routine, sign
     .neg:
 
         mov     r11, 10
@@ -412,8 +410,8 @@ biToString:
                 mov     r9, [rdi + bigint.data]
                 mov     r10, [rdi + bigint.len]
                 xor     rdx, rdx
-                xor     rcx, rcx            ; let's or each quadword with rcx
-                .div_loop:                  ; when rcx is zero, bigint is zero
+                xor     rcx, rcx                ; let's or each quadword with rcx
+                .div_loop:                      ; when rcx is zero, bigint is zero
                         mov     rax, [r9 + r10 - 8] ; rdx:rax = next quadword + previous remainder * 2 ** 64
                         div     r11
                         mov     [r9 + r10 - 8], rax
@@ -438,7 +436,7 @@ biToString:
         dec     r8
     .pos_;
 
-        dec     r8                  ; let's reserve signle byte for '\0'
+        dec     r8                              ; let's reserve signle byte for '\0'
         .move_loop:
                 mov     al, byte [rbx + r13 - 1]
                 mov     byte [rsi], al
@@ -451,12 +449,12 @@ biToString:
 
     .done:
         xor     rax, rax
-        mov     byte [rsi], al          ; end of string
+        mov     byte [rsi], al                  ; end of string
 
         push    rbx
         DEL_BI  rdi
         pop     rdi
-        CALL    free                ; free temporary string
+        CALL    free                            ; free temporary string
 
         pop     rbx
         pop     r12
@@ -474,17 +472,17 @@ biDelete:
 biSign:        
         mov     rcx, [rdi + bigint.len]
         mov     rdx, [rdi + bigint.data]
-        mov     rdx, [rdx + rcx - 8]                    ; less significant quadword
-        test    rdx, [MSB]                              ; if MSB is set, return -1
+        mov     rdx, [rdx + rcx - 8]            ; less significant quadword
+        test    rdx, [MSB]                      ; if MSB is set, return -1
         jnz     .neg
-        cmp     rcx, 8                                  ; if size == 8 bytes
-        jne     .pos                                    ; and only number is zero
-        cmp     rdx, 0                                  ; return 0
+        cmp     rcx, 8                          ; if size == 8 bytes
+        jne     .pos                            ; and only number is zero
+        cmp     rdx, 0                          ; return 0
         jne     .pos
         mov     rax, 0
         ret
     .pos:
-        mov     rax, 1                                  ; otherwise return 1
+        mov     rax, 1                          ; otherwise return 1
         ret
     .neg:
         mov     rax, -1
@@ -497,36 +495,36 @@ biSign:
 ; So arithmetic overflow will never happen.
 ; In the end reduce number length by dropping not significant quadwords.
 biAdd:
-        push    r13                         ; System V AMD64 ABI routine
-        push    r12                         ; rdi and rsi may be swapped later, remember dest
-        push    rdi                         ; stack: r13, r12, dest
+        push    r13                             ; System V AMD64 ABI routine
+        push    r12                             ; rdi and rsi may be swapped later, remember dest
+        push    rdi                             ; stack: r13, r12, dest
 
         mov     rdx, [rdi + bigint.len]
         cmp     rdx, [rsi + bigint.len]
         jae     .done_swap
         xchg    rdi, rsi
-     .done_swap:                            ; now the longest number in rdi
+     .done_swap:                                ; now the longest number in rdi
         mov     rcx, [rdi + bigint.len]
-        add     rcx, 8                      ; allocate memory for the biggest number possible
+        add     rcx, 8                          ; allocate memory for the biggest number possible
         push    rdi
-        push    rsi                         ; stack: r13, r12, dest, greater, less
+        push    rsi                             ; stack: r13, r12, dest, greater, less
         CALL    malloc
         mov     r8, rax
         pop     rsi
         pop     rdi
-        push    r8                          ; stack: r13, r12, dest, result.data
+        push    r8                              ; stack: r13, r12, dest, result.data
 
-        mov     r12, [rdi + bigint.data]    ; pointer to greater's data
-        mov     r13, [rsi + bigint.data]    ; pointer to less's data
+        mov     r12, [rdi + bigint.data]        ; pointer to greater's data
+        mov     r13, [rsi + bigint.data]        ; pointer to less's data
         mov     rcx, [rsi + bigint.len]
         clc
         lahf
-        .loop1:                             ; first loop until less number ends
-                sahf                        ; restore carry flag
+        .loop1:                                 ; first loop until less number ends
+                sahf                            ; restore carry flag
                 mov     r9, [r12]
                 adc     r9, [r13]
                 mov     [r8], r9
-                lahf                        ; save carry flag
+                lahf                            ; save carry flag
 
                 add     r8, 8
                 add     r12, 8
@@ -534,11 +532,11 @@ biAdd:
                 sub     rcx, 8
                 jnz     .loop1
 
-        SIGN    rsi, r10                    ; assume the rest of less number quadwords either 0 or -1
+        SIGN    rsi, r10                        ; assume the rest of less number quadwords either 0 or -1
         mov     rcx, [rdi + bigint.len]
         sub     rcx, [rsi + bigint.len]
         jz      .loop2_end
-        .loop2:                             ; second loop until greater number ends
+        .loop2:                                 ; second loop until greater number ends
                 sahf
                 mov     r9, [r12]
                 adc     r9, r10
@@ -551,25 +549,25 @@ biAdd:
                 jnz     .loop2
 
     .loop2_end:
-        SIGN    rdi, r9                    ; now add greater[greater.size] to less[less.size]
+        SIGN    rdi, r9                         ; now add greater[greater.size] to less[less.size]
         sahf
-        adc     r9, r10                    ; i.e. greater's and less's signs and carry
+        adc     r9, r10                         ; i.e. greater's and less's signs and carry
         mov     [r8], r9
 
         ; replace dst data with new one
-        mov     rax, [rdi + bigint.len]    ; max(dst.size, src.size)
+        mov     rax, [rdi + bigint.len]         ; max(dst.size, src.size)
         add     rax, 8
-        mov     rdi, [rsp + 8]             ; stack: r13, r12, dst, result.data
+        mov     rdi, [rsp + 8]                  ; stack: r13, r12, dst, result.data
         mov     [rdi + bigint.len], rax
         mov     rdi, [rdi + bigint.data]
         CALL    free
-        pop     r8                         ; stack: r13, r12, dst
-        pop     rdi                        ; stack: r13, r12
+        pop     r8                              ; stack: r13, r12, dst
+        pop     rdi                             ; stack: r13, r12
         mov     [rdi + bigint.data], r8
 
-        BI_SHORTEN rdi
+        SHORTEN rdi
 
-        pop     r12                         ; System V AMD64 ABI routine
+        pop     r12                             ; System V AMD64 ABI routine
         pop     r13
         ret
 
@@ -596,21 +594,21 @@ biMul:
         push    r12
         push    r13
 
-        SIGN    rdi, r8                     ; make dst and src positive
-        cmp     r8, 0                       ; no need to store dst sign, dst will be replaced
+        SIGN    rdi, r8                         ; make dst and src positive
+        cmp     r8, 0                           ; no need to store dst sign, dst will be replaced
         je      .dst_pos
         NEGATE  rdi
     .dst_pos:
         SIGN    rsi, r9
-        push    r9                          ; stack: routine, src.sign
+        push    r9                              ; stack: routine, src.sign
         cmp     r9, 0
         je     .src_pos
         NEGATE rsi
     .src_pos:
-        xor     r8, r9                      ; sign of the result
-        push    r8                          ; stack: routine, src.sign, result.sign
+        xor     r8, r9                          ; sign of the result
+        push    r8                              ; stack: routine, src.sign, result.sign
 
-        push    rdi                         ; allocate new resault data of (dst.size + src.size + 8 bytes) size
+        push    rdi                             ; allocate new resault data of (dst.size + src.size + 8 bytes) size
         push    rsi
         mov     rdi, [rdi + bigint.len]
         add     rdi, [rsi + bigint.len]
@@ -619,16 +617,16 @@ biMul:
         CALL    malloc
         push    rax
         mov     rdi, [rsp + 16]
-        mov     rdi, [rdi + bigint.len]      ; allocate array for storing dst and src qword multiplication
+        mov     rdi, [rdi + bigint.len]         ; allocate array for storing dst and src qword multiplication
         add     rdi, 8
         CALL    malloc
-        mov     r10, rax                    ; tmp array
-        pop     rbx                         ; new bigint's data
-        pop     r13                         ; size of new bigint
-        pop     rsi                         ; src
-        pop     rdi                         ; dst
+        mov     r10, rax                        ; tmp array
+        pop     rbx                             ; new bigint's data
+        pop     r13                             ; size of new bigint
+        pop     rsi                             ; src
+        pop     rdi                             ; dst
 
-        push    r13                         ; fill result data with zeros
+        push    r13                             ; fill result data with zeros
         sub     r13, 8
         xor     r9, r9
         .zero_loop:
@@ -638,7 +636,7 @@ biMul:
         mov     [rbx + r13], r9
         pop     r13
 
-        xor     r12, r12                      ; counter
+        xor     r12, r12                        ; counter
         mov     r9, [rsi + bigint.data]
         .loop:
                 push    rbx
@@ -648,15 +646,15 @@ biMul:
                 pop     r10
 
                 lahf
-                and     rax, -2             ; flush cf
+                and     rax, -2                 ; flush cf
                 mov     rbx, [rsp]
                 push    r10
                 mov     r11, [rdi + bigint.len]
-                lea     r11, [r10 + r11 + 8]            ; end of tmp array
+                lea     r11, [r10 + r11 + 8]    ; end of tmp array
                 .loop2:
                         mov     r8, [r10]
                         sahf
-                        adc     r8, [rbx + r12]
+                        adc     r8, [rbx + r12] ; r12 is shift for current products
                         lahf
                         mov     [rbx + r12], r8
                         add     rbx, 8
@@ -671,14 +669,14 @@ biMul:
                 cmp     r12, [rsi + bigint.len]
                 jne     .loop
 
-        mov     [rdi + bigint.len], r13     ; set new size (maximum) to dst
+        mov     [rdi + bigint.len], r13         ; set new size (maximum) to dst
 
         push    rbx
         push    rsi
         push    rdi
         mov     rdi, r10
-        CALL    free                        ; free tmp array
-        mov     rdi, [rsp]                  ; replace dst data with new array
+        CALL    free                            ; free tmp array
+        mov     rdi, [rsp]                      ; replace dst data with new array
         mov     rdi, [rdi + bigint.data]
         CALL    free
         pop     rdi
@@ -687,18 +685,18 @@ biMul:
         mov     [rdi + bigint.data], rbx
 
         ; let's restore signs
-        pop     rax                         ; stack: routine, src.sign
+        pop     rax                             ; stack: routine, src.sign
         cmp     rax, 0
         je      .src_pos_
         NEGATE  rdi
     .src_pos_:
-        pop     rax                         ; stack: routine
+        pop     rax                             ; stack: routine
         cmp     rax, 0
         je      .result_pos
         NEGATE  rsi
     .result_pos:
 
-        BI_SHORTEN  rdi
+        SHORTEN  rdi
 
         pop     r13
         pop     r12
@@ -710,6 +708,7 @@ biDivRem:
         ret
 
 ;int biCmp(BigInt a, BigInt b);
+; Copies a and performs subtraction on it. Returns copy's sign.
 ; return biSign(biSub(copy(a), b))
 biCmp:
         push    rsi
