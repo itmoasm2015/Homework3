@@ -8,9 +8,11 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(CXXFLAGS) $^ -o $@
 
 bigint_impl.o: bigint_impl.asm
+	rm -f $(TARGET)
 	yasm -f elf64 -g dwarf2 $^ -o $@
 
 main.o: main.cpp $(DEPS)
+	rm -f $(TARGET)
 	$(CC) $(CXXFLAGS) -c $< -o $@ 
 
 clean:

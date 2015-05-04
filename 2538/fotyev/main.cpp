@@ -141,6 +141,8 @@ void test_all()
 #if 1
 int main(int argc, const char * argv[])
 {
+  if(biFromString("") || biFromString("-"))
+    abort();
   test_all();
 }
 #else

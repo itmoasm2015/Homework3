@@ -1,5 +1,9 @@
 default rel
 
+%include "macros.mac"
+%include "libhw.i"
+%include "libmyvec.i"
+
 extern calloc
 extern free
 extern memcpy
@@ -14,41 +18,11 @@ global vectorPushBack
 global vectorBack
 global vectorCapacity
 global vectorPopBack
+global vectorEmpty
 
 %assign DEFAULT_CAPACITY 8
 %assign ELEM_SIZE        4
 
-;; Round up to the next highest power of 2.
-;; See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-%macro round_next_2_power 1
-	push	rax
-	dec	%1
-	mov	rax, %1
-
-	shr	rax, 1
-	or	%1, rax
-
-	shr	rax, 1
-	or	%1, rax
-
-	shr	rax, 2
-	or	%1, rax
-
-	shr	rax, 4
-	or	%1, rax
-
-	shr	rax, 8
-	or	%1, rax
-
-	inc	%1
-	pop	rax
-%endmacro
-
-struc Vector
-	.data		resq	1
-	.size		resq	1
-	.capacity	resq	1
-endstruc
 
 ;; Vector vectorNew(size_t size);
 ;;
@@ -66,6 +40,7 @@ vectorNew:
 
 .round_up:
 	round_next_2_power rdi
+
 	push	rdi
 	mov	rsi, ELEM_SIZE
 	call	calloc
@@ -191,7 +166,8 @@ vectorBack:
 	dec	rsi
 
 	mov	rdi, [rdi + Vector.data]
-	mov	rax, [rdi + rsi * ELEM_SIZE]
+	xor	rax, rax
+	mov	eax, dword [rdi + rsi * ELEM_SIZE]
 
 	ret
 .out_of_bounds:
@@ -212,7 +188,7 @@ vectorSet:
 	jge	.out_of_bounds
 
 	mov	rax, [rdi + Vector.data]
-	mov	[rax + rsi * ELEM_SIZE], rdx
+	mov	[rax + rsi * ELEM_SIZE], edx
 
 	ret
 .out_of_bounds
@@ -241,6 +217,27 @@ vectorCapacity:
 	ret
 
 
+;; int vectorEmpty(Vector v);
+;;
+;; Determines whether VECTOR is empty or not.
+;; Takes:
+;;	* RDI: pointer to VECTOR.
+;; Returns:
+;;	* RAX: 1 if VECTOR is empty,
+;;	       0 otherwise
+vectorEmpty:
+	cmp	qword [rdi + Vector.size], 0
+	je	.true
+
+.false:
+	mov	rax, 0
+	jmp	.done
+.true:
+	mov	rax, 1
+	jmp	.done
+.done:
+	ret
+
 ;; void vectorPushBack(Vector v, unsigned element);
 ;;
 ;; Adds ELEMENT at the end of VECTOR.
@@ -257,7 +254,7 @@ vectorPushBack:
 
 	mov	rax, [rdi + Vector.data]
 	mov	rcx, [rdi + Vector.size]
-	mov	[rax + rcx * ELEM_SIZE], rsi
+	mov	dword [rax + rcx * ELEM_SIZE], esi
 	inc	rcx
 	mov	[rdi + Vector.size], rcx
 

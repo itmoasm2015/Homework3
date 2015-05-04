@@ -33,7 +33,7 @@ void biDelete(BigInt bi);
 int biSign(BigInt bi);
 
 /** dst += src */
-void biAdd(BigInt dst, BigInt src);
+int biAdd(BigInt dst, BigInt src);
 
 /** dst -= src */
 void biSub(BigInt dst, BigInt src);

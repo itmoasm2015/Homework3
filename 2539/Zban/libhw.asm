@@ -26,6 +26,51 @@ global biCmp
 ;  int64_t* data
 ;  base is 2^64
 
+; call malloc with rsp aligned by 16 bytes
+; rdi -- num of bytes to alloc
+; assume that rsp mod 8 = 0
+myMalloc:
+    test rsp, 15
+    jz .callMalloc
+        push rdi
+        call malloc
+        pop rdi
+        ret
+    .callMalloc
+    call malloc
+    ret
+
+
+; call calloc with rsp aligned by 16 bytes
+; rdi -- cnt of elements to alloc
+; rsi -- size of each element
+; assume that rsp mod 8 = 0
+myCalloc:
+    test rsp, 15
+    jz .callCalloc
+        push rdi
+        call calloc
+        pop rdi
+        ret
+    .callCalloc
+    call calloc
+    ret
+
+
+; call free with rsp aligned by 16 bytes
+; rdi -- ptr to free
+; assume that rsp mod 8 = 0
+myFree:
+    test rsp, 15
+    jz .callFree
+        push rdi
+        call free
+        pop rdi
+        ret
+    .callFree
+    call free
+    ret
+
 
 ; BigInt biFromInt(int64_t x);
 ; create BigInt from one signed 64-bit integer
@@ -35,10 +80,10 @@ biFromInt:
     push rbx ; save rbx by convention
     push rdi
     mov rdi, 16 ; 4 + 4 + 8 allocate bytes
-    call malloc
+    call myMalloc
     mov rbx, rax ; rbx now ptr to BigInt
     mov rdi, 8 ; one 8-byte integer
-    call malloc ; rax now ptr to data array
+    call myMalloc ; rax now ptr to data array
     pop rdi
     
     mov [rbx + 8], rax ; ptr to data is assigned
@@ -72,7 +117,7 @@ biFromSignLenArray:
     push rsi
     push rdx
     mov rdi, 16 ; 4 + 4 + 8 allocate bytes
-    call malloc
+    call myMalloc
     pop rdx
     pop rsi
     pop rdi
@@ -96,14 +141,14 @@ biCopy:
     push rdi
     mov rbx, rdi       ; save rdi
     mov rdi, 16        ; 4 + 4 + 8
-    call malloc
+    call myMalloc
     mov r8D, [rbx]
     mov [rax], r8D     ; sign is copied
     mov r8D, [rbx + 4]
     mov [rax + 4], r8D ; size is copied
     mov rbx, rax       ; save pointer to BigInt
     lea rdi, [r8 * 8]
-    call malloc        ; rax now is new data array
+    call myMalloc        ; rax now is new data array
     pop rdi
 
     mov [rbx + 8], rax ; data ptr is assigned
@@ -178,7 +223,7 @@ biFromString:
     mov rcx, rdi
     push rcx
     mov rsi, 8
-    call calloc ; rax now -- array of longs
+    call myCalloc ; rax now -- array of longs
     pop rcx ; len of array of longs
     pop rdi
     mov r8, rdi ; ptr to string
@@ -280,7 +325,7 @@ biToString:
     mov r8D, [rdi + 4]
     imul r8, 21 ; if BigInt consists of x 64-bit fields than it will be approximately ~21 * x chars long in decimal representation
     mov rdi, r8
-    call malloc ; rax -- ptr to string representation of BigInt
+    call myMalloc ; rax -- ptr to string representation of BigInt
     pop rdi 
     push rdi
     push rax
@@ -314,7 +359,7 @@ biToString:
     mov byte [rsi + 1], 0
     push r11
     mov rdi, rax
-    call free ; free temp array
+    call myFree ; free temp array
     pop r11
     mov rdi, r11
     call biDelete ; free copied BigInt
@@ -397,7 +442,7 @@ biToString:
 
     push r11
     mov rdi, rax
-    call free ; free temp array
+    call myFree ; free temp array
     pop r11    
 
     mov rdi, r11
@@ -410,9 +455,9 @@ biToString:
 biDelete:
     push rdi
     mov rdi, [rdi + 8]
-    call free ; free data array
+    call myFree ; free data array
     pop rdi
-    call free ; free ptr to BigInt
+    call myFree ; free ptr to BigInt
     ret
 
 
@@ -441,14 +486,14 @@ biSwapAndDelete:
     push rdi
     push rsi
     mov rdi, [rdi + 8]
-    call free ; free old array
+    call myFree ; free old array
     pop rsi
     pop rdi
 
     mov r8, [rsi + 8]
     mov [rdi + 8], r8 ; swap data
     mov rdi, rsi
-    call free ; free ptr to b
+    call myFree ; free ptr to b
     ret
 
 
@@ -471,7 +516,7 @@ addUnsigned:
     push rcx
     lea rdi, [rsi + 1]
     imul rdi, 8
-    call malloc ; new array will be sizeof(unsigned long long) * (a.size + 1) bytes long
+    call myMalloc ; new array will be sizeof(unsigned long long) * (a.size + 1) bytes long
     pop rcx
     pop rdx
     pop rsi
@@ -552,7 +597,7 @@ mulUnsigned:
     add r8D, ecx
     mov rdi, r8
     mov rsi, 8
-    call calloc ; 8 * (a.length + b.length) bytes
+    call myCalloc ; 8 * (a.length + b.length) bytes
     pop rcx
     pop rbx
     pop rsi
@@ -662,7 +707,7 @@ subUnsigned:
     cmp rax, 0
     jne .isNotZero ; if a=b then return 0
         mov rdi, 8
-        call malloc
+        call myMalloc
         mov qword [rax], 0
         mov r8, 1
         mov r11, 0
@@ -680,7 +725,7 @@ subUnsigned:
     push r11
     mov rdi, rsi
     imul rdi, 8
-    call malloc ; result will be 8 * a.length bytes
+    call myMalloc ; result will be 8 * a.length bytes
     pop r11
     pop rcx
     pop rdx
@@ -958,7 +1003,7 @@ biMulNew:
     push rdi
     push rsi
     mov rdi, 16
-    call malloc
+    call myMalloc
     pop rsi
     pop rdi
 
@@ -999,26 +1044,328 @@ biMul:
     ret
 
 
+; void biShrUnsignedPartBy1(BigInt a)
+; shr data by 1
+; a in rdi
+biShrUnsignedPartBy1:
+    push rdi
+    xor rsi, rsi
+    mov esi, [rdi + 4]
+    mov rdi, [rdi + 8]
+    mov rdx, 2
+    call divThisOnShort ; divide by 2 is equal to shr 1
+    pop rdi
+
+    mov rax, [rdi + 8]
+    xor r8, r8
+    mov r8D, [rdi + 4]    
+    ; remove leading zeroes, because library depends on it
+    .while2
+        cmp r8, 1
+        je .while2End
+        cmp qword [rax + r8 * 8 - 8], 0
+        jne .while2End
+        dec r8
+        jmp .while2
+    .while2End
+    mov [rdi + 4], r8D
+
+    ret
+
+
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 ; *quotient in rdi
 ; *remainder in rsi
 ; numerator in rdx
 ; denominator in rcx
+; division of n-bit BigInt on m-bit BigInt works in n^2 / 64 operations.
 biDivRem: ; it has not done yet
-    ;push rdi
-    ;push rsi
-    ;xor rsi, rsi
-    ;mov esi, [rcx + 4]
-    ;mov rdi, [rcx + 8]
-    ;call cmpWithZero
-    ;pop rsi
-    ;pop rdi
-    ;test rax, rax
-    ;jnz .isNotZero
-    ;mov qword [rdi], 0
-    ;mov qword [rsi], 0
-    ;ret
-    ;.isNotZero
+    push rdi
+    push rsi
+    push rdx
+    push rcx
+    xor rsi, rsi
+    mov esi, [rcx + 4]
+    mov rdi, [rcx + 8]
+    call cmpWithZero
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+
+    test rax, rax
+    jnz .denomIsNotZero ; if denominator is zero than return (NULL, NULL)
+        mov qword [rdi], 0
+        mov qword [rsi], 0
+        ret
+    .denomIsNotZero
+
+    cmp rdx, rcx
+    jne .areNotEqual ; I will temporary modify num and denom, so their ptr should'n be equal
+        push rdi
+        push rsi
+        mov rdi, 1
+        call biFromInt ; quotient = 1
+        push rax
+        mov rdi, 0
+        call biFromInt ; remainder = 0
+        mov r9, rax
+        pop rax
+        mov r8, rax
+        pop rsi
+        pop rdi
+        mov [rsi], r9
+        mov [rdi], r8
+        ret 
+
+    .areNotEqual
+    ; if denom < 0, then
+    ; nom *= -1
+    ; denom *= -1
+    ; call biDivRem
+    ; nom *= -1 ; restore nom
+    ; denom *= -1 ; restore denom
+    ; remainder *= -1
+    cmp dword [rcx], 0
+    jnl .denomIsBiggerThanZero
+        neg dword [rdx]
+        neg dword [rcx]
+        push rsi
+        push rdi
+        push rcx
+        push rdx
+        call biDivRem ; calc a / b unsigned
+        pop rdx
+        pop rcx
+        pop rdi
+        pop rsi
+        neg dword [rdx] ; restore signs
+        neg dword [rcx] ; restore signs
+        mov r8, [rsi]
+        neg dword [r8] ; remainder is actual negative
+        ret        
+
+    .denomIsBiggerThanZero
+    ; if nom is < 0, then
+    ; nom *= -1
+    ; call biDivRem
+    ; nom *= -1
+    ; quotient *= -1
+    ; if remainder != 0
+    ;   remainder = denominator - remainder
+    ;   quotient -= 1
+    ; return
+    cmp dword [rdx], 0
+    jnl .nomIsBiggerThanZero
+        neg dword [rdx]
+        push rsi
+        push rdi
+        push rcx
+        push rdx
+        call biDivRem ; calc a / b unsigned
+        pop rdx
+        pop rcx
+        pop rdi
+        pop rsi
+        neg dword [rdx]
+        mov r8, [rdi] ; restore signs
+        neg dword [r8]
+        mov r8, [rsi] ; restore signs
+
+        push rdi
+        push rsi
+        push rdx
+        push rcx
+        xor rsi, rsi
+        mov esi, [r8 + 4]
+        mov rdi, [r8 + 8]
+        call cmpWithZero ; if remainder is zero, we needn't next step
+        pop rcx
+        pop rdx
+        pop rsi
+        pop rdi
+
+        test rax, rax
+        jz .remainderIsZero ; see comments above
+            mov r8, [rsi]
+            push rdi
+            push rsi
+            push rdx
+            push rcx
+            mov rdi, r8
+            mov rsi, rcx
+            call biSub
+            pop rcx
+            pop rdx 
+            pop rsi
+            pop rdi
+            mov r8, [rsi]
+            neg dword [r8]
+
+            push rdi
+            mov rdi, 1
+            call biFromInt
+            mov rsi, rax
+            pop rdi
+            push rax
+            mov rdi, [rdi]
+            call biSub
+            pop rax
+            mov rdi, rax
+            call biDelete
+        .remainderIsZero
+        ret
+    .nomIsBiggerThanZero
+
+    ; I am going to find c = a div b, d = a mod b
+    ; let's find min k >= 0: b * 2^k > a
+    ; then we can do this:
+    ; b *= 2^k
+    ; curAdd = 2^k
+    ; for (i = k - 1; i >= 0; i--) {
+    ;   b /= 2;
+    ;   curAdd /= 2
+    ;   if (a >= b) {
+    ;     a -= b
+    ;     c += curAdd
+    ; d = a - c * b
+    
+    ; r12 -- k
+    ; r13 -- copy of a which we modify
+    ; r14 -- copy of b which we modify
+    ; r15 -- curAdd
+    ; rbx -- 2 in first cycle and c in next
+
+    ; store ALL registers. well, it look ugly.
+    push rdi
+    push rsi
+    push rdx
+    push rcx
+    push r12
+    push r13
+    push r14
+    push r15
+    push rbx
+    push rdx
+    push rcx
+
+    mov r13, rdx
+    mov r14, rcx
+
+    mov rdi, r13
+    call biCopy ; a
+    mov r13, rax
+
+    mov rdi, r14
+    call biCopy ; b
+    mov r14, rax
+
+    xor r12, r12 ; k
+    
+    mov rdi, 1
+    call biFromInt ; toAdd
+    mov r15, rax
+    
+    mov rdi, 2
+    call biFromInt ; 2
+    mov rbx, rax
+
+    .while
+        mov rdi, r13
+        mov rsi, r14
+        call biCmp
+        cmp eax, 0
+        jl .break ; break when b*2^k > a
+        mov rdi, r14
+        mov rsi, rbx
+        call biMul ; b *= 2
+        mov rdi, r15
+        mov rsi, rbx
+        call biMul ; toAdd *= 2
+        inc r12
+        jmp .while
+    .break
+
+    mov r8, [rbx + 8]
+    mov qword [r8], 0 ; rbx: 2 -> 0, now it is c (quotient)
+
+
+    .while2
+        dec r12
+        cmp r12, -1
+        je .break2 ; break if k = -1
+
+        mov rdi, r14
+        call biShrUnsignedPartBy1 ; b >>= 1
+        mov rdi, r15
+        call biShrUnsignedPartBy1 ; toAdd >>= 1
+
+        mov rdi, r13
+        mov rsi, r14
+        call biCmp ; a >= b -> a -= b, ans += toAdd
+        cmp eax, 0
+        jl .aIsLess
+            mov rdi, r13
+            mov rsi, r14
+            call biSub
+            mov rdi, rbx
+            mov rsi, r15
+            call biAdd
+        .aIsLess
+
+        jmp .while2
+    .break2
+
+    ; rbx now is quotient
+
+    mov rdi, r13
+    call biDelete
+    mov rdi, r14
+    call biDelete 
+    mov rdi, r15
+    call biDelete
+
+    pop rcx
+    pop rdx
+    mov r13, rdx ; prepare to copy a again
+    mov r14, rcx ; prepare to copy b again
+
+    mov rdi, r13
+    call biCopy ; copy a
+    mov r13, rax
+
+    mov rdi, r14
+    call biCopy ; copy b
+    mov r14, rax
+
+    ; remainder = a - quotient * b
+    mov rdi, r14
+    mov rsi, rbx
+    call biMul ; b * quotient
+    
+    mov rdi, r13
+    mov rsi, r14
+    call biSub ; r13 now is remainder
+
+    mov rdi, r14
+    call biDelete
+
+    mov r8, rbx ; quotient
+    mov r9, r13 ; remainder
+
+    pop rbx
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+
+    mov [rdi], r8
+    mov [rsi], r9
+
     ret
 
 

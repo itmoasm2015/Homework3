@@ -35,6 +35,9 @@ TEST(vector, push_back)
 		EXPECT_EQ(vectorSize(v),   i + 1);
 		EXPECT_EQ(vectorGet(v, i), i + 1);
 	}
+	for (int i = 0; i < MAX_SIZE; i++) {
+		EXPECT_EQ(vectorGet(v, i), i + 1);
+	}
 	vectorDelete(v);
 }
 
@@ -174,5 +177,21 @@ TEST(bigint, sign) {
 
 		ASSERT_EQ(x, y);
 	}
+}
+
+TEST(bigint, mul) {
+	BigInt a = biFromInt(2000000005LL);
+	BigInt b = biFromInt(3000000009LL);
+
+	biMul(a, b);
+
+	const size_t BUF_SIZE = 256;
+	char buf[BUF_SIZE];
+	biToString(a, buf, BUF_SIZE);
+
+	ASSERT_STREQ(buf, "6000000033000000045");
+
+	biDelete(a);
+	biDelete(b);
 }
 

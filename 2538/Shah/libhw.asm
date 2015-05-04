@@ -645,9 +645,7 @@ biToString:
     mov rdi, rdx
     shl rdi, 3
     PUSH_REGS
-    sub rsp, 8
     call malloc
-    add rsp, 8
     POP_REGS
     pop rdi
     mov r8, [rdi + SIZE]
@@ -675,7 +673,9 @@ biToString:
     mov rdi, [rdi + VALUE]
     ; delete previous values
     PUSH_REGS
+    sub rsp, 8
     call free
+    add rsp, 8
     POP_REGS
     pop rdi
     pop rax
@@ -722,12 +722,13 @@ biToString:
     jz %%add_ll_end
 
 %%add_ll_loop_skip:
-    add rax, rdx
     mov r13, [r9]
-    adc r13, rax
-    mov [r9], r13
+    add rax, rdx
     mov rdx, 0
     adc rdx, 0
+    add r13, rax
+    adc rdx, 0
+    mov [r9], r13
     lea r9, [r9 + 8]
     dec r11
     jnz %%add_ll_loop
@@ -739,24 +740,29 @@ biToString:
 ; rdi - 1st unsigned BigInt
 ; rsi - 2nd unsigned BigInt
 ; rdi -= rsi
+; need to be 16 bytes aligned
 SUB_LESS_FLAG equ 1
-sub_long_long:
+%macro sub_long_long 0
     PUSH_REGS
-    call biCmpUnsigned
     xor rcx, rcx
+    sub rsp, 8
+    call biCmpUnsigned
+    add rsp, 8
     ; if unsigned 1st < 2nd
     ; then increase size of 1st to size of 2nd
     ; and invert sign
     cmp rax, -1
-    jne .sub_normal
+    jne %%sub_normal
     setf(SUB_LESS_FLAG)
     mov r8, [rdi + SIGN]
     neg r8
     mov [rdi + SIGN], r8
     mov rdx, [rsi + SIZE]
+    sub rsp, 8
     increaseCapacity
+    add rsp, 8
 
-.sub_normal:
+%%sub_normal:
     mov r8, [rdi + VALUE]
     mov r9, [rsi + VALUE]
     mov r10, [rdi + SIZE]
@@ -764,40 +770,40 @@ sub_long_long:
 
     xor rdx, rdx
     clc
-.sub_ll_loop:
+%%sub_ll_loop:
     mov rax, 0
     test r11, r11
-    jz .sub_ll_loop_skip
+    jz %%sub_ll_loop_skip
     mov rax, [r9]
     dec r11
 
-.sub_ll_loop_skip:
+%%sub_ll_loop_skip:
     mov r12, [r8]
     testf(SUB_LESS_FLAG)
-    jnz .sub_ll_loop_less
-.sub_ll_loop_normal:
+    jnz %%sub_ll_loop_less
+%%sub_ll_loop_normal:
     sub r12, rdx
     mov rdx, 0
     adc rdx, 0
     sub r12, rax
-    jmp .sub_ll_loop_next
-.sub_ll_loop_less:
+    jmp %%sub_ll_loop_next
+%%sub_ll_loop_less:
     sub rax, rdx
     mov rdx, 0
     adc rdx, 0
     sub rax, r12
     mov r12, rax
-.sub_ll_loop_next:
+%%sub_ll_loop_next:
     mov [r8], r12
     adc rdx, 0
     add r8, 8
     add r9, 8
     dec r10
-    jnz .sub_ll_loop
+    jnz %%sub_ll_loop
 
-.sub_ll_end:
+%%sub_ll_end:
     POP_REGS
-    ret
+%endmacro
 
 
 ; rdi - 1st BigInt
@@ -814,6 +820,7 @@ biAdd:
     jz .add_end
     cmp r8, r9
     jne .diff_signs
+    jmp .add_eq_signs
 
 .add_to_zero:
     mov [rdi + SIGN], r9
@@ -839,7 +846,7 @@ biAdd:
     jmp .add_end
 
 .diff_signs:
-    call sub_long_long
+    sub_long_long
     jmp .add_end
 
 .add_end:
@@ -969,6 +976,7 @@ biMul:
 .loop_i_continue:
     dec rcx
     jnz .loop_i
+
     pop r12
     pop r10
     pop r11
@@ -984,4 +992,321 @@ biMul:
     POP_REGS
     ret
   
-  
+
+; r9 - BigInt
+; BigInt << 1
+%macro biShiftOne 0
+    push rdi
+    push rcx
+    push r10
+    push r11
+    push r12
+
+    mov rdi, [r9 + VALUE]
+    mov rcx, [r9 + SIZE]
+    xor r10, r10
+    xor r11, r11
+%%loop:
+    mov r11, 0x1
+    shl r11, 63
+    mov r12, [rdi]
+    and r11, r12
+    shr r11, 63
+    shl r12, 1
+    or r12, r10
+    mov r10, r11
+    mov [rdi], r12
+    add rdi, 8
+    dec rcx
+    jnz %%loop
+
+    pop r12
+    pop r11
+    pop r10
+    pop rcx
+    pop rdi
+%endmacro
+
+; r9 - BigInt R
+; rdi - BigInt N
+; rcx - i
+; sets first bit of R to i-th bit of N
+; R(0) = N(i)
+%macro biSetBitOf 0
+    push rcx
+    push r11
+    push r12
+    dec rcx
+    mov r12, [rdi + VALUE]
+
+%%loop:
+    cmp rcx, 64
+    jl %%loop_end
+
+    sub rcx, 64
+    add r12, 8
+    jmp %%loop
+
+%%loop_end:
+    mov r11, [r12]
+    shr r11, cl
+    and r11, 0x1
+    mov r12, [r9 + VALUE]
+    mov rcx, [r12]
+    or rcx, r11
+    mov [r12], rcx
+    pop r12
+    pop r11
+    pop rcx
+%endmacro
+
+; r8 - BigInt
+; rcx - num of bit
+; set rcx bit of r8 to 1
+; Q(i) := 1
+%macro biSetBitToOne 0
+    push rcx
+    push r10
+    push r11
+    push r12
+    dec rcx
+    mov r10, [r8 + VALUE]
+
+    ; find necessary digit
+%%loop:
+    cmp rcx, 64
+    jl %%loop_end
+
+    sub rcx, 64
+    add r10, 8
+    jmp %%loop
+
+%%loop_end:
+    ; get bit and set in to 1
+    mov r11, 0x1
+    mov r12, [r10]
+    shl r11, cl
+    or r12, r11
+    mov [r10], r12
+    pop r12
+    pop r11
+    pop r10
+    pop rcx
+%endmacro
+
+; rdi - 1st
+; rsi - 2nd
+; size 1st == size 2nd + 1
+; unsinged cmp
+%macro biDivCmp 0
+    PUSH_REGS
+    mov r8, [rdi + SIZE]
+    dec r8
+    shl r8, 3
+    add r8, [rdi + VALUE]
+    mov r8, [r8]
+    test r8, r8
+    jnz %%greater_un
+    mov r10, [rdi + SIZE]
+    dec r10
+    mov r11, r10
+    shl r11, 3
+    mov r8, [rdi + VALUE]
+    add r8, r11
+    mov r9, [rsi + VALUE]
+    add r9, r11
+
+%%loop:
+    sub r8, 8
+    sub r9, 8
+    mov r12, [r8]
+    mov r13, [r9]
+    sub r12, r13
+    ; digits 1st - digit 2nd > 0 => 1st > 2nd
+    ja %%greater_un
+    ; digits 1st - digit 2nd < 0 => 1st < 2nd
+    jb %%less_un
+    dec r10
+    jnz %%loop
+
+%%loop_end
+    mov rax, 0
+    jmp %%end_cmp
+
+%%greater_un
+    mov rax, 1
+    jmp %%end_cmp
+
+%%less_un
+    mov rax, -1
+    jmp %%end_cmp
+
+%%end_cmp:
+    POP_REGS
+%endmacro
+
+; rdi - 1st
+; rsi - 2nd
+; size 1st == size 2nd + 1
+%macro biDivSub 0
+    PUSH_REGS
+%%sub_normal:
+    mov r8, [rdi + VALUE]
+    mov r9, [rsi + VALUE]
+    mov r10, [rdi + SIZE]
+    mov r11, [rsi + SIZE]
+
+    xor rdx, rdx
+    clc
+%%sub_ll_loop:
+    mov rax, 0
+    test r11, r11
+    jz %%sub_ll_loop_skip
+    mov rax, [r9]
+    dec r11
+
+%%sub_ll_loop_skip:
+    mov r12, [r8]
+%%sub_ll_loop_normal:
+    sub r12, rdx
+    mov rdx, 0
+    adc rdx, 0
+    sub r12, rax
+%%sub_ll_loop_next:
+    mov [r8], r12
+    adc rdx, 0
+    add r8, 8
+    add r9, 8
+    dec r10
+    jnz %%sub_ll_loop
+
+%%sub_ll_end:
+    POP_REGS
+%endmacro
+
+
+; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+; rdi - quotient
+; rsi - remainder
+; rdx - numerator
+; rcx - denominator
+; using the binary version of long division
+; full explanation here: http://en.wikipedia.org/wiki/Division_algorithm#Integer_division_.28unsigned.29_with_remainder
+; works for 64 * length(numerator) * length(denominator)
+biDivRem:
+    PUSH_REGS
+    push rdi
+    push rsi
+    push rdi
+    xchg rdi, rcx
+    isZeroFast
+    xchg rdi, rcx
+    test rax, rax
+    jnz .div_cont
+
+    pop rdi
+    pop rsi
+    pop rdi
+    mov [rdi], rax
+    mov [rsi], rax
+    POP_REGS
+    ret
+
+.div_cont:
+    ; create quotient and save in r8
+    ; size of quotient can't be more than size of numerator
+    mov rdi, [rdx + SIZE]
+    sub rsp, 8
+    allocateMemory
+    add rsp, 8
+    mov rdi, rax
+    biSetToZero
+    mov r8, rdi
+    ; create remainder and save in r9
+    ; size of remainder = size of denominator + 1
+    mov rdi, [rcx + SIZE]
+    inc rdi
+    sub rsp, 8
+    allocateMemory
+    add rsp, 8
+    mov rdi, rax
+    biSetToZero
+    mov r9, rdi
+    pop rdi
+    ; r8 - quotient
+    ; r9 - remainder
+    mov rdi, rdx
+    mov rsi, rcx
+    ; rdi - numerator
+    ; rsi - denominator
+    mov rcx, [rdi + SIZE]
+    ; count of bits = size of numerator * 64
+    shl rcx, 6
+    ; Q - quotient
+    ; R - remainder
+    ; N - numerator
+    ; D - denominator
+
+    ; for i = count of bits - 1 .. 0 do
+.loop:
+    ; R << 1
+    biShiftOne
+    ; sets first bit to bit number i of numerator
+    ; R(0) := N(i)
+    biSetBitOf
+    xchg rdi, r9
+    biDivCmp
+    xchg rdi, r9
+    cmp rax, -1
+    je .loop_cont
+    ; if R >= D
+    push rdi
+    mov rdi, r9
+    ; R -= D
+    biDivSub
+    pop rdi
+    ; Q(i) := 1
+    biSetBitToOne
+
+.loop_cont:
+    dec rcx
+    jnz .loop
+
+    ; set sign of quotient and remainder
+    mov r10, [rdi + SIGN]
+    imul r10, [rsi + SIGN]
+    mov [r8 + SIGN], r10
+    mov r10, [rdi + SIGN]
+    mov [r9 + SIGN], r10
+
+    ; clear up numbers
+    mov rdi, r8
+    biTrim
+    isZeroFast
+    mov rdi, r9
+    biTrim
+    isZeroFast
+    mov rdi, [r9 + SIGN]
+    test rdi, rdi
+    jz .end_div
+    cmp rdi, [rsi + SIGN]
+    je .end_div
+    mov rdi, r9
+    call biAdd
+    mov rdi, -1
+    call biFromInt
+    mov rsi, rax
+    mov rdi, r8
+    call biAdd
+    mov rdi, rsi
+    call biDelete
+    jmp .end_div
+
+.end_div:
+    pop rsi
+    pop rdi
+    ; write result
+    mov [rdi], r8
+    mov [rsi], r9
+    POP_REGS
+    ret

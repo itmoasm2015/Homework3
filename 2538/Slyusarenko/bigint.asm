@@ -116,6 +116,7 @@ expand_vector:
 	lea arg3, [r14 * 8] ; size of vector in bytes
 	call memcpy ; copy data to new place in memory
 	mov arg1, r15
+	and rsp, ~15
 	call free ; free memory where was data before the function
 	mov rsp, r13
 	pop arg1
@@ -176,14 +177,15 @@ biFromString:
 	mov arg1, 0
 	call biFromInt
 	mov arg1, r14
-	cmp byte [arg1], 0
-	je .empty_string
 	cmp byte [arg1], '-'
 	je .set_minus_sign
 	mov byte [result + bigint.sign], 0 ; sign '+'
 	jmp .after_setting_sign
 
 .after_setting_sign:
+	mov arg1, result
+	cmp byte [r14], 0
+	je .wrong_string_format ; string is '-' or empty
 	.skip_zeros:
 		cmp byte [r14], '0'
 		jne .skipped
@@ -193,7 +195,6 @@ biFromString:
 .skipped:
 	cmp byte [r14], 0
 	je .empty_string ; string isn't actually empty, but it contains only '0' symbols, so returned bigint is like in case of empty string
-	mov arg1, result
 	.get_bigint:
 		xor rbx, rbx
 		mov bl, byte [r14]
@@ -227,11 +228,15 @@ biFromString:
 
 biDelete:
 	function_start
+	mov r15, rsp
+	and rsp, ~15
 	mov r14, arg1
 	mov arg1, [arg1 + bigint.data] ; free data
 	call free
 	mov arg1, r14 ; free struct
+	and rsp, ~15
 	call free
+	mov rsp, r15
 	function_end
 
 ; arg1 - pointer on bigint
@@ -353,6 +358,9 @@ biDivInt:
 biToString:
 	check_null ; if pointer on bigint is null then i mustn't do something
 	function_start
+	call biSign
+	cmp result, 0
+	je .sign_not_interesting ; if bigint is zero then it can be "-0" and "+0", i must print "0"
 	mov r8, arg1 ; i need to save arg1 and work with it's copy because function changes bigint
 	mov r13, arg2 ; i need to save pointer on buffer because function boCopy changes it
 	mov r12, arg3 ; i need to save it because in biCopy i call memcpy
@@ -371,8 +379,6 @@ biToString:
 	mov byte [r13], '-'
 	inc r13
 	dec arg3
-	cmp arg3, 1
-	je .empty ; if only one symbol in string is '-'
 
 .after_sign:
 	cmp arg3, 1
@@ -459,11 +465,10 @@ biToString:
 	mov arg1, r8 ; restore value of bigint
 	function_end
 
-.empty:
-	dec r13
-	mov byte [r13], 0
-	call biDelete
-	mov arg1, r8
+.sign_not_interesting:
+	mov byte [arg2], '0'
+	inc arg2
+	mov byte [arg2], 0
 	function_end	
 
 ; arg1 - pointer on bigint
@@ -725,10 +730,15 @@ biSub:
 		mov cl, byte [arg1 + bigint.sign]
 		mov byte [rbx + bigint.sign], cl ; move all information from arg1 to rbx
 		push arg1 ; save value arg1 to delete it after memcpy
+		push r15
+		mov r15, rsp
+		and rsp, ~15 ; align the stack to call memcpy
 		mov arg2, [arg1 + bigint.data]
 		mov arg1, [rbx + bigint.data]
 		lea arg3, [r13 * 8] ; arguments for memcpy
 		call memcpy
+		mov rsp, r15
+		pop r15
 		pop arg1
 		call biDelete ; delete copy of bigint in function
 		mov arg1, rbx
@@ -837,10 +847,13 @@ biMul:
 			mov [arg1 + bigint.size], r14 ; set real size to size of arg1
 			push arg1
 			push arg2 ; save values of arg1 and arg2, because i want to use memcpy which requiers arg1 and arg2
+			mov r15, rsp
+			and rsp, ~15
 			mov arg1, [arg1 + bigint.data]
 			mov arg2, [r13 + bigint.data]
 			lea arg3, [r14 * 8]
 			call memcpy ; copy resulted bigint to arg1
+			mov rsp, r15
 			mov arg1, r13
 			call biDelete ; delete temporary bigint3
 			pop arg2
