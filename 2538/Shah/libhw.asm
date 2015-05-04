@@ -645,9 +645,7 @@ biToString:
     mov rdi, rdx
     shl rdi, 3
     PUSH_REGS
-    sub rsp, 8
     call malloc
-    add rsp, 8
     POP_REGS
     pop rdi
     mov r8, [rdi + SIZE]
@@ -675,7 +673,9 @@ biToString:
     mov rdi, [rdi + VALUE]
     ; delete previous values
     PUSH_REGS
+    sub rsp, 8
     call free
+    add rsp, 8
     POP_REGS
     pop rdi
     pop rax
@@ -722,12 +722,13 @@ biToString:
     jz %%add_ll_end
 
 %%add_ll_loop_skip:
-    add rax, rdx
     mov r13, [r9]
-    adc r13, rax
-    mov [r9], r13
+    add rax, rdx
     mov rdx, 0
     adc rdx, 0
+    add r13, rax
+    adc rdx, 0
+    mov [r9], r13
     lea r9, [r9 + 8]
     dec r11
     jnz %%add_ll_loop
@@ -739,11 +740,14 @@ biToString:
 ; rdi - 1st unsigned BigInt
 ; rsi - 2nd unsigned BigInt
 ; rdi -= rsi
+; need to be 16 bytes aligned
 SUB_LESS_FLAG equ 1
 %macro sub_long_long 0
     PUSH_REGS
     xor rcx, rcx
+    sub rsp, 8
     call biCmpUnsigned
+    add rsp, 8
     ; if unsigned 1st < 2nd
     ; then increase size of 1st to size of 2nd
     ; and invert sign
@@ -754,7 +758,9 @@ SUB_LESS_FLAG equ 1
     neg r8
     mov [rdi + SIGN], r8
     mov rdx, [rsi + SIZE]
+    sub rsp, 8
     increaseCapacity
+    add rsp, 8
 
 %%sub_normal:
     mov r8, [rdi + VALUE]
@@ -814,6 +820,7 @@ biAdd:
     jz .add_end
     cmp r8, r9
     jne .diff_signs
+    jmp .add_eq_signs
 
 .add_to_zero:
     mov [rdi + SIGN], r9
@@ -1191,10 +1198,27 @@ biDivRem:
     push rdi
     push rsi
     push rdi
+    xchg rdi, rcx
+    isZeroFast
+    xchg rdi, rcx
+    test rax, rax
+    jnz .div_cont
+
+    pop rdi
+    pop rsi
+    pop rdi
+    mov [rdi], rax
+    mov [rsi], rax
+    POP_REGS
+    ret
+
+.div_cont:
     ; create quotient and save in r8
     ; size of quotient can't be more than size of numerator
     mov rdi, [rdx + SIZE]
+    sub rsp, 8
     allocateMemory
+    add rsp, 8
     mov rdi, rax
     biSetToZero
     mov r8, rdi
@@ -1202,13 +1226,15 @@ biDivRem:
     ; size of remainder = size of denominator + 1
     mov rdi, [rcx + SIZE]
     inc rdi
+    sub rsp, 8
     allocateMemory
+    add rsp, 8
     mov rdi, rax
     biSetToZero
     mov r9, rdi
     pop rdi
-    ; r8 - size of numerator(quotient)
-    ; r9 - size of denominator(remainder)
+    ; r8 - quotient
+    ; r9 - remainder
     mov rdi, rdx
     mov rsi, rcx
     ; rdi - numerator
@@ -1260,6 +1286,23 @@ biDivRem:
     mov rdi, r9
     biTrim
     isZeroFast
+    mov rdi, [r9 + SIGN]
+    test rdi, rdi
+    jz .end_div
+    cmp rdi, [rsi + SIGN]
+    je .end_div
+    mov rdi, r9
+    call biAdd
+    mov rdi, -1
+    call biFromInt
+    mov rsi, rax
+    mov rdi, r8
+    call biAdd
+    mov rdi, rsi
+    call biDelete
+    jmp .end_div
+
+.end_div:
     pop rsi
     pop rdi
     ; write result

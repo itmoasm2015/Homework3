@@ -243,5 +243,13 @@ int main()
     assert(test == "0");
     cout << "OK 38" << endl;
 
+    bi1 = biFromString("22-2");
+    assert(bi1 == NULL);
+    cout << "OK 39" << endl;
+
+    bi1 = biFromString("");
+    assert(bi1 == NULL);
+    cout << "OK 40" << endl;
+
     return 0;
 }

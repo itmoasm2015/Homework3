@@ -116,6 +116,7 @@ expand_vector:
 	lea arg3, [r14 * 8] ; size of vector in bytes
 	call memcpy ; copy data to new place in memory
 	mov arg1, r15
+	and rsp, ~15
 	call free ; free memory where was data before the function
 	mov rsp, r13
 	pop arg1
@@ -176,14 +177,15 @@ biFromString:
 	mov arg1, 0
 	call biFromInt
 	mov arg1, r14
-	cmp byte [arg1], 0
-	je .empty_string
 	cmp byte [arg1], '-'
 	je .set_minus_sign
 	mov byte [result + bigint.sign], 0 ; sign '+'
 	jmp .after_setting_sign
 
 .after_setting_sign:
+	mov arg1, result
+	cmp byte [r14], 0
+	je .wrong_string_format ; string is '-' or empty
 	.skip_zeros:
 		cmp byte [r14], '0'
 		jne .skipped
@@ -193,7 +195,6 @@ biFromString:
 .skipped:
 	cmp byte [r14], 0
 	je .empty_string ; string isn't actually empty, but it contains only '0' symbols, so returned bigint is like in case of empty string
-	mov arg1, result
 	.get_bigint:
 		xor rbx, rbx
 		mov bl, byte [r14]
@@ -215,26 +216,27 @@ biFromString:
 .set_minus_sign:
 	mov byte [result + bigint.sign], 1 ; sign '-'
 	inc r14 ; look on next symbol
-	cmp byte [r14], 0
-	je .wrong_string_format ; only symbol of string is '-'
 	jmp .after_setting_sign
 
 .empty_string:
 	function_end
 
 .wrong_string_format:
-	mov arg1, result
 	call biDelete ; free memory which was allocated to this bigint
 	xor result, result ; return NULL
 	function_end		
 
 biDelete:
 	function_start
+	mov r15, rsp
+	and rsp, ~15
 	mov r14, arg1
 	mov arg1, [arg1 + bigint.data] ; free data
 	call free
 	mov arg1, r14 ; free struct
+	and rsp, ~15
 	call free
+	mov rsp, r15
 	function_end
 
 ; arg1 - pointer on bigint
@@ -728,10 +730,15 @@ biSub:
 		mov cl, byte [arg1 + bigint.sign]
 		mov byte [rbx + bigint.sign], cl ; move all information from arg1 to rbx
 		push arg1 ; save value arg1 to delete it after memcpy
+		push r15
+		mov r15, rsp
+		and rsp, ~15 ; align the stack to call memcpy
 		mov arg2, [arg1 + bigint.data]
 		mov arg1, [rbx + bigint.data]
 		lea arg3, [r13 * 8] ; arguments for memcpy
 		call memcpy
+		mov rsp, r15
+		pop r15
 		pop arg1
 		call biDelete ; delete copy of bigint in function
 		mov arg1, rbx
@@ -840,10 +847,13 @@ biMul:
 			mov [arg1 + bigint.size], r14 ; set real size to size of arg1
 			push arg1
 			push arg2 ; save values of arg1 and arg2, because i want to use memcpy which requiers arg1 and arg2
+			mov r15, rsp
+			and rsp, ~15
 			mov arg1, [arg1 + bigint.data]
 			mov arg2, [r13 + bigint.data]
 			lea arg3, [r14 * 8]
 			call memcpy ; copy resulted bigint to arg1
+			mov rsp, r15
 			mov arg1, r13
 			call biDelete ; delete temporary bigint3
 			pop arg2
