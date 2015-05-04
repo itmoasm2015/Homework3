@@ -940,8 +940,124 @@ biSub:
 	pop r15
 	ret 
 
+; void biMul(BigInt a, BigInt b);
+; a *= b
+; a -- RDI
+; b -- RSI
 biMul:
-    ret
+	xor r8, r8
+	xor r9, r9
+	mov r8b, byte [rdi + BigInt.sign]
+	mov r9b, byte [rsi + BigInt.sign]
+	cmp r8, 0
+	jne .first_sign_not_zero
+	mov byte [rdi + BigInt.sign], 0
+	mov dword [rdi + BigInt.size], 1
+	xor r8, r8
+	mov r8d, [rdi + BigInt.digits]
+	mov dword [r8], 0
+	jmp .zero_finish 
+.first_sign_not_zero:
+	cmp r9, 0
+	jne .second_sign_not_zero
+	mov byte [rdi + BigInt.sign], 0
+	mov dword [rdi + BigInt.size], 1
+	xor r8, r8
+	mov r8d, [rdi + BigInt.digits]
+	mov dword [r8], 0
+	jmp .zero_finish
+.second_sign_not_zero:
+	cmp r8, 255
+	jne .ok1
+	sub r8, 256
+.ok1:
+	cmp r9, 255
+	jne .ok2
+	sub r9, 256
+.ok2:
+	cmp r8, r9
+	jne .write_minus_sign
+	mov byte [rdi + BigInt.sign], 1
+	jmp .multiply
+.write_minus_sign:
+	mov byte [rdi + BigInt.sign], -1
+.multiply:
+	mov r8d, dword [rdi + BigInt.size]
+	mov r9d, dword [rsi + BigInt.size]
+	lea r8, [r8 + r9]
+	mpush rdi, rsi
+	createBigIntWithCapacity r8
+	mov [rax + BigInt.size], r8d
+	mpop rdi, rsi
+	xor r8, r8
+	mov r8b, byte [rdi + BigInt.sign]
+	mov byte [rax + BigInt.sign], r8b
+	
+	mpush r12, r13, r14, r15
+	xor r8, r8
+	xor r12, r12
+	mov r12d, [rdi + BigInt.digits]
+.fori:
+	cmp r8d, [rdi + BigInt.size]
+	je .finish
+	xor r9, r9
+	xor rcx, rcx
+	xor r13, r13
+	mov r13d, [rsi + BigInt.digits]
+.forj:
+	cmp r9d, [rsi + BigInt.size]
+	jl .mul_digits
+	cmp rcx, 0
+	je .next_iteration
+.mul_digits:
+	xor r14, r14
+	mov r14d, [rax + BigInt.digits]
+	lea r14, [r14 + r8 * 4]
+	lea r14, [r14 + r9 * 4]
+	
+	xor r10, r10
+	xor r11, r11
+	mov r10d, [r12]
+
+	cmp r9d, [rsi + BigInt.size]
+	jne .second_not_zero
+	mov r11, 0
+	jmp .mul
+.second_not_zero:
+ 	mov r11d, [r13]
+.mul:
+	xor r15, r15
+	mov r15d, [r14]
+	imul r10, r11
+	add r15, r10
+	add r15, rcx
+	mpush rax, rdx, r8, r9, rdi, rsi
+	mov rax, r15
+	xor r9, r9
+	mov r9, BASE
+	xor rdx, rdx
+	div r9
+	mov [r14], edx
+	mov rcx, rax
+	mpop rax, rdx, r8, r9, rdi, rsi
+
+	inc r9
+	add r13, 4	
+	jmp .forj
+.next_iteration:
+	inc r8
+	add r12, 4
+	jmp .fori
+.finish:
+	deleteZeroesFromBigInt rax
+	push rsi
+	mov rsi, rax
+	
+	biCopy rdi, rsi
+	pop rsi
+	mpop r12, r13, r14, r15
+.zero_finish:
+	ret
 
 biDivRem:
     ret
@@ -1026,3 +1142,4 @@ section .data
 intFormat:    db '%d', 10, 0
 intFormat2:   db '!!! %d', 10, 0
 stringFormat: db '%s', 10, 0
+
