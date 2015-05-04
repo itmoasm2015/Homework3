@@ -17,136 +17,6 @@ global biCmp
 ;main:
     ;ret
 
-extern calloc, free
-
-BASE equ 1 << 64
-DEFAULT_SIZE equ 10
-
-;
-; stored bigNumber like this:
-; struct BigInt {
-;   unsigned long long capacity;   8 bytes
-;   unsigned long long size;       8 bytes
-;   unsigned long long sign;       8 byte
-;   unsigned long long *digits   
-; }
-;  
-; forall i < capacity: digits[i] < BASE
-; sign = 1 | 0 | -1 , more than 0, equal and less respectively
-
-; void alloc_digits(BigInt* src, long long num_dig)
-; rdi = pointer to src
-; rsi = num_dig
-alloc_digits:
-    push rdi
-
-    mov  rdi, rsi          ; rdi = num_dig
-    mov  rsi, 8            ; 8 bytes for each field
-    call calloc 
-
-    pop rdi
-
-    mov [rdi + 24], rax    ; rdi->digits = rax
-    ret
-
-; void extend_vector(bigInt* src)
-; rdi = pointer to BigInt
-; realloc digits to src->size * 2
-extend_vector:
-    push rdi
-    mov  rdi, [rdi + 24] ; rdi = "src"->digits
-    call free
-    pop rdi
-
-    mov rsi, [rdi + 8]   ; rsi = "src"->size
-    shr rsi, 1           ; rsi = "src"->size * 2
-    call alloc_digits 
-    ret
-
-; BigInt* createBigInt(long long num_dig)
-; rdi - number of digits
-; allocate BigInt and allocate BigInt->digits, which contain "cnt" qwords. 
-; return value:
-;   rax = pointer to allocated BigInt
-createBigInt:
-    push rdi
-    mov  rdi, 4            ; capacity, size, sign, digits
-    mov  rsi, 8            ; 8 bytes for each field
-    call calloc 
-    pop  rdi
-
-    push rax
-    mov  qword [rax], rdi  ; set capacity
-    mov  rsi, rdi          ; rsi = num_dig
-    mov  rdi, rax          ; rdi = pointer to BigInt
-    call alloc_digits      ; allocate memory for digits, and set rax->digits 
-    pop  rax
-
-    ret
-
-; void move_bigNum(BigInt* dest, BigInt* src)
-; rdi = destination pointer to BigInt
-; rsi = source pointer to BigInt
-move_bigNum:
-    ;copy size, sign from src to dest
-    push rsi
-    push rdi
-
-    add rdi, 8               ; rdi = &dest->size
-    add rsi, 8               ; rsi = &src->size
-    mov rcx, 2               ; count of copy fields
-    cld                      ; DF = 0
-    repnz movsq              ; copy fields size and sign
-
-    pop rdi
-    pop rsi
-
-    mov rcx, qword [rsi + 8] ; rcx = src->size
-
-    mov rdi, [rdi + 24]      ; rdi = dest->digits
-    mov rsi, [rsi + 24]      ; rsi = src->digits
-
-    repnz movsq              ; copy src->size of src->digits to dest->digits
-    ret
-
-; void push_back(BigInt* src, long long arg);
-;
-; rdi - pointer to the structure BigInt
-; rsi - arg::(unsigned long long)  which will be pushed into the "digits"
-push_back:
-    mov  rcx, qword [rdi + 8]    ; rcx = src->size
-    cmp  rcx, [rdi]              ; cmp(src->size, src->capacity)
-    jl .next_push_back
-    call extend_vector 
-    
-    .next_push_back:
-    imul rcx, 8                  ; rcx = src->size * 8
-    inc  qword [rdi + 8]         ; src->size++
-
-    mov rdi, qword [rdi + 24]    ; rdi = src->digits
-    add rdi, rcx                 ; rdi refer to last free position in digits
-    mov qword [rdi], rsi         ; put arg to appropriate position
-
-    ret
-
-; long long get_max_size(BigInt* first, BigInt* second)
-; rdi = first
-; rsi = second
-;
-; return value:
-;   rax = max(rdi->size, rsi->size)
-get_max_size:
-    add rdi, 8           ; rdi refer to first->size
-    add rsi, 8           ; rsi refer to second->size
-    mov rax, qword [rdi] ; rax = first->size
-
-    cmp qword [rsi], rax ; second->size - first->size
-    jle .end_max_size            
-    mov rax, qword [rsi] ; second->size > first->size -> rax = second->size
-
-    .end_max_size:
-    ret
-
 ; call_fun_2(f::x->y->z, x, y)::z
 ; %1 - name of function
 ; %2 - first argument
@@ -172,6 +42,25 @@ get_max_size:
     call %1
     pop  rdi
 %endmacro
+
+
+extern calloc, free
+
+BASE equ 1 << 64
+DEFAULT_SIZE equ 10
+
+;
+; stored bigNumber like this:
+; struct BigInt {
+;   unsigned long long capacity;   8 bytes
+;   unsigned long long size;       8 bytes
+;   unsigned long long sign;       8 byte
+;   unsigned long long *data   
+; }
+;  
+; forall i < capacity: data[i] < BASE
+; sign = 1 | 0 | -1 , more than 0, equal and less respectively
+
 
 ; BigInt biFromInt(int64_t x);
 biFromInt:
@@ -208,7 +97,7 @@ biToString:
 ; void biDelete(BigInt bi);
 ; pointer to bi saved in rdi, free will be called with this pointer
 biDelete:
-    call_fun_1 free, [rdi + 24] ; free(bi->digits)
+    call_fun_1 free, [rdi + 24] ; free(bi->data)
     call free                   ; free(bi)
     ret
 
@@ -217,11 +106,89 @@ biSign:
     mov rax, qword [rdi + 8]    
     ret
 
-; void biAdd(BigInt dst, BigInt src);
+; void biAdd(BigInt* dst, BigInt* src);
 ; dst += src
+; rdi = dst
+; rsi = src
 biAdd:
-    
+    mov  rax, [rdi + 16]                ; rax = dst->sign
+    mov  rdx, [rsi + 16]                ; rdx = src->sign
+    xor  rax, rdx
+    test rax, -2                        ; if only one bigInt < 0
+    jne  .next_add
+    call 
     ret
+
+
+
+
+    .next_add
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+
+
+    call_fun_2 get_max_size, rdi, rsi  ; rax = max(dst->size, src->size)
+    push rax
+
+    mov r13, [rdi + 8]                 ; r13 = dst->size
+    cmp r13, [rsi + 8]
+    jg .add_bignum                     ; if (dst->size <= src->size) { 
+    shl rax, 1                         ;   rax *= 2
+    call_fun_2 realloc_data, rdi, rax  ;   reallocate dst->data
+                                       ; }
+    ; dst->capcity > src->size + dst->size
+    .add_bignum:
+    pop rax
+    mov [rdi + 8], rax                 ; dst->size = max_size
+
+    mov r10, 0                         ; i = 0;
+    mov r11, [rdi + 24]                ; r11 = dst->data
+    mov r12, [rsi + 24]                ; r12 = src->data
+    clc                                ; clear carry flag
+    pushfq                             ; store eflags
+    .while_add:                        ; while (i < max_size || carry)
+        mov r13, 0                     ; val = 0
+        cmp r10, [rsi + 8]             ; 
+        jge .skip_set_val              ; if (i < src->size) {
+        mov r13, [r12]                 ;   val = src->data[i]
+        add r12, 8                     ; }
+        .skip_set_val:
+            popfq                      ; restore eflags
+            adc qword [r11], r13       ; dst->data[i] += val + carry
+            pushfq                     ; store eflags
+            add r11, 8
+
+            inc r10                    ; i++
+            cmp r10, rax               ; i < max_size or carry -> continue
+            jl .while_add              ; else break
+            popfq                      ; restore eflags
+            pushfq                     ; store eflags
+            jc .while_add                  
+    popfq                              ; restore eflags
+    cmp  r10, rax
+    je  .end_add
+    add qword [rdi + 8], 1             ; increase size if last operation was carry
+
+    .end_add:
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    ret
+
+;int carry = 0;
+;for (int i = 0. i < src->size || carry. ++i) {
+    ;int val = 0;
+    ;if (i < src->size) 
+        ;val = src->data[i]
+    ;if (i == dst->size)
+        ;push_back(dst, 0)
+    ;dst->data[i] += val + carry
+;}
 
 ; void biSub(BigInt dst, BigInt src);
 ; rdi = dst
@@ -246,38 +213,127 @@ biCmp:
     ret
 
 ; **reallocate memory for data with apropriate size
-; void alloc_data(BigInt* src, long long new_capacity)
-alloc_data:
-    call_fun_2 calloc, rsi, 8 ; calloc(new_capacity, 8)
+; void realloc_data(BigInt* src, long long new_capacity)
+realloc_data:
+    call_fun_2 calloc, rsi, 8        ; calloc(new_capacity, 8)
 
-    mov [rdi + 24], rax       ; rdi->data = rax
-    ret
-
-; 
-; void ensure_capcity(BigInt* src)
-; rdi = src
-; realloc data to src->size * 2
-ensure_capcity:
-    mov  rcx, qword [rdi + 8]    ; rcx = src->size
-    cmp  rcx, [rdi]              ; cmp(src->size, src->capacity)
-    jl .end_ensure               ; src->size < src->capacity then return
-
+    push rax
     push rdi
-    mov  rdi, [rdi + 24]         ; rdi = "src"->data
-    call free
+    push rsi
+
+    mov rcx, qword [rdi + 8]         ; rcx = src->size
+    mov rsi, [rdi + 24]              ; rsi = src->data
+    mov rdi, rax                     ; rdi = new allocated data
+    repnz movsq                      ; copy src->size qwords from src->data to data
+
+    pop rsi
     pop rdi
 
-    mov rsi, [rdi + 8]           ; rsi = "src"->size
-    shr rsi, 1                   ; rsi = "src"->size * 2
-    call alloc_data 
+    call_fun_2 free, [rdi + 24], rsi ; free(src->data) and save rsi
+
+    pop rax
+    mov [rdi], rsi                   ; src->capacity = new_capacity
+    mov [rdi + 24], rax              ; src->data = rax
+    ret
+
+; realloc data, if needed, to src->size * 2
+; void ensure_capacity(BigInt* src)
+; rdi = src
+ensure_capacity:
+    mov  rcx, qword [rdi + 8]   ; rcx = src->size
+    cmp  rcx, [rdi]             ; cmp(src->size, src->capacity)
+    jl .end_ensure              ; src->size < src->capacity then return
+
+    mov rsi, [rdi + 8]          ; rsi = "src"->size
+    shr rsi, 1                  ; rsi = "src"->size * 2
+    call realloc_data 
 
     .end_ensure:
     ret
 
-; void move_BigInt(BigInt* dest, BigInt* src)
+; void copy_BigInt(BigInt* dest, BigInt* src)
+;   rdi = destination pointer to BigInt
+;   rsi = source pointer to BigInt
+copy_BigInt:
+    ;copy size, sign from src to dest
+    push rsi
+    push rdi
+
+    add rdi, 8               ; rdi = &dest->size
+    add rsi, 8               ; rsi = &src->size
+    mov rcx, 2               ; count of copy fields
+    cld                      ; DF = 0
+    repnz movsq              ; copy fields size and sign
+
+    pop rdi
+    pop rsi
+    
+    call copy_data
+    ret
+
+; deep copy data from src to dest
+; void copy_BigInt(BigInt* dest, BigInt* src)
+;   rdi = destination pointer to BigInt
+;   rsi = source pointer to BigInt
+copy_data:
+    mov rcx, qword [rsi + 8] ; rcx = src->size
+
+    mov rdi, [rdi + 24]      ; rdi = dest->data
+    mov rsi, [rsi + 24]      ; rsi = src->data
+
+    repnz movsq              ; copy src->size of src->data to dest->data
+    ret
+
+; if (position < src->size)
+;   src->data[position] = new_value
+; else
+;   push_back(src, new_value)
+;
+; void set_or_push_back(BigInt* src, long long new_value, long long position)
+; rdi = src
+; rsi = new_value
+; rdx = position 
+set_or_push_back:
+    mov rcx, [rdi + 8]   ; rcx = src->size
+    cmp rdx, rcx         ; position < src->size
+    jl .just_set
+    call_fun_2 push_back, rdi, rsi
+    jmp .end_set_or
+
+    .just_set:
+    mov  rdi, [rdi + 24] ; rdi = src->data
+    imul rdx, 8          ; position *= 8, in bytes
+    add  rdi, rdx        ; rdi = src->data + position
+    mov  [rdi], rsi      ; *(src->data + position) = new_value
+
+    .end_set_or:
+    ret
+
+; BigInt* createBigInt(long long num_dig)
+; rdi - number of data
+; allocate BigInt and allocate BigInt->data, which contain "cnt" qwords. 
+; return value:
+;   rax = pointer to allocated BigInt
+createBigInt:
+    push rdi
+    mov  rdi, 4            ; capacity, size, sign, data
+    mov  rsi, 8            ; 8 bytes for each field
+    call calloc 
+    pop  rdi
+
+    push rax
+    mov  qword [rax], rdi  ; set capacity
+    mov  rsi, rdi          ; rsi = capacity of data
+    mov  rdi, rax          ; rdi = pointer to BigInt
+    call realloc_data      ; allocate memory for data, and set rax->data 
+    pop  rax
+
+    ret
+
+; void move_bigNum(BigInt* dest, BigInt* src)
 ; rdi = destination pointer to BigInt
 ; rsi = source pointer to BigInt
-move_BigInt:
+move_bigNum:
     ;copy size, sign from src to dest
     push rsi
     push rdi
@@ -291,8 +347,6 @@ move_BigInt:
     pop rdi
     pop rsi
 
-    ;deep copy digits from src to dest
-    push rsi
     mov rcx, qword [rsi + 8] ; rcx = src->size
 
     mov rdi, [rdi + 24]      ; rdi = dest->data
@@ -306,15 +360,32 @@ move_BigInt:
 ; rdi - pointer to the structure BigInt
 ; rsi - arg::(unsigned long long)  which will be pushed into the "data"
 push_back:
-    call_fun_2 ensure_capcity, rdi, rdi
+    call_fun_2 ensure_capacity, rdi, rsi ; ensure capacity and save register rsi
     
-    mov  rcx, qword [rdi + 8]    ; rcx = src->size
-    imul rcx, 8                  ; rcx = src->size * 8
-    inc  qword [rdi + 8]         ; src->size++
+    mov  rcx, qword [rdi + 8]           ; rcx = src->size
+    imul rcx, 8                         ; rcx = src->size * 8
+    inc  qword [rdi + 8]                ; src->size++
 
-    mov rdi, qword [rdi + 24]    ; rdi = src->data
-    add rdi, rcx                 ; rdi refer to last free position in data
-    mov qword [rdi], rsi         ; put arg to appropriate position
+    mov rdi, qword [rdi + 24]           ; rdi = src->data
+    add rdi, rcx                        ; rdi refer to last free position in data
+    mov qword [rdi], rsi                ; put arg to appropriate position
 
     ret
 
+; long long get_max_size(BigInt* first, BigInt* second)
+; rdi = first
+; rsi = second
+;
+; return value:
+;   rax = max(rdi->size, rsi->size)
+get_max_size:
+    add rdi, 8           ; rdi refer to first->size
+    add rsi, 8           ; rsi refer to second->size
+    mov rax, qword [rdi] ; rax = first->size
+
+    cmp qword [rsi], rax ; second->size - first->size
+    jle .end_max_size            
+    mov rax, qword [rsi] ; second->size > first->size -> rax = second->size
+
+    .end_max_size:
+    ret
