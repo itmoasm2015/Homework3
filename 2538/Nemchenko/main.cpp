@@ -25,10 +25,17 @@ int main() {
 
     BigInt bb = biFromInt(777);
     printbBigNum(bb);
-    unsigned long long* b = new unsigned long long[20];
-    b[0] = 20;
-    b[1] = 15;
-    b[2] = 19;
+    int size = 15;
+    unsigned long long* b = new unsigned long long[4];
+    b[0] = 20;   // capacity
+    b[1] = size; // size
+    b[2] = 1;    // sign
+    b[3] = (unsigned long long) new unsigned long long[size];      // data
+
+    unsigned long long* data = (unsigned long long*) b[3];
+    for (int i = 0; i < size; ++i) {
+        data[i] = -1;
+    }
 
     cout << endl;
     cout << biAdd(bb, b) << endl;

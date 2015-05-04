@@ -9,7 +9,7 @@ clean:
 	rm -f test
 
 test: libhw.a test.o
-	g++ -o test $(CXX_FLAGS) test.o -lhw
+	g++ -o test $(CXX_FLAGS) test.o -lhw -lgmp
 
 test.o: test.cpp
 	g++ -o test.o $(CXX_FLAGS) -c test.cpp
