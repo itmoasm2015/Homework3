@@ -19,6 +19,19 @@ struc   bigint
         .data   resb    8           ; pointer to data, big-endian
 endstruc
 
+; aligns stack and calls %1
+%macro  CALL 1
+        test    rsp, 0xf
+        jz      %%aligned
+        push    rsp
+        call    %1
+        pop     rsp
+        jmp     %%done
+    %%aligned:
+        call    %1
+    %%done:
+%endmacro
+
 ; Allocates memory for big integer (data and struct)
 ;
 ; corrupts all registers execpt for callee-saved and %1, %2
@@ -31,10 +44,10 @@ endstruc
 %macro  NEW_BI 2
         mov     rdi, %1
         push    %1
-        call    malloc              ; allocation for data
+        CALL    malloc              ; allocation for data
         push    rax
         mov     rdi, bigint_size
-        call    malloc              ; allocation for headers
+        CALL    malloc              ; allocation for headers
         pop     %2
         pop     %1
         mov     [rax + bigint.len], %1
@@ -49,9 +62,9 @@ endstruc
 %macro  DEL_BI 1
         push    %1
         mov     rdi, [%1 + bigint.data]
-        call    free
+        CALL    free
         pop     rdi
-        call    free
+        CALL    free
 %endmacro
 
 ; Copies given bigint and returns new address
@@ -377,7 +390,7 @@ biToString:
         inc     rax
         push    rdi                     ; stack: routine, buffer, limit, bi copy
         mov     rdi, rax
-        call    malloc
+        CALL    malloc
         mov     rbx, rax                ; temporary string
         xor     r13, r13                ; counter for actually written characters
 
@@ -443,7 +456,7 @@ biToString:
         push    rbx
         DEL_BI  rdi
         pop     rdi
-        call    free                ; free temporary string
+        CALL    free                ; free temporary string
 
         pop     rbx
         pop     r12
@@ -497,7 +510,7 @@ biAdd:
         add     rcx, 8                      ; allocate memory for the biggest number possible
         push    rdi
         push    rsi                         ; stack: r13, r12, dest, greater, less
-        call    malloc
+        CALL    malloc
         mov     r8, rax
         pop     rsi
         pop     rdi
@@ -549,7 +562,7 @@ biAdd:
         mov     rdi, [rsp + 8]             ; stack: r13, r12, dst, result.data
         mov     [rdi + bigint.len], rax
         mov     rdi, [rdi + bigint.data]
-        call    free
+        CALL    free
         pop     r8                         ; stack: r13, r12, dst
         pop     rdi                        ; stack: r13, r12
         mov     [rdi + bigint.data], r8
@@ -603,12 +616,12 @@ biMul:
         add     rdi, [rsi + bigint.len]
         add     rdi, 8
         push    rdi
-        call    malloc
+        CALL    malloc
         push    rax
         mov     rdi, [rsp + 16]
         mov     rdi, [rdi + bigint.len]      ; allocate array for storing dst and src qword multiplication
         add     rdi, 8
-        call    malloc
+        CALL    malloc
         mov     r10, rax                    ; tmp array
         pop     rbx                         ; new bigint's data
         pop     r13                         ; size of new bigint
@@ -664,10 +677,10 @@ biMul:
         push    rsi
         push    rdi
         mov     rdi, r10
-        call    free                        ; free tmp array
+        CALL    free                        ; free tmp array
         mov     rdi, [rsp]                  ; replace dst data with new array
         mov     rdi, [rdi + bigint.data]
-        call    free
+        CALL    free
         pop     rdi
         pop     rsi
         pop     rbx
