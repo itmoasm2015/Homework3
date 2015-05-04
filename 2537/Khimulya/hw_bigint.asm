@@ -23,9 +23,9 @@ endstruc
 %macro  CALL 1
         test    rsp, 0xf
         jz      %%aligned
-        push    rsp
+        sub     rsp, 8
         call    %1
-        pop     rsp
+        add     rsp, 8
         jmp     %%done
     %%aligned:
         call    %1
@@ -616,7 +616,7 @@ biMul:
         push    rdi
         CALL    malloc
         push    rax
-        mov     rdi, [rsp + 16]
+        mov     rdi, [rsp + 24]
         mov     rdi, [rdi + bigint.len]         ; allocate array for storing dst and src qword multiplication
         add     rdi, 8
         CALL    malloc
@@ -666,6 +666,7 @@ biMul:
                 pop     rbx
 
                 add     r12, 8
+                mov     r14, [rsi + bigint.len]
                 cmp     r12, [rsi + bigint.len]
                 jne     .loop
 
