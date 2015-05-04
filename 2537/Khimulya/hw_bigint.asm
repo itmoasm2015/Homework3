@@ -182,13 +182,16 @@ endstruc
         pop     %1
 %endmacro
 
-; Multiplies given bigint with given quadword, result goes to input bigint
+; Multiplies given bigint with given quadword, result goes to %3 or input bigint
 ; note: doesn't check for bigint's length, so overflow is possible
 ;
 ; @arg %1 multiplicand, address of bigint struc
 ; @arg %2 multiplier
 ; corrupts rdx, rcx, r8, rax, r11
-%macro  MUL_BY_QUAD 2
+;
+; @return %3 address of array to store result into
+; if %3 not present, write result to %1
+%macro  MUL_BY_QUAD 2-3
         mov     rcx, [%1 + bigint.len]
         mov     r11, [%1 + bigint.data]
         xor     rdx, rdx
@@ -198,11 +201,22 @@ endstruc
                 mul     %2
                 add     rax, r8
                 adc     rdx, 0              ; update new carry in case of rax overflow
-                mov     [r11], rax
+                %if %0 == 3
+                        mov     [%3], rax
+                %else
+                        mov     [r11], rax
+                %endif
 
+                %if %0 == 3
+                        add     %3, 8
+                %endif
                 add     r11, 8
                 sub     rcx, 8
                 jnz     %%loop
+
+        %if %0 == 3
+                mov     [%3], rdx
+        %endif
 %endmacro
 
 ; Adds given quadword to specified bigint.
@@ -217,6 +231,7 @@ endstruc
         add     r8, %2
         mov     [rdx], r8
         pushf
+        add     rdx, 8
         %%loop:
                 popf
                 mov     r8, [rdx]
@@ -225,6 +240,7 @@ endstruc
                 pushf
 
                 jnc     %%done
+                add     rdx, 8
                 sub     rcx, 8
                 jnz     %%loop
     %%done:
@@ -288,9 +304,8 @@ biFromString:
         mov     rax, rcx
         mov     rcx, 18
         xor     rdx, rdx
-        div     rcx
-        lea     rax, [rax * 8]                  ; and multiplying result by 8
-        add     rax, 8                          ; then dividing by 18 (10-base digits per quadword)
+        div     rcx                             ; and multiplying result by 8
+        lea     rax, [rax * 8 + 8]              ; then dividing by 18 (10-base digits per quadword)
 
         push    rdi                             ; begin of significant data
         push    rsi                             ; end of string
@@ -561,7 +576,120 @@ biSub:
         ret
 
 ;void biMul(BigInt dst, BigInt src);
+; Converts dst and src to positive. Saves src sign to restore it later.
+;
 biMul:
+        push    rbx
+        push    r12
+        push    r13
+
+        SIGN    rdi, r8                     ; make dst and src positive
+        cmp     r8, 0                       ; no need to store dst sign, dst will be replaced
+        je      .dst_pos
+        NEGATE  rdi
+    .dst_pos:
+        SIGN    rsi, r9
+        push    r9                          ; stack: routine, src.sign
+        cmp     r9, 0
+        je     .src_pos
+        NEGATE rsi
+    .src_pos:
+        xor     r8, r9                      ; sign of the result
+        push    r8                          ; stack: routine, src.sign, result.sign
+
+        push    rdi                         ; allocate new resault data of (dst.size + src.size + 8 bytes) size
+        push    rsi
+        mov     rdi, [rdi + bigint.len]
+        add     rdi, [rsi + bigint.len]
+        add     rdi, 8
+        push    rdi
+        call    malloc
+        push    rax
+        mov     rdi, [rsp + 16]
+        mov     rdi, [rdi + bigint.len]      ; allocate array for storing dst and src qword multiplication
+        add     rdi, 8
+        call    malloc
+        mov     r10, rax                    ; tmp array
+        pop     rbx                         ; new bigint's data
+        pop     r13                         ; size of new bigint
+        pop     rsi                         ; src
+        pop     rdi                         ; dst
+
+        push    r13                         ; fill result data with zeros
+        sub     r13, 8
+        xor     r9, r9
+        .zero_loop:
+                mov     [rbx + r13], r9
+                sub     r13, 8
+                jnz     .zero_loop
+        mov     [rbx + r13], r9
+        pop     r13
+
+        xor     r12, r12                      ; counter
+        mov     r9, [rsi + bigint.data]
+        .loop:
+                push    rbx
+                mov     rbx, [r9 + r12]
+                push    r10
+                MUL_BY_QUAD rdi, rbx, r10
+                pop     r10
+
+                lahf
+                and     rax, -2             ; flush cf
+                mov     rbx, [rsp]
+                push    r10
+                mov     r11, [rdi + bigint.len]
+                lea     r11, [r10 + r11 + 8]            ; end of tmp array
+                .loop2:
+                        mov     r8, [r10]
+                        sahf
+                        adc     r8, [rbx + r12]
+                        lahf
+                        mov     [rbx + r12], r8
+                        add     rbx, 8
+                        add     r10, 8
+                        cmp     r10, r11
+                        jne     .loop2
+
+                pop     r10
+                pop     rbx
+
+                add     r12, 8
+                cmp     r12, [rsi + bigint.len]
+                jne     .loop
+
+        mov     [rdi + bigint.len], r13     ; set new size (maximum) to dst
+
+        push    rbx
+        push    rsi
+        push    rdi
+        mov     rdi, r10
+        call    free                        ; free tmp array
+        mov     rdi, [rsp]                  ; replace dst data with new array
+        mov     rdi, [rdi + bigint.data]
+        call    free
+        pop     rdi
+        pop     rsi
+        pop     rbx
+        mov     [rdi + bigint.data], rbx
+
+        ; let's restore signs
+        pop     rax                         ; stack: routine, src.sign
+        cmp     rax, 0
+        je      .src_pos_
+        NEGATE  rdi
+    .src_pos_:
+        pop     rax                         ; stack: routine
+        cmp     rax, 0
+        je      .result_pos
+        NEGATE  rsi
+    .result_pos:
+
+        BI_SHORTEN  rdi
+
+        pop     r13
+        pop     r12
+        pop     rbx
         ret
 
 ;void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
