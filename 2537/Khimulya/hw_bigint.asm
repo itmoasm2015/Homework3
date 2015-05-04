@@ -666,7 +666,6 @@ biMul:
                 pop     rbx
 
                 add     r12, 8
-                mov     r14, [rsi + bigint.len]
                 cmp     r12, [rsi + bigint.len]
                 jne     .loop
 
