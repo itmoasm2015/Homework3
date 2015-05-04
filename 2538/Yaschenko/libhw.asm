@@ -604,8 +604,8 @@ biMul:
 	mov		rdx, [r15 + Bigint.vector]
 	mov		[rdi + Bigint.vector], rdx
 
-	mov		rdx, [r15 + Bigint.sign]
-	mov		[rdi + Bigint.sign], rdx
+	;mov		rdx, [r15 + Bigint.sign]
+	;mov		[rdi + Bigint.sign], rdx
 
 	mov		rdi, r15
 	call		free
