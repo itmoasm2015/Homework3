@@ -28,6 +28,8 @@ global biMul
 global biDivRem
 global biCmp
 
+global biGetVector
+
 
 section .text
 
@@ -66,6 +68,11 @@ _biNew:
 	mov	[rax + Bigint.vector], rdx
 	mov	qword [rax + Bigint.sign], SIGN_ZERO
 
+	ret
+
+
+biGetVector:
+	mov		rax, [rdi + Bigint.vector]
 	ret
 
 
@@ -563,18 +570,18 @@ biMul:
 ;; RDX = RAX / BASE
 	mpush		rbx
 	mov		rbx, BASE
-	div10		rbx
+	idiv		rbx
 	mpop		rbx
 
 ;; Update CARRY with new value.
-	mov		r12, rdx
+	mov		r12, rax
 
 	mpush		rdi, rsi
 	;mov		rdi, [r15 + Bigint.vector]
 	;mov		rsi, [rsp + 16]
 	;mov		rdx, rax
 	;call	vectorSet
-	vector_set	[r15 + Bigint.vector], [rsp + 16], rax
+	vector_set	[r15 + Bigint.vector], [rsp + 16], rdx
 	mpop		rdi, rsi
 	add		rsp, 8
 
@@ -640,3 +647,4 @@ _biTrimZeros:
 
 .done:
 	ret
+

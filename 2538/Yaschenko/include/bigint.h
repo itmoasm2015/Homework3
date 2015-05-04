@@ -54,6 +54,8 @@ void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt deno
  */
 int biCmp(BigInt a, BigInt b);
 
+void* biGetVector(BigInt b);
+
 #ifdef __cplusplus
 }
 #endif
