@@ -4,20 +4,21 @@ CFLAGS = -fsanitize=address -g -L. -I../../include
 
 all: tests
 
-tests: libhw.a libhw_zban.a tests.o
-	g++ -o tests $(CFLAGS) tests.o -lhw -lhw_zban -lgmp
+tests: libhw.a tests.o
+	g++ -o tests $(CFLAGS) tests.o -lhw
 
-tests.o: tests2.cpp
-	g++ -o tests.o tests2.cpp $(CFLAGS) -c
+tests.o: tests.cpp
+	g++ -o tests.o tests.cpp $(CFLAGS) -c 
 	
 libhw.a: libhw.o vectorint.o
 	ar rcs libhw.a libhw.o vectorint.o
 
-libhw_zban.a: libhw_zban.o
-	ar rcs libhw_zban.a libhw_zban.o
+libhw.o: libhw.asm
+	yasm -o libhw.o $(ASM_FLAGS) libhw.asm 
 
-%.o: %.asm
-	yasm $(ASM_FLAGS) -o $@ $^
+vectorint.o: vectorint.asm
+	yasm -o vectorint.o $(ASM_FLAGS) vectorint.asm
+
 clean:
 	rm -f libhw.a
 	rm -f libhw.o

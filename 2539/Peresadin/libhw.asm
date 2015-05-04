@@ -2,8 +2,8 @@ default rel
 
 section .text
 
-extern malloc
-extern free
+extern malloc_align
+extern free_align
 
 extern newVector
 extern pushBack
@@ -21,6 +21,7 @@ global biMul
 global biCmp
 global biSign
 global biMul
+global biToString
 
 struc VectorInt
     sz:        resq 1
@@ -61,11 +62,19 @@ endstruc
     pop r15
 %endmacro
 
+biDelete:
+    push rdi
+    mov rdi, [rdi + vec]
+    call deleteVector
+    pop rdi
+    call free_align
+    ret
+
 newBi:
     mov rdi, BigInt_size
-    call malloc
+    call malloc_align
     push rax
-    mov rdi, 0
+    xor rdi, rdi
     call newVector
     pop rdx
     mov [rdx + vec], rax
@@ -157,6 +166,7 @@ biFromInt:
 
     push rax
     push r12
+    push rbx
     mov rbx, BASE
     xchg rdi, rax
     mov rdi, [rdi + vec]
@@ -171,6 +181,7 @@ biFromInt:
         mov rdi, r12
         cmp rax, 0
         jne .push_long_long
+    pop rbx
     pop r12
     pop rax
     ret
@@ -273,13 +284,20 @@ addData:
     cmp r8, r9
     je .not_push
         push rsi
+        push rdi
+        mov rdi, [rdi + vec]
         xor rsi, rsi
+        mov rbx, r9
         .loop_push
+            push r8
             call pushBack
+            pop r8
             inc r8
-            cmp r8, r9
+            cmp r8, rbx
             jb .loop_push
+        pop rdi
         pop rsi
+        mov r9, rbx
     .not_push
 
     xor r8, r8
@@ -298,9 +316,10 @@ addData:
         mov [r9 + 4*r8], edx
         inc r8
         cmp r8, rcx
-        ja .loop
+        jne .loop
     cmp rax, 0
     je .done
+        mov rdi, [rdi + vec]
         mov rsi, rax
         call pushBack
     .done
@@ -342,17 +361,17 @@ subData:
             mov [r9 + 4*r8], eax
             mov eax, 1
             jmp .sub_carry_loop
-        .pos_carry_2
-        mov [r9 + 4*r8], eax
-    .done
+    .pos_carry_2
+    mov [r9 + 4*r8], eax
 
+    .done
     push r12
     length r12, rdi
     mov rdi, [rdi + vec]
     .pop_back_zeroes_loop
         call back
         cmp eax, 0
-        je .break
+        jne .break
         cmp r12, 1
         je .break
         call popBack
@@ -377,16 +396,16 @@ biAdd:
                 push rdi
                 push rsi
                 xchg rdi, rsi
+                mov rdi, [rdi + vec]
                 call copyVector
-                mov rdi, [rsp]
-                mov rsi, [rsp + 8]
-                add rsp, 16
+                pop rdi
+                pop rsi
 
                 push rax
                 push rdi
                 push rsi
                 call subData
-                mov qword rax, [rsp]
+                mov rax, [rsp]
                 mov rdi, [rax + vec]
                 call deleteVector
                 pop rsi
@@ -395,7 +414,8 @@ biAdd:
                 mov [rsi + vec], rax
                 pop rax
                 mov [rdi + vec], rax
-                mov qword [rsi + sign], 0
+                mov rax, [rdi + sign]
+                mov qword [rsi + sign], rax
                 jmp .done
             .res_zero
                 push rdi
@@ -444,7 +464,7 @@ biMul:
     push rsi
     call biSign
     push rax
-    mov rdi, [rsp + 16]
+    mov rdi, [rsp + 8]
     call biSign
     mul qword [rsp]
     add rsp, 8
@@ -548,3 +568,114 @@ biMul:
     pop r12
     pop rbx
     ret
+
+
+%macro check_limit 2
+    mov r11, %1
+    inc r11
+    cmp r11, %2
+    je .done_biToString
+%endmacro
+
+writeToBuffer:
+    push rbx
+    mov rbx, 10
+    mov rcx, BASE_LEN
+    dec rcx
+    mov rax, rdi
+    .loop_write_dig
+        xor rdx, rdx
+        div qword rbx
+        add dl, '0'
+        mov [buffer + rcx], dl
+        dec rcx
+        jns .loop_write_dig
+    pop rbx
+    ret
+
+biToString:
+    push rdi
+    push rsi
+    push rdx
+    push rbx
+    xor rbx, rbx
+    check_limit rbx, rdx
+    call biSign
+    mov rdi, [rsp + 24]
+    cmp rax, 0
+    je .zero
+    jns .not_minus
+        mov rsi, [rsp + 16]
+        mov byte [rsi], '-'
+        inc rbx
+
+    .not_minus
+    length rax, rdi
+    mov rdi, [rdi + vec]
+    mov rdi, [rdi + elem]
+    mov [rsp + 24], rdi
+    dec rax
+    xor r9, r9
+    mov r9d, [rdi + 4*rax]
+    mov rdi, r9
+    push rax;pointer to vector element
+    call writeToBuffer
+    pop rax
+    mov rdx, [rsp + 8]
+
+    xor r8, r8
+    .loop_skip_zero
+        cmp byte [buffer + r8], '0'
+        jne .break_loop_skip_zero
+        inc r8 
+        jmp .loop_skip_zero
+    .break_loop_skip_zero
+
+    .loop_write_first_digit
+        mov cl, [buffer + r8]
+        mov [rsi + rbx], cl
+        inc rbx
+        inc r8
+        cmp r8, BASE_LEN
+        jne .loop_write_first_digit
+
+    dec rax
+    .loop_to_string
+        cmp rax, 0
+        js .break_loop_to_string
+        xor r8, r8
+
+        mov rdi, [rsp + 24]
+        xor r9d, r9d
+        mov r9d, [rdi + 4*rax]
+        mov rdi, r9
+        push rax
+        call writeToBuffer
+        pop rax
+
+        mov rdx, [rsp + 8]
+        .write_dig
+            check_limit rbx, rdx
+            mov cl, [buffer + r8]
+            mov [rsi + rbx], cl
+            inc rbx
+            inc r8
+            cmp r8, BASE_LEN
+            jne .write_dig
+         dec rax
+         jmp .loop_to_string
+    .break_loop_to_string
+    jmp .done_biToString
+
+    .zero
+        mov rsi, [rsp + 16]
+        mov byte [rsi], '0'
+        inc rbx
+    .done_biToString
+    mov byte [rsi + rbx], 0
+    pop rbx
+    add rsp, 24
+    ret
+
+section .bss
+    buffer: resb 10

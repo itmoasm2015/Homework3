@@ -14,7 +14,7 @@ void pushBack(VectorInt a, TypeElement x);
 void popBack(VectorInt a);
 int back(VectorInt a);
 void deleteVector(VectorInt a);
-
+VectorInt copyVector(VectorInt a);
 #ifdef __cplusplus
 }
 #endif

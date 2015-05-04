@@ -25,13 +25,19 @@ int main() {
     }
     BigInt biRa = biFromInt(ra);
     printf("cmp = %d\n", biCmp(a, biRa));*/
-    long x = 20;
-    long y = 100000000000000000LL;
+    char buf[100];
+    biToString(biFromInt(0), buf, 4);
+    printf("%s\n", buf);
+    /*long x = 100;
+    long y = -13000000000000LL;
     BigInt a = biFromInt(x);
     BigInt b = biFromInt(y);
-    BigInt c = biFromString("2000000000000000000");
+    printf("%d\n", biSign(a));
+    printf("%d\n", biSign(b));
+    BigInt c = biFromString("-1300");
+    assert(biCmp(c, biFromInt(-1300)) == 0);
     biMul(a, b);
-    assert(biCmp(a, c) == 0);
+    assert(biCmp(a, c) == 0);*/
     return 0;
 }
 
