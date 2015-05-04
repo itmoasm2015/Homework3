@@ -303,6 +303,7 @@ biDelete:
 biToString:
     mov rdi, [rdi]
     push rcx
+    push rbx
     mov rcx, rdx
     cmp rcx, 1
     jle .write_result
@@ -323,7 +324,6 @@ biToString:
     mov r9d, [rdi + 4]
     mov rbx, 0
     mov ebx, [rdi + r9 * 4 + 4]
-    push rbx
     mov rax, rbx
     mov r9, 0
     .loop:
@@ -336,10 +336,8 @@ biToString:
     jmp .loop
     .break1:
     mov rax, r9
-    pop rbx
     sub rax, 1
     push r12
-    push rbx
     mov r12, rax
     mov rax, 10
     mov eax, 1
@@ -351,7 +349,6 @@ biToString:
     mul ebx
     jmp .loop1
     .break2:
-    pop rbx
     pop r12
     push r14
     mov r8d, eax
@@ -423,6 +420,7 @@ biToString:
     pop rdx
     pop r15
     pop r14
+    pop rbx
     pop rcx
     ret
 
