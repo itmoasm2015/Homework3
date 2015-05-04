@@ -17,5 +17,5 @@ test.o: test.cpp
 libhw.a: libhw.o
 	ar rcs libhw.a libhw.o
 
-libhw.o:
+libhw.o: bigint.asm
 	yasm -o libhw.o $(ASM_FLAGS) bigint.asm

@@ -1584,7 +1584,7 @@ getQuotient:
 .endloop:
     push_all_regs
     xor     rdi, rdi
-    call    biFromInt           ;create resulting BigInt
+    call    biFromInt               ;create resulting BigInt
     pop_all_regs
     mov     r14, rax
 
@@ -1668,6 +1668,7 @@ copyBigInt:
     mov     rax, [rdi + sign]
     mov     [r9 + sign], rax
     mov     rax, r9
+
     ret
 
 ;; Compute quotient and remainder by divising numerator by denominator.
@@ -1748,5 +1749,6 @@ biDivRem:
 
     mov     [rdi], r8           ;write resulting quotient address
     mov     [rsi], r9           ;write resulting remainder address
+
 .return:
     ret
