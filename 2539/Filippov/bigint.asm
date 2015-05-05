@@ -80,7 +80,7 @@ endstruc
 %macro callFree 1
     pushAll
 	mov r11, %1	
-	xor rdi, rdi				 		; запоминаем указатель на структуру с длинным числом
+	xor rdi, rdi						; запоминаем указатель на структуру с длинным числом
     mov edi, [r11 + BigInt.digits]		; удаляем указатель на цифры длинного числа
     ;call free
 	mov rdi, r11						; удаляем указатель на структуру
@@ -127,7 +127,7 @@ endstruc
 ; RAX -- результат
 ; сохраняет RDI
 %macro createBigIntWithCapacity 1
-	mov rdi, 16							; 32 байта выделяем под структуру
+	mov rdi, 16							; 16 байт выделяем под структуру
 	mpush %1, rsi
 	call malloc							; RAX -- выделенная структура
 	mpop %1, rsi
@@ -161,39 +161,39 @@ endstruc
 ; number -- RDX
 ; сохраняет RDI, RSI
 ensureCapacity:
-    cmp rdi, rsi                    ; сравниваем размер и вместимость
-    jl .finish
+	cmp rdi, rsi                    ; сравниваем размер и вместимость
+	jl .finish
                                     ; RDI >= RSI, значит надо увеличивать размер
-    mpush rdx, rdi, rsi  	            
+	mpush rdx, rdi, rsi  	            
 	shl rsi, 1                      ; RSI -- новая вместимость, RSI = RSI_OLD * 2
 	xor rax, rax
 	mov eax, [rdx + BigInt.digits]  ; RAX -- указатель на вектор с цифрами
 
 	mpush rax
-    newVector rdx, rsi
+	newVector rdx, rsi
 	mpop rax
-    mpop rdx, rdi, rsi
+	mpop rdx, rdi, rsi
 
 	mov r8, 0                       ; R8 -- индекс текущей цифры
 	push r12
 	xor r12, r12					; указатель на новый вектор с цифрами
 	mov r12d, [rdx + BigInt.digits]
 .fill_values:                       
-    cmp r8, rdi                     ; R8 = RDI (размер числа) => закончили
-    je .before_simple_push_back         
-    push r11
-    xor r11, r11
-    mov r11d, [rax + r8 * 4 + 9]	; [RAX + r8 * 4 + 9] -- цифра с индексом R8 числа RAX
-    mov [r12 + r8 * 4 + 9], r11d    ; копируем это значение в соответствующую цифру R12
-    pop r11
-    inc r8                          ; следующая цифра
-    jmp .fill_values
+	cmp r8, rdi                     ; R8 = RDI (размер числа) => закончили
+	je .before_simple_push_back         
+	push r11
+	xor r11, r11
+	mov r11d, [rax + r8 * 4 + 9]	; [RAX + r8 * 4 + 9] -- цифра с индексом R8 числа RAX
+	mov [r12 + r8 * 4 + 9], r11d    ; копируем это значение в соответствующую цифру R12
+	pop r11
+	inc r8                          ; следующая цифра
+	jmp .fill_values
 .before_simple_push_back:
 	pop r12
 
 	callFreeVector rax
 .finish:
-    ret
+	ret
 
 ; Добавляет в конец длинного числа новую цифру
 ; %1 -- указатель на число
@@ -201,24 +201,24 @@ ensureCapacity:
 ; вызывает ensureCapacity, которая, если надо, увеличивает вместимость
 ; и потом просто записывает в конец новую цифру
 %macro pushBack 2    
-    mpush rdi, rsi, rdx, rcx
+	mpush rdi, rsi, rdx, rcx
 
-    mzero rdi, rsi
+	mzero rdi, rsi
 	mov edi, [%1 + BigInt.size] 	; RDI -- размер числа
-    mov esi, [%1 + BigInt.capacity] ; RSI -- вместимость числа
-    mov rdx, %1                 	; RDX -- само длинное число
+	mov esi, [%1 + BigInt.capacity] ; RSI -- вместимость числа
+	mov rdx, %1                 	; RDX -- само длинное число
                                 	; можем вызвать ensureCapacity, он все сделает, что нам надо
 	mpush %2, rax
 	call ensureCapacity				
-    mpop %2, rax
+	mpop %2, rax
 
 	mpush r12
 	xor r12, r12
 	mov r12d, [%1 + BigInt.digits]	; 
-    mov dword [r12 + rdi * 4], %2d 	; добавляем в конец числа новую цифру
+	mov dword [r12 + rdi * 4], %2d 	; добавляем в конец числа новую цифру
 
-   	inc rdi                     	; увеличиваем на один RDI -- размер числа
-    mov [%1 + BigInt.size], edi    	; и изменяем размер в указателе, конец
+	inc rdi                     	; увеличиваем на один RDI -- размер числа
+	mov [%1 + BigInt.size], edi    	; и изменяем размер в указателе, конец
 
 	mpop r12
 	mpop rdi, rsi, rdx, rcx
@@ -228,101 +228,101 @@ ensureCapacity:
 ; %1 -- число, которое нужно перевести в строку
 ; результат в RAX
 %macro intToStr 1
-    push %1
-    push %1    
-    mov rdi, BASE_LENGTH			; 
+	push %1
+	push %1    
+	mov rdi, BASE_LENGTH			; 
 	inc rdi							;
-    push rdi						; выделяем BASE_LENGTH + 1 байтов для строки (+1 для \0)
-    call malloc						;
-    pop rdi							;
-    pop %1
+	push rdi						; выделяем BASE_LENGTH + 1 байтов для строки (+1 для \0)
+	call malloc						;
+	pop rdi							;
+	pop %1
        
-    mov r8, %1						; R8 -- текущее число
-    xor rcx, rcx					; RCX -- длина числа
+	mov r8, %1						; R8 -- текущее число
+	xor rcx, rcx					; RCX -- длина числа
 %%write_decimal_digit:
-    cmp r8, 0
-    je %%get_string
+	cmp r8, 0
+	je %%get_string
 
-    mpush rax, rcx					
-    mov rax, r8						;
-    xor rdx, rdx					;
-    mov r9, 10						; Делим текущее число (R8) на 10, получаем остаток -- новую цифру
-    div r9							; R8 /= 10
-    mov r8, rax						; R9 = R8 % 10
-    mov r9, rdx
-    mpop rax, rcx
+	mpush rax, rcx					
+	mov rax, r8						;
+	xor rdx, rdx					;
+	mov r9, 10						; Делим текущее число (R8) на 10, получаем остаток -- новую цифру
+	div r9							; R8 /= 10
+	mov r8, rax						; R9 = R8 % 10
+	mov r9, rdx
+	mpop rax, rcx
 
-    push r9							; кладем цифру на стек, потом мы соберем их в обратном порядке и получим исходное число
-    inc rcx							; увеличиваем длину числа на 1
-    jmp %%write_decimal_digit
+	push r9							; кладем цифру на стек, потом мы соберем их в обратном порядке и получим исходное число	
+	inc rcx							; увеличиваем длину числа на 1
+	jmp %%write_decimal_digit
 %%get_string:
-    xor rdx, rdx					; RDX -- номер текущего символа, который мы пишем в строку
+	xor rdx, rdx					; RDX -- номер текущего символа, который мы пишем в строку
 %%write_digits_to_string:
-    cmp rcx, 0						; Если больше нет цифр, переходим к фазе добавления нулей в начало числа
-    je %%add_zeroes
+	cmp rcx, 0						; Если больше нет цифр, переходим к фазе добавления нулей в начало числа
+	je %%add_zeroes
 
-    pop r9							; забираем со стека цифру числа
-    add r9, '0'						; делаем из нее символ
-    mov byte [rax + rdx], r9b		; добавляем новый символ в конец строки
-    inc rdx							; 
-    dec rcx							; уменьшаем количество цифр в числе, двигаем указатель в строке
-    jmp %%write_digits_to_string
+	pop r9							; забираем со стека цифру числа
+	add r9, '0'						; делаем из нее символ
+	mov byte [rax + rdx], r9b		; добавляем новый символ в конец строки
+	inc rdx							; 
+	dec rcx							; уменьшаем количество цифр в числе, двигаем указатель в строке
+	jmp %%write_digits_to_string
 %%add_zeroes:
-    mov r8, BASE_LENGTH				; количество нулей, которые нужно добавить, равно BASE_LENGTH - RDX (чтобы длина была ровно BASE_LENGTH) 
-    sub r8, rdx						;
-    dec rdx
+	mov r8, BASE_LENGTH				; количество нулей, которые нужно добавить, равно BASE_LENGTH - RDX (чтобы длина была ровно BASE_LENGTH) 
+	sub r8, rdx						;
+	dec rdx
 %%loop:								; переносим все цифры в конец строки, чтобы потом в начало добавить нули
-    cmp rdx, 0						; RDX = 0 => все цифры перенесены, начинаем добавлять нули
-    jl %%add_to_begin
-    lea r9, [rax + rdx]				
-    push r11
-    xor r11, r11					;
-    mov r11b, byte [r9]				; [RAX + RDX] переходит в [RAX + RDX + R8]
-    mov byte [r9 + r8], r11b		;
-    pop r11							; 
-    dec rdx							; Уменьшаем RDX -- переходим к предыдущей цифре
-    jmp %%loop
+	cmp rdx, 0						; RDX = 0 => все цифры перенесены, начинаем добавлять нули
+	jl %%add_to_begin
+	lea r9, [rax + rdx]				
+	push r11
+	xor r11, r11					;
+	mov r11b, byte [r9]				; [RAX + RDX] переходит в [RAX + RDX + R8]
+	mov byte [r9 + r8], r11b		;
+	pop r11							; 
+	dec rdx							; Уменьшаем RDX -- переходим к предыдущей цифре
+	jmp %%loop
 %%add_to_begin:
-    cmp r8, 0						
-    je %%finish
-    mov byte [rax + r8 - 1], '0'	; записываем ноль в начало строки, пока длина не станет BASE_LENGTH
-    dec r8							;
-    jmp %%add_to_begin
+	cmp r8, 0						
+	je %%finish
+	mov byte [rax + r8 - 1], '0'	; записываем ноль в начало строки, пока длина не станет BASE_LENGTH
+	dec r8							;
+	jmp %%add_to_begin
 %%finish
-    mov byte [rax + BASE_LENGTH], 0 ; добавляем \0 в конец строки
-    mov rcx, BASE_LENGTH			; RCX -- длина итоговой строки
-    pop %1
+	mov byte [rax + BASE_LENGTH], 0 ; добавляем \0 в конец строки
+	mov rcx, BASE_LENGTH			; RCX -- длина итоговой строки
+	pop %1
 %endmacro
 
 ; удаляет нули из начала строки
 ; %1 -- строка
 ; %2 -- ее длина
 %macro deleteZeroesFromString 2
-    push r12
-    xor r12, r12
+	push r12
+	xor r12, r12
 %%loop:								; считаем количество нулей в начале строки
-    cmp byte [%1 + r12], '0'		;
-    jne %%delete_zeroes
-    inc r12
-    jmp %%loop
+	cmp byte [%1 + r12], '0'		;
+	jne %%delete_zeroes
+	inc r12
+	jmp %%loop
 %%delete_zeroes:
-    push r13
-    mov r13, r12					; R13 -- текущий индекс в строке
+	push r13
+	mov r13, r12					; R13 -- текущий индекс в строке
 %%write_digit:
-    cmp r13, %2						; Если конец строки, выходим
-    jg %%finish
-    push r14
-    lea r14, [%1 + r13]				; R14 -- указатель на текующую цифру
-    push r11						;
-    xor r11, r11					;
-    mov r11b, byte [r14]			; R11 -- текущая цифра
-    sub r14, r12					; переносим ее в начало
-    mov byte [r14], r11b			; 
-    mpop r14, r11
+	cmp r13, %2						; Если конец строки, выходим
+	jg %%finish
+	push r14
+	lea r14, [%1 + r13]				; R14 -- указатель на текующую цифру
+	push r11						;
+	xor r11, r11					;
+	mov r11b, byte [r14]			; R11 -- текущая цифра
+	sub r14, r12					; переносим ее в начало
+	mov byte [r14], r11b			; 
+	mpop r14, r11
 	inc r13
-    jmp %%write_digit
+	jmp %%write_digit
 %%finish:
-    sub %2, r12						; новая длина меньше на количество нулей в строке
+	sub %2, r12						; новая длина меньше на количество нулей в строке
 	mpop r12, r13
 %endmacro
 
