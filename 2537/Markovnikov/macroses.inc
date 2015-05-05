@@ -38,7 +38,7 @@
         mov rsi, 4                      ; cells by 4 bytes
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -90,7 +90,7 @@
         push rsi
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15               ; delete a
@@ -106,7 +106,7 @@
         mov rsi, 4              ; by 4 bytes
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -127,7 +127,7 @@
         mov rdi, r12
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15               ; free memory that we used
@@ -156,7 +156,7 @@
         mov rsi, 4               ; by 4 bytes
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -208,7 +208,7 @@
         push rsi
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15               ; delete a
@@ -224,7 +224,7 @@
         mov rsi, 4              ; by 4 bytes
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -245,7 +245,7 @@
         mov rdi, r12
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15       ; delete tmp
@@ -344,7 +344,7 @@
         push rsi
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15                   ; delete a
@@ -356,7 +356,7 @@
         mov rsi, 4
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -384,7 +384,7 @@
         mov rsi, 4
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -395,7 +395,7 @@
         push rsi
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15                   ; delete a
@@ -411,7 +411,7 @@
         mov rsi, 4              ; by 4 bytes
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -435,7 +435,7 @@
         mov rdi, r12            ; a
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15

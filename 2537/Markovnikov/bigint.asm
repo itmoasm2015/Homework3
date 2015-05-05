@@ -57,7 +57,7 @@ biFromInt:
     mov rsi, 4              ; 4 bytes
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call calloc
     mov rsp, r15
     pop r15
@@ -101,7 +101,7 @@ biFromInt:
     mov rdi, 8              ; malloc and now pointer in rax
     ;push r15
     ;mov r15, rsp
-    ;and rsp, 0xFFFFFFF0
+    ;and rsp, ~15
     sub rsp, 16
     call malloc
     add rsp, 16
@@ -159,7 +159,7 @@ biFromString:
     push r10
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call calloc
     mov rsp, r15
     pop r15
@@ -246,7 +246,7 @@ biFromString:
     push rcx                ; malloc can do harm to rcx
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call malloc
     mov rsp, r15
     pop r15
@@ -261,7 +261,7 @@ biFromString:
     mov rdi, rsi
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call free
     mov rsp, r15
     pop r15               ; free memory
@@ -282,14 +282,14 @@ biDelete:
     mov rdi, [rdi]
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call free
     mov rsp, r15
     pop r15
     pop rdi
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call free
     mov rsp, r15
     pop r15
@@ -528,7 +528,7 @@ biSub:
     push rsi
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call free
     mov rsp, r15
     pop r15               ; delete a
@@ -544,7 +544,7 @@ biSub:
     mov rsi, 4              ; by 4 bytes
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call calloc
     mov rsp, r15
     pop r15
@@ -703,7 +703,7 @@ biMul:
     mov rsi, 4                  ; by 4 byte on cell
     push r15
     mov r15, rsp
-    and rsp, 0xFFFFFFF0
+    and rsp, ~15
     call calloc
     mov rsp, r15
     pop r15
@@ -775,7 +775,7 @@ biMul:
         push rsi
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15               ; delete a
@@ -791,7 +791,7 @@ biMul:
         mov rsi, 4              ; by 4 bytes
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
@@ -812,7 +812,7 @@ biMul:
         mov rdi, r12
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15               ; free memory that we used
@@ -825,7 +825,7 @@ biMul:
         push rsi
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call free
         mov rsp, r15
         pop r15               ; delete a
@@ -841,7 +841,7 @@ biMul:
         mov rsi, 4              ; by 4 bytes
         push r15
         mov r15, rsp
-        and rsp, 0xFFFFFFF0
+        and rsp, ~15
         call calloc
         mov rsp, r15
         pop r15
