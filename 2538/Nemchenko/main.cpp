@@ -4,6 +4,11 @@
 
 using namespace std;
 
+extern "C" {
+    void add_short(BigInt src, int64_t num);
+    void mul_short(BigInt src, int64_t num);
+}
+
 void printbBigNum(BigInt x) {
     cout << "-----BEGIN--------" << endl;
     unsigned long long* res = (unsigned long long*) x;
@@ -25,19 +30,26 @@ int main() {
     //cout << t << endl;
     //printbBigNum(biFromInt(t));
 
-    BigInt bb = biFromInt(1LL << 62);
+    BigInt bb = biFromInt(0);
     BigInt bc = biFromInt(1LL << 62);
     printbBigNum(bb);
     printbBigNum(bc);
 
-    BigInt cc = biFromInt(1LL << 63);
-    printbBigNum(cc);
-    BigInt cb = biFromInt(-100);
-    printbBigNum(cb);
-    for (int i = 0; i < 1000000 - 1; ++i) {
+    for (int i = 0; i < 1000000 + 1; ++i) {
         biAdd(bb, bc);
     }
     printbBigNum(bb);
+
+    bb = biFromInt(1LL << 32);
+    unsigned long long a = 1LL << 32;
+    for (int i = 0; i < 10; ++i) {
+        mul_short(bb, a);
+    }
+    add_short(bb, 899);
+    mul_short(bb, 10);
+    printbBigNum(bb);
+
+
 
     //int size = 15;
     //unsigned long long* b = new unsigned long long[4];
