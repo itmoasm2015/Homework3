@@ -565,7 +565,7 @@ biAdd:
         mov rsi, r12
         call unsigned_sub_long_long
 
-        mov [r12 + big_int.sign], r15
+        mov [r12 + big_int.sign], r15; restore sign
         
         mov rax, [r12 + big_int.data_ptr]
         xchg rax, [r13 + big_int.data_ptr]
@@ -582,6 +582,10 @@ biAdd:
     .done:
     mov rdi, r13
     call biDelete ;delete clone
+   
+    mov rdi, r12  ;reassure for some +-0
+    call normalize
+
     x86_64_calle_pop
     ret
     
