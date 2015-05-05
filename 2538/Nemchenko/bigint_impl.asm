@@ -47,6 +47,7 @@ global biCmp
 extern calloc, free
 
 BASE equ 1 << 64
+MIN_LL equ 1 << 63
 DEFAULT_SIZE equ 10
 
 ;
@@ -54,7 +55,7 @@ DEFAULT_SIZE equ 10
 ; struct BigInt {
 ;   unsigned long long capacity;   8 bytes
 ;   unsigned long long size;       8 bytes
-;   unsigned long long sign;       8 byte
+;   long long sign;                8 byte
 ;   unsigned long long *data   
 ; }
 ;  
@@ -66,24 +67,32 @@ DEFAULT_SIZE equ 10
 biFromInt:
     call_fun_1 createBigInt, DEFAULT_SIZE
 
-    push rax               ; save pointer to BigInt
-    mov  r10, rdi          ; temp variable
-    call_fun_2 push_back, rax, r10
-
-    mov  rax, [rsp]
-    add  rax, 16           ; rax refer to field "sign"
+    push rax                           ; save pointer to BigInt
+    add  rax, 16                       ; rax refer to field "sign"
     cmp  rdi, 0
-    je  .end               ; x == 0 -> sign = 0
+    je  .end                           ; x == 0 -> sign = 0
     jg  .greater_0
 
-    mov qword [rax], -1    ; x < 0  -> sign = -1
-    jmp .end
-
+    mov qword [rax], -1                ; x < 0  -> sign = -1
+    mov rsi, MIN_LL
+    cmp rdi, rsi
+    je  .create_min_ll                 ; if (x != MIN_LONG_LONG) {
+    neg rdi                            ;   x = -x; 
+    jmp .end                           ; } else {
+                                       ; 
+    .create_min_ll:                    ;   -2 ^ 64 <-> sign = -1 && 0 + 1 * BASE  
+        mov rax, [rsp]                 ;   rax = pointer to the begin of BigInt
+        call_fun_2 push_back, rax, 0   ;   BigInt->data[0] = 0;
+        mov rdi, 1                     ;   BigInt->data[1] = 1;
+    jmp .end                           ; }
     
     .greater_0:
-        mov qword [rax], 1 ; x > 0  -> sign = 1
+        mov qword [rax], 1             ; x > 0  -> sign = 1
     .end:
+
     pop rax
+    mov  r10, rdi                      ; temp variable
+    call_fun_2 push_back, rax, r10
     ret
 
 ; BigInt biFromString(char const *s);
@@ -111,18 +120,14 @@ biSign:
 ; rdi = dst
 ; rsi = src
 biAdd:
-    mov  rax, [rdi + 16]                ; rax = dst->sign
-    mov  rdx, [rsi + 16]                ; rdx = src->sign
-    xor  rax, rdx
-    test rax, -2                        ; if only one bigInt < 0
-    jne  .next_add
-    call 
-    ret
-
-
-
-
-    .next_add
+    ;mov  rax, [rdi + 16]                ; rax = dst->sign
+    ;mov  rdx, [rsi + 16]                ; rdx = src->sign
+    ;xor  rax, rdx
+    ;test rax, -2                        ; if only one bigInt < 0
+    ;jne  .next_add
+    ;call 
+    ;ret
+    ;.next_add
     push r10
     push r11
     push r12
