@@ -26,29 +26,38 @@ void printbBigNum(BigInt x) {
 
 
 int main() {
+    //BigInt a = biFromInt(112480259271058691LL);
+    //printbBigNum(a);
+    //mul_short(a, 82);
+    //printbBigNum(a);
+    //mul_short(a, 10);
+    //printbBigNum(a);
     //int64_t t = 1ULL << 63;
     //cout << t << endl;
     //printbBigNum(biFromInt(t));
 
-    BigInt bb = biFromInt(1LL << 62);
-    mul_short(bb, 2);
-    BigInt bc = biFromInt(1LL << 62);
-    mul_short(bc, 2);
-    printbBigNum(bb);
-    printbBigNum(bc);
+    //BigInt bb = biFromInt(1LL << 62);
+    //mul_short(bb, 2);
+    //BigInt bc = biFromInt(1LL << 62);
+    //mul_short(bc, 2);
+    //printbBigNum(bb);
+    //printbBigNum(bc);
 
-    for (int i = 0; i < 100000000; ++i) {
-        biAdd(bb, bc);
-    }
-    printbBigNum(bb);
+    //for (int i = 0; i < 1000000; ++i) {
+        //biAdd(bb, bc);
+    //}
+    //printbBigNum(bb);
 
-    bb = biFromInt(1ULL << 62);
-    mul_short(bb, 2);
-    unsigned long long a = 1LL << 63;
-    for (int i = 0; i < 100000000; ++i) {
-        add_short(bb, a);
-    }
-    printbBigNum(bb);
+    //bb = biFromInt(1ULL << 62);
+    //mul_short(bb, 2);
+    //unsigned long long a = 1LL << 63;
+    //for (int i = 0; i < 1000000; ++i) {
+        //add_short(bb, a);
+    //}
+    //printbBigNum(bb);
+
+    BigInt nn = biFromString("922338128172369812764918273649182736498127364819237461289376418927346819237461928376129837461328960226812662775808");
+    printbBigNum(nn);
 
 
 

@@ -48,7 +48,7 @@ global biCmp
 %endmacro
 
 
-extern calloc, free
+extern calloc, free, strlen
 
 BASE         equ 1 << 64
 MIN_LL       equ 1 << 63
@@ -57,6 +57,9 @@ SIZE_FIELD   equ 8
 SIGN_FIELD   equ 16
 DATA_FIELD   equ 24
 SIZEOF_FLD   equ 8
+
+section .bss
+   ;minus: resb 1 
 
 ;
 ; stored bigNumber like this:
@@ -70,6 +73,7 @@ SIZEOF_FLD   equ 8
 ; forall i < capacity: data[i] < BASE
 ; sign = 1 | 0 | -1 , more than 0, equal and less respectively
 
+section .text
 ; BigInt biFromInt(int64_t x);
 biFromInt:
     call_fun_1 createBigInt, DEFAULT_SIZE
@@ -91,7 +95,7 @@ biFromInt:
         mov rax, [rsp]                 ;   rax = pointer to the begin of BigInt
         call_fun_2 push_back, rax, 0   ;   BigInt->data[0] = 0;
         mov rdi, 1                     ;   BigInt->data[1] = 1;
-    jmp .end                           ; }
+        jmp .end                       ; }
     
     .greater_0:
         mov qword [rax], 1             ; x > 0  -> sign = 1
@@ -105,6 +109,46 @@ biFromInt:
 
 ; BigInt biFromString(char const *s);
 biFromString:
+    call_fun_1 createBigInt, DEFAULT_SIZE
+    mov rsi, rdi                           ; rsi = s
+    mov rdi, rax                           ; rdi = new bigInt(0)
+    mov qword [rdi + SIZE_FIELD], 1        ; rdi->size = 0
+
+    mov ax, [rsi]                          ; ax = s[0]
+
+    cmp ax, '-'                            ; if (s[0] == '-') {
+    jne .next                              ;    rdi->sign = -1
+    mov qword [rdi + SIZE_FIELD], -1       ;    rsi++;
+    inc rsi                                ; }
+
+    .next:
+    cmp byte [rsi], 0
+    jle .error
+    cld                                    ; DF = false
+    xor rax, rax
+    .loop:
+        lodsb                              ; ax = *(rsi++)
+        cmp ax, 0                          ; if (*rsi == '\0')
+        je .end                            ;    return ..;
+        cmp ax, '0'                        ; if (ax < '0' or ax > '9') return NULL;
+        jl .error
+        cmp ax, '9'
+        jg .error
+        sub ax, '0'
+        push rax
+        call_fun_2 mul_short, rdi, 10      ; rdi *= 10
+        pop  rax
+        call_fun_2 add_short, rdi, rax     ; rdi += ax - '0'
+        jmp .loop
+
+    jmp .end
+    .error:
+        call biDelete
+        mov rax, 0
+        ret
+
+    .end
+    mov rax, rdi
     ret
 
 ; void biToString(BigInt bi, char *buffer, size_t limit);
@@ -115,7 +159,7 @@ biToString:
 ; pointer to bi saved in rdi, free will be called with this pointer
 biDelete:
     call_fun_1 free, [rdi + DATA_FIELD] ; free(bi->data)
-    call free                   ; free(bi)
+    call free                           ; free(bi)
     ret
 
 ; int biSign(BigInt bi);
@@ -394,7 +438,7 @@ get_max_size:
     .end_max_size:
     ret
 
-; void mul_short(BigInt* src, int64_t num)
+; void mul_short(BigInt* src, unsigned long long num)
 ;   rdi = src
 ;   rsi = num
 ; result:
@@ -415,11 +459,17 @@ mul_short:
         sub  rcx, 1
         jg   .while_carry
 
+    push rsi
     cmp  r11, 0                     ; if (carry == 0) return
     je .end                         ; else push_back(src, carry)
     call_fun_2 push_back, rdi, r11
 
     .end
+    pop rsi
+    cmp rsi, 0                      ; if (num == 0) {
+    jne .end_mul                    ;   src->sign = 0;
+    mov qword [rdi + SIGN_FIELD], 0 ; }
+    .end_mul
     ret
 
 ; src > 0, num > 0 
@@ -445,4 +495,12 @@ add_short:
     call_fun_2 push_back, rdi, rsi
 
     .end
+    cmp qword [rdi + SIGN_FIELD], 0   ; if (src->sign == 0) {
+    jne .end_add                      ;    
+    mov r10, [rdi + DATA_FIELD]       ;   r10 = src->data
+    cmp qword [r10], 0                ;   if (src->data[0] != 0) {
+    je .end_add                       ;      src->sign = 1;
+    mov qword [rdi + SIGN_FIELD], 1   ;   }
+                                      ; }
+    .end_add
     ret
