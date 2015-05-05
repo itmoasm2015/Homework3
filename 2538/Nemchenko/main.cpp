@@ -56,8 +56,7 @@ int main() {
     //}
     //printbBigNum(bb);
 
-    BigInt nn = biFromString("08l0");
-    cout << nn << endl;
+    BigInt nn = biFromString("922338128172369812764918273649182736498127364819237461289376418927346819237461928376129837461328960226812662775808");
     printbBigNum(nn);
 
 
