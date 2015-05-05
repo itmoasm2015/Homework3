@@ -30,23 +30,24 @@ int main() {
     //cout << t << endl;
     //printbBigNum(biFromInt(t));
 
-    BigInt bb = biFromInt(0);
+    BigInt bb = biFromInt(1LL << 62);
+    mul_short(bb, 2);
     BigInt bc = biFromInt(1LL << 62);
+    mul_short(bc, 2);
     printbBigNum(bb);
     printbBigNum(bc);
 
-    for (int i = 0; i < 1000000 + 1; ++i) {
+    for (int i = 0; i < 100000000; ++i) {
         biAdd(bb, bc);
     }
     printbBigNum(bb);
 
-    bb = biFromInt(1LL << 32);
-    unsigned long long a = 1LL << 32;
-    for (int i = 0; i < 10; ++i) {
-        mul_short(bb, a);
+    bb = biFromInt(1ULL << 62);
+    mul_short(bb, 2);
+    unsigned long long a = 1LL << 63;
+    for (int i = 0; i < 100000000; ++i) {
+        add_short(bb, a);
     }
-    add_short(bb, 899);
-    mul_short(bb, 10);
     printbBigNum(bb);
 
 
