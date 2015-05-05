@@ -139,6 +139,8 @@ biFromString:
         sub rcx, BASE_LEN
         cmp rcx, rdi
         ja .loop_num
+    ;TODO delete
+    length rdx, rsi
     mov rax, rsi
     mov [rax + sign], rbx
     pop rbx
@@ -276,6 +278,7 @@ addData:
     push rbx
     length r9, rdi
     length rax, rsi
+    mov r11, rax
     cmp r9, rax
     ja .ok_max
         mov r9, rax
@@ -310,7 +313,10 @@ addData:
     mov r10, [r10 + elem]
     .loop
         add eax, [r9 + 4*r8]
-        add eax, [r10 + 4*r8]
+        cmp r8, r11
+        jnb .not_add
+            add eax, [r10 + 4*r8]
+        .not_add
         xor edx, edx
         div rbx
         mov [r9 + 4*r8], edx
