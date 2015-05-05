@@ -78,14 +78,14 @@ endstruc
 
 ; Очищает память, предварительно сохранив все регистры
 %macro callFree 1
-    pushAll
+	pushAll
 	mov r11, %1	
 	xor rdi, rdi						; запоминаем указатель на структуру с длинным числом
-    mov edi, [r11 + BigInt.digits]		; удаляем указатель на цифры длинного числа
-    ;call free
+	mov edi, [r11 + BigInt.digits]		; удаляем указатель на цифры длинного числа
+	;call free
 	mov rdi, r11						; удаляем указатель на структуру
 	call free
-    popAll
+	popAll
 %endmacro
 
 %macro callFreeVector 1
@@ -146,11 +146,11 @@ endstruc
 ; RAX -- результат
 ; сохраняет RDI
 %macro createBigInt 0
-    mpush rdi, rsi, r9
-    mov rdi, DEFAULT_CAPACITY			; вызываем функцию создания вектора по вместимости с DEFAULT_CAPACITY
+	mpush rdi, rsi, r9
+	mov rdi, DEFAULT_CAPACITY			; вызываем функцию создания вектора по вместимости с DEFAULT_CAPACITY
 	mov r9, rdi							; 
-    createBigIntWithCapacity r9			; 
-    mpop rdi, rsi, r9
+	createBigIntWithCapacity r9			; 
+	mpop rdi, rsi, r9
 %endmacro
 
 ; void ensureCapacity(size_t size, size_t capacity, BigInt number);
@@ -329,29 +329,29 @@ ensureCapacity:
 ; удаляет нули из начала длинного числа
 ; %1 -- длинное число
 %macro deleteZeroesFromBigInt 1
-    mpush rdi, rcx
-    xor rdi, rdi
-    mov edi, [%1 + BigInt.size]		; RDI -- текущий индекс в векторе цифр
-
+	mpush rdi, rcx
+	xor rdi, rdi
+	mov edi, [%1 + BigInt.size]		; RDI -- текущий индекс в векторе цифр
+	
 	push r12
 	xor r12, r12
 	mov r12d, [%1 + BigInt.digits]	; 
-    lea rcx, [r12 + rdi * 4 - 4]	; RCX -- указатель на текущую цифру
+	lea rcx, [r12 + rdi * 4 - 4]	; RCX -- указатель на текущую цифру
 	pop r12
 %%while_zero:
 	cmp rdi, 0						; Если индекс равен 0, то все число состоит из нулей
 	je %%set_zero					;
-    cmp dword [rcx], 0				; Если нулей больше нет, переходим к изменению размера
-    jne %%change_size
-    sub rcx, 4						; Переходим к предыдущей цифре
-    dec rdi							; Уменьшаем указатель на текущую цифру на один
+	cmp dword [rcx], 0				; Если нулей больше нет, переходим к изменению размера
+	jne %%change_size
+	sub rcx, 4						; Переходим к предыдущей цифре
+	dec rdi							; Уменьшаем указатель на текущую цифру на один
 	jmp %%while_zero
 %%set_zero:
 	mov byte [%1 + BigInt.sign], 0	; Число равно 0 -- знак равен 0, размер равен 1
-    mov rdi, 1						;
+	mov rdi, 1						;
 %%change_size:
-    mov [%1 + BigInt.size], edi		; Записываем в длинное число новый размер
-    mpop rdi, rcx
+	mov [%1 + BigInt.size], edi		; Записываем в длинное число новый размер
+	mpop rdi, rcx
 %endmacro
 
 ; копирует длинное число
@@ -411,58 +411,58 @@ ensureCapacity:
 ; возвращает RAX
 ; создает длинное число по короткому
 biFromInt:
-    xor r8, r8
+	xor r8, r8
 	createBigInt                		; создаем число с дефолтной вместимостью
-    mov byte [rax + BigInt.sign], 1     ; изначально его знак равен 1
-    cmp rdi, 0
-    jge .non_negative           
-    mov byte [rax + BigInt.sign], -1	; число отрицательное, пишем в его знак -1
-    neg rdi                     		; RDI = -RDI, теперь число можно парсить как положительное
-    jmp .positive_number
+	mov byte [rax + BigInt.sign], 1     ; изначально его знак равен 1
+	cmp rdi, 0
+	jge .non_negative           
+	mov byte [rax + BigInt.sign], -1	; число отрицательное, пишем в его знак -1
+	neg rdi                     		; RDI = -RDI, теперь число можно парсить как положительное
+	jmp .positive_number
 .non_negative:
-    cmp rdi, 0                  
-    jg .positive_number         
-    mov byte [rax + BigInt.sign], 0		; число равно 0
-    mov dword [rax + BigInt.size], 1    ; количество цифр -- 1
-    jmp .finish
+	cmp rdi, 0                  
+	jg .positive_number         
+	mov byte [rax + BigInt.sign], 0		; число равно 0
+	mov dword [rax + BigInt.size], 1    ; количество цифр -- 1
+	jmp .finish
 .positive_number:
-    xor r8, r8                  ; R8 -- текущая цифра
-    mov r10, 1                  ; R10 -- текущая степень 10
-    xor r11, r11                ; R11 -- перенос
+	xor r8, r8                  ; R8 -- текущая цифра
+	mov r10, 1                  ; R10 -- текущая степень 10
+	xor r11, r11                ; R11 -- перенос
 .process_digits:
-    cmp rdi, 0
-    je .finish
+	cmp rdi, 0
+	je .finish
     
-    mpush rax, rdx
-    mov rax, rdi                ; подготавливаем деление -- переносим делимое в RAX
-    xor rdx, rdx                ; чистим RDX
-    mov r9, 10                     
-    div r9                      ; теперь RAX = [RAX / 10], RDX = RAX % 10
-    mov r9, rdx                 ; R9 -- цифра в десятичной системе счисления
-    mov rdi, rax                ; обновляем RDI -- теперь без последней цифры
-    mpop rax, rdx
+	mpush rax, rdx
+	mov rax, rdi                ; подготавливаем деление -- переносим делимое в RAX
+	xor rdx, rdx                ; чистим RDX
+	mov r9, 10                     
+	div r9                      ; теперь RAX = [RAX / 10], RDX = RAX % 10
+	mov r9, rdx                 ; R9 -- цифра в десятичной системе счисления
+	mov rdi, rax                ; обновляем RDI -- теперь без последней цифры
+	mpop rax, rdx
     
-    cmp r10, BASE               ; если R10 = BASE, мы закончили строить цифру в системе счисления BASE
-    je .push_back
-    imul r9, r10                ; R9 * R10 -- то, что надо прибавить к текущей цифре
-    add r8, r9                  ; R8 += R9 -- увеличиваем текущую цифру
-    imul r10, 10                ; степень десятки увеличивается
-    jmp .process_digits
+	cmp r10, BASE               ; если R10 = BASE, мы закончили строить цифру в системе счисления BASE
+	je .push_back
+	imul r9, r10                ; R9 * R10 -- то, что надо прибавить к текущей цифре
+	add r8, r9                  ; R8 += R9 -- увеличиваем текущую цифру
+	imul r10, 10                ; степень десятки увеличивается
+	jmp .process_digits
 .push_back:
-    mov r11, r9                 ; запоминаем перенос, а после этого делаем push_back
-    mpush r11
-    pushBack rax, r8            ; добавляем в конец RAX цифру R8
-    mpop r11
-    mov r10, 10                 ; степень десятки равна 1
-    mov r8, r11                 ; R8 = R11 -- пишем в новую цифру запомненный перенос
-    jmp .process_digits    
+	mov r11, r9                 ; запоминаем перенос, а после этого делаем push_back
+	mpush r11
+	pushBack rax, r8            ; добавляем в конец RAX цифру R8
+	mpop r11
+	mov r10, 10                 ; степень десятки равна 1
+	mov r8, r11                 ; R8 = R11 -- пишем в новую цифру запомненный перенос
+	jmp .process_digits    
 .finish:
-    cmp r8, 0                   ; если в конце осталась незаписанная цифра, добавляем ее в конец RAX
-    je .all_is_done
-    pushBack rax, r8
-    xor r9, r9
+	cmp r8, 0                   ; если в конце осталась незаписанная цифра, добавляем ее в конец RAX
+	je .all_is_done
+	pushBack rax, r8
+	xor r9, r9
 .all_is_done:
-    ret
+	ret
 
 ; BigInt biFromString(char const *s);
 ; s -- RDI
@@ -470,164 +470,164 @@ biFromInt:
 ; делает большое число по строке (строка удовлетворяет ^-?\d+$)
 ; если строка некорректна, возвращает 0
 biFromString:
-    createBigInt							; Создаем длинное число -- ответ (хранится в RAX)
-    mov byte [rax + BigInt.sign], 1			; Изначально скажем, что оно положительное
-    xor rcx, rcx
-    cmp byte [rdi], '-'						; Разбираем случай минуса в начале
-    jne .positive_number
-    mov byte [rax + BigInt.sign], -1		; Если есть, значит число отрицательное
-    inc rcx
+	createBigInt							; Создаем длинное число -- ответ (хранится в RAX)
+	mov byte [rax + BigInt.sign], 1			; Изначально скажем, что оно положительное
+	xor rcx, rcx
+	cmp byte [rdi], '-'						; Разбираем случай минуса в начале
+	jne .positive_number
+	mov byte [rax + BigInt.sign], -1		; Если есть, значит число отрицательное
+	inc rcx
 .positive_number:							; Теперь считаем, что число положительное -- знак мы уже поставили
-    cmp byte [rdi + rcx], 0					; Если строка равна "-", то кидаем ошибку
-    je .error_occurred
-    mov r9, rcx								; R9 -- текущий индекс в строке
-    xor r10, r10							; R10 -- количество нулей
+	cmp byte [rdi + rcx], 0					; Если строка равна "-", то кидаем ошибку
+	je .error_occurred
+	mov r9, rcx								; R9 -- текущий индекс в строке
+	xor r10, r10							; R10 -- количество нулей
 .count_zeroes:								; Считаем количество нулей в начале строки
-    cmp byte [rdi + r9], '0'				
-    jne .not_zero_digit
-    inc r9
-    inc r10
-    jmp .count_zeroes
+	cmp byte [rdi + r9], '0'				
+	jne .not_zero_digit
+	inc r9
+	inc r10
+	jmp .count_zeroes
 .not_zero_digit:							; Проверяем, правда ли, что строка состоит из одних нулей
-    cmp byte [rdi + r9], 0					
-    jne .number_is_not_zero					
-    mov byte [rax + BigInt.sign], 0			; Если да, записываем в знак 0, в длину числа -- 1, выходим
+	cmp byte [rdi + r9], 0					
+	jne .number_is_not_zero					
+	mov byte [rax + BigInt.sign], 0			; Если да, записываем в знак 0, в длину числа -- 1, выходим
 	mov dword [rax + BigInt.size], 1		;
-    jmp .finish								;
+	jmp .finish								;
 .number_is_not_zero:
-    mpush rax, rdx
-    xor rdx, rdx							; Делим количество нулей на BASE_LENGTH -- узнаем, сколько цифр-нулей будет в начале
-    mov rax, r10							; И пропускаем их
-    mov r10, BASE_LENGTH					
-    div r10
-    imul rax, BASE_LENGTH					; RAX = [R10 / 10] * 10 -- на столько можно подвинуть указатель на цифру, все эти нули нам не нужны
-    add rcx, rax							;
-    mpop rax, rdx
+	mpush rax, rdx
+	xor rdx, rdx							; Делим количество нулей на BASE_LENGTH -- узнаем, сколько цифр-нулей будет в начале
+	mov rax, r10							; И пропускаем их
+	mov r10, BASE_LENGTH					
+	div r10
+	imul rax, BASE_LENGTH					; RAX = [R10 / 10] * 10 -- на столько можно подвинуть указатель на цифру, все эти нули нам не нужны
+	add rcx, rax							;
+	mpop rax, rdx
 
-    mpush rax, rdi, rcx 
-    xor rax, rax
-    call strlen								; узнаем длину строки
-    mov r8, rax
-    mpop rax, rdi, rcx
-    lea rdx, [rdi + r8 - 1]					; RDX -- указатель на текущий символ строки (изначально на последний)
-    add rcx, rdi							; Теперь RCX -- указатель на первый символ строки, который нас интересует (нас интересуют символы [RCX..RDX])
-    xor r8, r8								; R8 -- текущая цифра (R8 < BASE)
-    mov r10, 1								; R10 -- степень десятки
+	mpush rax, rdi, rcx 
+	xor rax, rax
+	call strlen								; узнаем длину строки
+	mov r8, rax
+	mpop rax, rdi, rcx
+	lea rdx, [rdi + r8 - 1]					; RDX -- указатель на текущий символ строки (изначально на последний)
+	add rcx, rdi							; Теперь RCX -- указатель на первый символ строки, который нас интересует (нас интересуют символы [RCX..RDX])
+	xor r8, r8								; R8 -- текущая цифра (R8 < BASE)
+	mov r10, 1								; R10 -- степень десятки
 .process_digits:
-    cmp rdx, rcx							; Если RDX < RCX, нам больше нечего рассматривать, заканчиваем
-    jl .finally
+	cmp rdx, rcx							; Если RDX < RCX, нам больше нечего рассматривать, заканчиваем
+	jl .finally
     
-    cmp byte [rdx], '0'						; Если цифра < '0' или > '9', она неккоректна, кидаем ошибку
-    jl .error_occurred						;
-    cmp byte [rdx], '9'						;
-    jg .error_occurred						;
-    xor r9, r9								
-    mov r9b, byte [rdx]						; R9 -- цифра из строки
-    sub r9, '0'								;
-    dec rdx									; уменьшаем указатель на цифру в строке на один
+	cmp byte [rdx], '0'						; Если цифра < '0' или > '9', она неккоректна, кидаем ошибку
+	jl .error_occurred						;
+	cmp byte [rdx], '9'						;
+	jg .error_occurred						;
+	xor r9, r9								
+	mov r9b, byte [rdx]						; R9 -- цифра из строки
+	sub r9, '0'								;
+	dec rdx									; уменьшаем указатель на цифру в строке на один
 
-    cmp r10, BASE							; Если R10 == BASE, значит цифру надо добавить в конец вектора длинного числа
-    je .push_back
-    imul r9, r10							; R9 * R10 -- то, что надо добавить к текущей цифре
-    add r8, r9								; Добавляем
-    imul r10, 10							; Увеличиваем степень десятки
-    jmp .process_digits
+	cmp r10, BASE							; Если R10 == BASE, значит цифру надо добавить в конец вектора длинного числа
+	je .push_back
+	imul r9, r10							; R9 * R10 -- то, что надо добавить к текущей цифре
+	add r8, r9								; Добавляем
+	imul r10, 10							; Увеличиваем степень десятки
+	jmp .process_digits
 .push_back:
-    mov r11, r9								; Запоминаем текущую цифру в R11
-    mpush r11				
-    pushBack rax, r8						; Добавляем R8 в конец массива цифр ответа
-    mpop r11
-    mov r10, 10								; Степень десятки теперь равна 10, а R8 = R11 -- запомненной цифре
-    mov r8, r11								;
+	mov r11, r9								; Запоминаем текущую цифру в R11
+	mpush r11				
+	pushBack rax, r8						; Добавляем R8 в конец массива цифр ответа
+	mpop r11
+	mov r10, 10								; Степень десятки теперь равна 10, а R8 = R11 -- запомненной цифре
+	mov r8, r11								;
     
-    jmp .process_digits
+	jmp .process_digits
 .finally:
-    cmp r8, 0								; Если в конце R8 != 0, надо его тоже добавить в вектор
-    je .finish
-    pushBack rax, r8
-    jmp .finish
+	cmp r8, 0								; Если в конце R8 != 0, надо его тоже добавить в вектор
+	je .finish
+	pushBack rax, r8
+	jmp .finish
 .error_occurred:
-    ;callFree rax							; Если произошла ошибка, возвращаем NULL
-    xor rax, rax
+	;callFree rax							; Если произошла ошибка, возвращаем NULL	
+	xor rax, rax
 .finish:
-    ret
+	ret
 
 ; void biToString(BigInt bi, char *buffer, size_t limit);
 ; bi -- RDI
 ; buffer -- RSI
 ; limit -- RDX
 biToString:
-    xor rcx, rcx
-    dec rdx									; Вычитаем из limit единицу -- в конце мы просто запишем \0
-    cmp rdx, 0								; Если limit теперь стал равным 0, значит можно заканчивать
-    je .add_zero
-    cmp byte [rdi + BigInt.sign], 0			; Проверяем, равно ли длинное число нулю
-    jne .non_zero_number
-    mov byte [rsi + rcx], '0'				; Если да, просто записываем в строку ноль и выходим (выходим = записываем \0 в конец строки)
-    inc rcx
-    jmp .add_zero
+	xor rcx, rcx
+	dec rdx									; Вычитаем из limit единицу -- в конце мы просто запишем \0
+	cmp rdx, 0								; Если limit теперь стал равным 0, значит можно заканчивать
+	je .add_zero
+	cmp byte [rdi + BigInt.sign], 0			; Проверяем, равно ли длинное число нулю
+	jne .non_zero_number
+	mov byte [rsi + rcx], '0'				; Если да, просто записываем в строку ноль и выходим (выходим = записываем \0 в конец строки)
+	inc rcx
+	jmp .add_zero
 .non_zero_number:
-    cmp byte [rdi + BigInt.sign], -1		; Проверяем, отрицательное ли число
-    jne .positive_number
-    mov byte [rsi + rcx], '-'				; Если да, записываем в строку '-' и дальше считаем, что оно положительное
-    inc rcx									;
-    dec rdx									;
+	cmp byte [rdi + BigInt.sign], -1		; Проверяем, отрицательное ли число
+	jne .positive_number
+	mov byte [rsi + rcx], '-'				; Если да, записываем в строку '-' и дальше считаем, что оно положительное
+	inc rcx									;
+	dec rdx									;
 .positive_number:
-    xor r8, r8								; R8 -- длина числа
-    mov r8d, [rdi + BigInt.size]			;
+	xor r8, r8								; R8 -- длина числа
+	mov r8d, [rdi + BigInt.size]			;
 	push r12
 	xor r12, r12
 	mov r12d, [rdi + BigInt.digits]			; R9 -- указатель на текущую цифру (изначально последнюю)
-    lea r9, [r12 + r8 * 4 - 4]				; 
+	lea r9, [r12 + r8 * 4 - 4]				; 
 	pop r12
 
 .write_digits:
-    cmp rdx, 0  							; Проверяем, что либо лимит закончился, либо строка
-    je .add_zero							; Если хотя бы одно из двух, выходим
-    cmp r8, 0
-    je .add_zero
+	cmp rdx, 0  							; Проверяем, что либо лимит закончился, либо строка
+	je .add_zero							; Если хотя бы одно из двух, выходим
+	cmp r8, 0
+	je .add_zero
 
-    mpush rcx, rdx, r8, r9, rdi, rsi, r12
-    xor r12, r12
-    mov r12d, [r9]							; Переводим текущую цифру в строку с ровно BASE_LENGTH символами с помощью intToStr
-    intToStr r12							;
+	mpush rcx, rdx, r8, r9, rdi, rsi, r12
+	xor r12, r12
+	mov r12d, [r9]							; Переводим текущую цифру в строку с ровно BASE_LENGTH символами с помощью intToStr
+	intToStr r12							;
     
-    mov r11, rcx							; R11 -- новая длина строки
-    mpop rcx, rdx, r8, r9, rdi, rsi, r12
+	mov r11, rcx							; R11 -- новая длина строки
+	mpop rcx, rdx, r8, r9, rdi, rsi, r12
 
-    cmp r8d, [rdi + BigInt.size]			; Узнаем, последнюю ли мы цифру сейчас записываем
-    jne .continue							; Если да, нужно удалить все лидирующие нули -- число с нуля начинаться не может
-    deleteZeroesFromString rax, r11			;
+	cmp r8d, [rdi + BigInt.size]			; Узнаем, последнюю ли мы цифру сейчас записываем
+	jne .continue							; Если да, нужно удалить все лидирующие нули -- число с нуля начинаться не может
+	deleteZeroesFromString rax, r11			;
 .continue; 
-    cmp rdx, r11							; Сравниваем лимит и длину числа
-    jge .write_one_digit					; Если limit >= длины, просто пишем число
-    mov r11, rdx							; Если limit < длины, пишет первые limit символов
-    jmp .write_one_digit					; В итоге R11 -- количество первых символов строки, которые нам надо вывести
+	cmp rdx, r11							; Сравниваем лимит и длину числа
+	jge .write_one_digit					; Если limit >= длины, просто пишем число
+	mov r11, rdx							; Если limit < длины, пишет первые limit символов
+	jmp .write_one_digit					; В итоге R11 -- количество первых символов строки, которые нам надо вывести
 .write_one_digit:
-    xor r10, r10
+	xor r10, r10
 .write_decimal_digit:						; Записываем первые R11 символов в строку-результат
-    cmp r10, r11							; Если R10 == R11, все записали
-    je .prepare_for_next_iteration
-    push r11
-    xor r11, r11
-    mov r11b, byte [rax + r10]				; Добавляем один символ
-    mov byte [rsi + rcx], r11b				;
-    pop r11
-    inc r10
-    inc rcx
-    dec rdx
-    jmp .write_decimal_digit
+ 	cmp r10, r11							; Если R10 == R11, все записали
+	je .prepare_for_next_iteration
+	push r11
+ 	xor r11, r11
+	mov r11b, byte [rax + r10]				; Добавляем один символ
+	mov byte [rsi + rcx], r11b				;
+	pop r11
+	inc r10
+	inc rcx
+	dec rdx
+	jmp .write_decimal_digit
 .prepare_for_next_iteration:
-    sub r9, 4								; Переходим к следующей цифре длинного числа
-    dec r8									;
+	sub r9, 4								; Переходим к следующей цифре длинного числа
+	dec r8									;
 
-    callFreeVector rax						; Удаляем строку, она нам больше не нужна
+	callFreeVector rax						; Удаляем строку, она нам больше не нужна
 
-    jmp .write_digits
+	jmp .write_digits
 .add_zero:
-    mov byte [rsi + rcx], 0					; В самом конце добавляем в конец строки \0
+	mov byte [rsi + rcx], 0					; В самом конце добавляем в конец строки \0
 .finish
-    ret
+	ret
 
 ; void biDelete(BigInt bi);
 ; bi -- RDI
@@ -1051,7 +1051,7 @@ biMul:
 	ret
 
 biDivRem:
-    ret
+	ret
 
 ; int biCmp(BigInt a, BigInt b);
 ; a -- RDI
@@ -1063,9 +1063,9 @@ biCmp:
 	mzero r8, r9
 	mov rdx, 1								; RDX -- знак ответа (из-за того, что a < b, но -a > -b иногда ответ надо домножить на -1)
 	
-    mov r8b, byte [rdi + BigInt.sign]		; R8 -- знак первого числа
-    mov r9b, byte [rsi + BigInt.sign]		; R9 -- знак второго числа
-    cmp r8, 255								; R8 = 255 => R8 = -1 (потому что byte -- беззнаковый)
+	mov r8b, byte [rdi + BigInt.sign]		; R8 -- знак первого числа
+	mov r9b, byte [rsi + BigInt.sign]		; R9 -- знак второго числа
+	cmp r8, 255								; R8 = 255 => R8 = -1 (потому что byte -- беззнаковый)
 	jne .ok1
 	sub r8, 256
 .ok1:
@@ -1074,59 +1074,59 @@ biCmp:
 	sub r9, 256
 .ok2:
 	cmp r8, r9								; Теперь знаки правильные, сравниваем их
-    jl .below
-    jg .above
+	jl .below
+	jg .above
 											; Теперь знаки одинаковые
 	cmp byte [rdi + BigInt.sign], 1			; Если оба числа не положительные, скажем, что они положительные, но потом умножим ответ на -1
 	je .positive_numbers					;					
 	mov rdx, -1								;
 .positive_numbers:
 	mov r8d, [rdi + BigInt.size]			; R8 -- длина первого числа
-    mov r9d, [rsi + BigInt.size]			; R9 -- длина второго числа
-    cmp r8, r9								; Сравниваем длины
-    jl .below
-    jg .above
+	mov r9d, [rsi + BigInt.size]			; R9 -- длина второго числа
+	cmp r8, r9								; Сравниваем длины
+	jl .below
+	jg .above
 											; Теперь длины обоих чисел равны
 	push r12
 	xor r12, r12
 	mov r12d, [rdi + BigInt.digits]			; R12 -- указатель на вектор с цифрами первого числа
-    lea r8, [r12 + r8 * 4 - 4]				; R8 -- указатель на текущую цифру первого числа (изначально последнюю)
+	lea r8, [r12 + r8 * 4 - 4]				; R8 -- указатель на текущую цифру первого числа (изначально последнюю)
 	mov r12d, [rsi + BigInt.digits]			; 
-    lea r9, [r12 + r9 * 4 - 4]				; R9 -- указатель на текущую цифру второго числа (изначально последнюю)
+	lea r9, [r12 + r9 * 4 - 4]				; R9 -- указатель на текущую цифру второго числа (изначально последнюю)
 	pop r12
 	xor rcx, rcx							; RCX -- количество обработанных цифр
 .compare_digits:
-    lea r10, [rdi + BigInt.size]			; R10 -- длина числа
+	lea r10, [rdi + BigInt.size]			; R10 -- длина числа
 	cmp ecx, [r10]							; RCX == R10 => все цифры обработаны, числа равны
 	je .equal
     
-    mzero r10, r11
+	mzero r10, r11
 	mov r10d, [r8]							; R10 -- текущая цифра первого числа
-    mov r11d, [r9]							; R11 -- текущая цифра второго числа
-    cmp r10, r11							; Если цифры не равны, возвращаем ответ
-    jl .below
-    jg .above
+	mov r11d, [r9]							; R11 -- текущая цифра второго числа
+	cmp r10, r11							; Если цифры не равны, возвращаем ответ
+	jl .below
+	jg .above
     
-    sub r8, 4								; Переходим к следующим цифрам
-    sub r9, 4								;
+	sub r8, 4								; Переходим к следующим цифрам
+	sub r9, 4								
 	inc rcx									; Увеличиваем количество обработанных цифр
-    jmp .compare_digits        
+	jmp .compare_digits        
 .below:										; первое число меньше второго
-    mov rax, -1
-    jmp .finish
+	mov rax, -1
+	jmp .finish
 .above:										; первое чисто больше второго
-    mov rax, 1
-    jmp .finish
+	mov rax, 1
+	jmp .finish
 .equal:										; числа равны
-    mov rax, 0
-    jmp .finish
+ 	mov rax, 0
+	jmp .finish
 .finish:
 	imul rax, rdx							; домножаем ответ на RDX -- его знак, теперь ответ правильный
-    ret
+	ret
 
 section .data
 
-intFormat:    db '%d', 10, 0
-intFormat2:   db '!!! %d', 10, 0
-stringFormat: db '%s', 10, 0
+intFormat:		db '%d', 10, 0
+intFormat2:		db '!!! %d', 10, 0
+stringFormat:	db '%s', 10, 0
 
