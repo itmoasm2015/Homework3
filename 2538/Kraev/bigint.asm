@@ -595,6 +595,7 @@ biSub: ;copy second operand and inverse sign and do biAdd
     push rdi
     mov rdi, rsi
     call bi_clone
+    mov r12, rax
     mov rsi, rax
     xor qword [rsi + big_int.sign], 1; reverse sign
     push rsi
@@ -602,6 +603,9 @@ biSub: ;copy second operand and inverse sign and do biAdd
     call normalize; normalize for +-0
     mpop rdi, rsi
     call biAdd 
+   
+    mov rdi, r12
+    call biDelete ;delete bi_clone
     x86_64_calle_pop
     ret
     
