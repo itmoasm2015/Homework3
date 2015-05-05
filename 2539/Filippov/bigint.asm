@@ -68,12 +68,12 @@ endstruc
 
 ; Кладет на стек все регистры, которые могут измениться
 %macro pushAll 0
-    mpush rdi, rsi, rax, rcx, rdx, r8, r9, r10, r11
+	mpush rdi, rsi, rax, rcx, rdx, r8, r9, r10, r11
 %endmacro
 
 ; Забирает со стека все регистры, которые положил туда pushAll
 %macro popAll 0
-    mpop rdi, rsi, rax, rcx, rdx, r8, r9, r10, r11
+	mpop rdi, rsi, rax, rcx, rdx, r8, r9, r10, r11
 %endmacro
 
 ; Очищает память, предварительно сохранив все регистры
@@ -163,7 +163,7 @@ endstruc
 ensureCapacity:
 	cmp rdi, rsi                    ; сравниваем размер и вместимость
 	jl .finish
-                                    ; RDI >= RSI, значит надо увеличивать размер
+									; RDI >= RSI, значит надо увеличивать размер
 	mpush rdx, rdi, rsi  	            
 	shl rsi, 1                      ; RSI -- новая вместимость, RSI = RSI_OLD * 2
 	xor rax, rax
@@ -289,7 +289,7 @@ ensureCapacity:
 	dec r8							;
 	jmp %%add_to_begin
 %%finish
-	mov byte [rax + BASE_LENGTH], 0 ; добавляем \0 в конец строки
+	mov byte [rax + BASE_LENGTH], 0	; добавляем \0 в конец строки
 	mov rcx, BASE_LENGTH			; RCX -- длина итоговой строки
 	pop %1
 %endmacro
