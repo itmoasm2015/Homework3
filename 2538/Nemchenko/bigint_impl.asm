@@ -63,7 +63,7 @@ global biCmp
     jg .end_check_bigInt             ;   rsi = %1->data[0]
     mov rsi, [%1 + DATA_FIELD]       ;   if (rsi == 0) {
     cmp qword [rsi], 0               ;     %1->sign = 0
-    jg .end_check_bigInt             ;   }
+    jne .end_check_bigInt            ;   }
     mov qword [%1 + SIGN_FIELD], 0   ; }
 
     .end_check_bigInt:
@@ -100,31 +100,20 @@ section .text
 biFromInt:
     call_fun_1 createBigInt, DEFAULT_SIZE
 
-    push rax                           ; save pointer to BigInt
-    add  rax, SIGN_FIELD               ; rax refer to field "sign"
     cmp  rdi, 0
-    je  .end                           ; x == 0 -> sign = 0
+    je  .end                             ; x == 0 -> sign = 0
     jg  .greater_0
 
-    mov qword [rax], -1                ; x < 0  -> sign = -1
-    mov rsi, MIN_LL
-    cmp rdi, rsi
-    je  .create_min_ll                 ; if (x != MIN_LONG_LONG) {
-    neg rdi                            ;   x = -x; 
-    jmp .end                           ; } else {
-                                       ; 
-    .create_min_ll:                    ;   -2 ^ 64 <-> sign = -1 && 0 + 1 * BASE  
-        mov rax, [rsp]                 ;   rax = pointer to the begin of BigInt
-        call_fun_2 push_back, rax, 0   ;   BigInt->data[0] = 0;
-        mov rdi, 1                     ;   BigInt->data[1] = 1;
-        jmp .end                       ; }
+    mov qword [rax + SIGN_FIELD], -1     ; x < 0  -> sign = -1
+    neg rdi                              ;   x = -x; 
+    jmp .end 
     
-    .greater_0:
-        mov qword [rax], 1             ; x > 0  -> sign = 1
-    .end:
+    .greater_0
+        mov qword [rax + SIGN_FIELD], 1  ; x > 0  -> sign = 1
 
-    mov rax, [rsp]
-    mov  r10, rdi                      ; temp variable
+    .end
+    mov  r10, rdi                        ; temp variable
+    push rax
     call_fun_2 push_back, rax, r10
     pop rax
     ret
@@ -492,11 +481,8 @@ set_or_push_back:
 ; return value:
 ;   rax = pointer to allocated BigInt
 createBigInt:
-    push rdi
-    mov  rdi, 4           ; capacity, size, sign, data
-    mov  rsi, SIZEOF_FLD  ; 8 bytes for each field
-    call calloc 
-    pop  rdi
+    ; allocate memory for: capacity, size, sign, data
+    call_fun_2 calloc, 4, SIZEOF_FLD
 
     push rax
     mov  [rax], rdi       ; set capacity
