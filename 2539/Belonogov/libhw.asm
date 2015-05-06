@@ -13,6 +13,11 @@ global biSub
 global biMul
 global biDivRem
 global biCmp
+global biDivShort
+global biCopy
+global biIsZero
+global biMulShort
+global biAddShort
 
 %define POINTER 0
 %define SIZE 8
@@ -96,24 +101,25 @@ section .text
 
     createBigInt:
         push r12
-        push r15
+        push r14
         mov r12, rdi  ; r12 = sz
 
         mov rdi, STRUCT_SIZE 
         mov rsi, 1
         call calloc  ; create new bigInt
-        mov r15, rax ; save pointer to BigInt
+        mov r14, rax ; save pointer to BigInt
+
         mov rdi, r12 
         call createVector       
 
-        mov [r15 + POINTER], rax  ;save pointer to vector into BigInt 
-        mov [r15 + CAPACITY], r12
+        mov [r14 + POINTER], rax  ;save pointer to vector into BigInt 
+        mov [r14 + CAPACITY], r12
         mov r8, 1
-        mov [r15 + SIZE], r8  ;size := 1
+        mov [r14 + SIZE], r8  ;size := 1
 
         
-        mov rax, r15
-        pop r15
+        mov rax, r14
+        pop r14
         pop r12
         ret
 
@@ -146,52 +152,54 @@ section .text
         ret
 
 
-    ;mulShort(BigInt , unsigned long long value) // rdi = bigInt     rsi = value
+    ;biMulShort(BigInt , unsigned long long value) // rdi = bigInt     rsi = value
 
 
-    mulShort: 
+    biMulShort: 
         push r12
         push r13 
         push r14
-        mov r12, rdi ; r12 = bigInt
+        push r15
+        mov r14, rdi ; r14 = bigInt
         mov r13, rsi ; r13 = value
-        mov r14, [r12 + POINTER] ; r14 = pointer to vector
+        mov r15, [r14 + POINTER] ; r15 = pointer to vector
         
-        mov r8, 0 ; r8 = carry
+        mov r12, 0 ; r12 = carry
         mov rsi, 0  ;           i
-        mov rcx, [r12 + SIZE];  n
+        mov rcx, [r14 + SIZE];  n
        
-        mov r9, BASE
+        mov r9, r13
         .loopStart 
             cmp rsi, rcx
             je .loopEnd
-                mov rax, [r14 + rdx * LONG_LONG_SIZE]
+                mov rax, [r15 + rsi * LONG_LONG_SIZE]
                 mul r9
-                add rax, r8
+                add rax, r12
                 adc rdx, 0          ; add carry flag
-                mov [r14 + rsi * LONG_LONG_SIZE], rax  
-                mov r8, rdx   ; r8 = new carry 
-                inc rsi ;   i++
+                mov [r15 + rsi * LONG_LONG_SIZE], rax  
+                mov r12, rdx   ; r8 = new carry 
+            inc rsi ;   i++
             jmp .loopStart
         .loopEnd
-        cmp r8, 0
+        cmp r12, 0
         je .withoutResize
-            mov rdi, r12
+            mov rdi, r14
             call incSize
-            mov rcx, [r12 + SIZE];
+            mov rcx, [r14 + SIZE];
             dec rcx    ; size - 1 = last element
-            mov r14, [r12 + POINTER]   ;new pointer to vector
-            mov [r14 + rcx * LONG_LONG_SIZE], r8
+            mov r15, [r14 + POINTER]   ;new pointer to vector
+            mov [r15 + rcx * LONG_LONG_SIZE], r12
         .withoutResize
+        pop r15
         pop r14
         pop r13
         pop r12
         ret
 
 
-    ;void addShort(bigInt, long long value); rdi = bigInt, rsi = value
+    ;void biAddShort(bigInt, long long value); rdi = bigInt, rsi = value
 
-    addShort:
+    biAddShort:
         push r12
         push r13 
         push r14
@@ -200,19 +208,19 @@ section .text
         mov r14, [r12 + POINTER] ; r14 = pointer to vector
         
         mov r8, r13 ; r8 = carry
-        mov rsi, 0  ;           i
+        xor rsi, rsi  ;           i
         mov rcx, [r12 + SIZE];  n
        
-        mov r9, BASE
+        ;mov r9, r13 
         .loopStart 
             cmp rsi, rcx
             je .loopEnd
-                mov rax, [r14 + rdx * LONG_LONG_SIZE]
+                mov rax, [r14 + rsi * LONG_LONG_SIZE]
                 add rax, r8
                 mov r8, 0
                 adc r8, 0         ; add carry flag
                 mov [r14 + rsi * LONG_LONG_SIZE], rax  
-                inc rsi ;   i++
+            inc rsi ;   i++
             jmp .loopStart
         .loopEnd
         cmp r8, 0
@@ -229,76 +237,78 @@ section .text
         pop r12
         ret
 
+
+
+
     ;   BigInt biFromString(char const *s); rdi = s
 
-    biFromString: 
-        push r12
-        push r13    ; sign
-        push r14    ; pointer to BigInt
-        push r15    ; pointer to vector 
-        mov r12, rdi  ; r12 = s
-        mov rdi, DEFAULT_VECTOR_SIZE
-        call createVector
+        biFromString: 
+            push r12
+            push r13    ; sign
+            push r14    ; pointer to BigInt
+            push r15    ; loop variable
+            mov r12, rdi  ; r12 = s
+            mov rdi, DEFAULT_VECTOR_SIZE
+            call createBigInt
+            mov r14, rax
+
+            ;mov rcx, 0    ; i = 0
+            xor r15, r15   ; i = 0
+            ;xor rcx, rcx   ; i = 0;
+            ;mov r13, 0
+            xor r13, r13   ; sign "+" by default
+            .loopStart
+                xor al, al
+                cmp al, [r12 + r15 * CHAR_SIZE]  ; if (s[i] == 0) break;
+                je .loopEnd
+                ;;;; body 
+                    mov dl, [r12 + r15 * CHAR_SIZE]  
+                    cmp dl, '-'
+                    jne .notMinus
+                        cmp r13, 1
+                        je .fail ; 
+                        inc r13
+                        jmp .endBody
+                    .notMinus
+                    cmp dl, '0'
+                    jl .fail
+                    cmp dl, '9'   
+                    jg .fail 
+
+                    mov rdi, r14
+                    mov rsi, BASE
+                    call biMulShort  
+
+                    xor rax, rax
+                    mov al, [r12 + r15 * CHAR_SIZE]
+                    sub al, '0'
+                    mov rdi, r14 
+                    mov rsi, rax
+                    call biAddShort
+
+                    .endBody 
+                ;;;; body
+                inc r15
+                jmp .loopStart
 
 
-
-        mov rcx, 0    ; i = 0
-         
-
-
-        mov r13, 0
-        .loopStart
-            mov al, 0 
-            cmp al, [r12 + rcx * CHAR_SIZE]  ; if (s[i] == 0) break;
-            je .loopEnd
-            ;;;; body 
-                mov dl, [r12 + rcx * CHAR_SIZE]  
-                cmp dl, '-'
-                jne .notMinus
-                    cmp r13, 1
-                    je .fail ; 
-                    inc r13
-                    jmp .endBody
-                .notMinus
-                cmp dl, '0'
-                jl .fail
-                cmp dl, '9'   
-                jg .fail 
-
+            .loopEnd 
+            mov [r14 + SIGN], r13
+            mov rax, r14
+            jmp .notFail
+            .fail        
+                ;body
                 mov rdi, r14
-                mov rsi, BASE
-                call mulShort  
-
-                xor rax, rax
-                mov al, [r12 + rcx * CHAR_SIZE]
-                sub al, '0'
-                mov rdi, r14 
-                mov rsi, rax
-                call addShort
-
-                .endBody 
-            ;;;; body
-            inc rcx
-            jmp .loopStart
-
-
-        .loopEnd 
-        mov [r14 + SIGN], r13
-        mov rax, r14
-        jmp .notFail
-        .fail        
-            ;body
-            mov rdi, r14
-            call biDelete
-            mov rax, 0
-            ;body
-        .notFail 
-        pop r15
-        pop r14
-        pop r13
-        pop r12
-        ret
-      
+                call biDelete
+                mov rax, 0
+                ;body
+            .notFail 
+            pop r15
+            pop r14
+            pop r13
+            pop r12
+            ret
+          
 
         ;void biDelete(BigInt bi); rdi = bigInt
         biDelete:
@@ -330,7 +340,7 @@ section .text
                 cmp rcx, 0
                 je .loopEnd
                 mov r13, [r15 + rcx * LONG_LONG_SIZE] ;; r13 = vector[rcx]
-                cmp 0, r13
+                cmp r13, 0
                 jne .loopEnd  
                 ;body
                      
@@ -342,7 +352,8 @@ section .text
             mov r13, [r15 + rcx * LONG_LONG_SIZE] ;; r13 = vector[rcx]
             cmp r13, 0
             jne .plusZero
-                mov [r14 + SIGN], 0
+                mov r8, 0
+                mov [r14 + SIGN], r8
             .plusZero
             inc rcx
             mov [r14 + SIZE], rcx
@@ -353,7 +364,7 @@ section .text
             ret
 
 
-;long long biDivShort(BigInt, long long divisor)  rdi = bigInt      rsi = divisor
+; long long biDivShort(BigInt, long long divisor)  rdi = bigInt      rsi = divisor
 ; return remainder
         biDivShort:
             push r12
@@ -366,15 +377,15 @@ section .text
             mov rcx, [r14 + SIZE]      ; rcx = vector.size()
             dec rcx                    ; rcz = vector.size() - 1;
 
-            mov r12, 0                 ; carry
+            mov r12, 0                 ; r12 = carry
             .loopStart                 ; i = vector.size() - 1 .... 0
                 cmp rcx, 0 
                 jl .loopEnd           
                 ;body
                     mov rax, [r15 + rcx * LONG_LONG_SIZE]
-                    xor rdx, rdx
-                    add rax, r12
-                    adc rdx, 0 
+                    mov rdx, r12
+                    ;add rax, r12
+                    ;adc rdx, 0 
                     div r13
                     mov [r15 + rcx * LONG_LONG_SIZE], rax
                     mov r12, rdx
@@ -393,27 +404,27 @@ section .text
             ret
 
 
-;BigInt makeCopy(BigInt) rdi = bigInt;
-        makeCopy:
+;BigInt biCopy(BigInt) rdi = bigInt;
+        biCopy:
             push r12
             push r13
             push r14
             push r15
             mov r14, rdi            ; r14 = old bigInt
-            mov r15, [r15 + POINTER]; r15 = old vector 
+            mov r15, [r14 + POINTER]; r15 = old vector 
            
             mov rdi, [r14 + SIZE] 
             call createBigInt 
             mov r13, rax            ; r13 = new BigInt
             mov r12, [r13 + POINTER]; r12 = new vector
 
-            mov rdx = [r14 + SIZE]  ; n  old vector.size()
+            mov rdx, [r14 + SIZE]  ; n  old vector.size()
             mov [r13 + SIZE], rdx   ; newVector size = oldVector size
             
             mov r8, [r14 + SIGN]    ; old sign 
             mov [r13 + SIGN], r8    ; new sign = old sign
 
-            mov rcx = 0;            ; i 
+            mov rcx, 0;            ; i 
 
             .loopStart              ; i = 0 ... n - 1
                 cmp rcx, rdx
@@ -435,21 +446,116 @@ section .text
             ret
 
 
+; long long biIsZero(BigInt) rdi = bigInt
+        biIsZero: 
+            push r14
+            push r15
+            mov r14, rdi
+            mov r15, [r14 + POINTER]
+            mov rax, 0
+            mov rcx, [r14 + SIZE]
+            cmp rcx, 1
+            jne .end
+                mov r8, [r15 + 0 * LONG_LONG_SIZE]
+                cmp r8, 0
+                jne .end 
+                mov rax, 1
+            .end
+            pop r15
+            pop r14
+            ret
+
+
+    ;void reverse(char * s, int n) rdi = s     n = rsi
+        reverse: 
+            mov r8, rsi
+            shr r8, 1
+            
+            xor r9, r9
+            .loopStart
+                cmp r9, r8
+                je .loopEnd 
+                    mov r11, rsi
+                    dec r11
+                    sub r11, r9
+
+                    mov al, [rdi + r9 * CHAR_SIZE]    
+                    mov dl, [rdi + r11 * CHAR_SIZE] 
+                    mov [rdi + r11 * CHAR_SIZE], al
+                    mov [rdi + r9 * CHAR_SIZE], dl
+
+                inc r9
+                jmp .loopStart 
+            .loopEnd 
+       
+        
+            ret
+
 ;/** Generate a decimal string representation from a BigInt.
  ;*  Writes at most limit bytes to buffer.
  ;*/
-;void biToString(BigInt bi, char *buffer, size_t limit);
-
+;void biToString(BigInt bi, char *buffer, size_t limit);  
+;rdi = bigInt 
+;rsi = buffer
+;rdx = limit
         biToString:
             push r12
             push r13
             push r14
             push r15
+            push rdi                ; save bigint
+            mov r12, rsi            ;buffer
+            mov r13, rdx            ;limit
+            dec r13                 ; reserve place for terminate symbol
             
-             
-            
-        
+            call biCopy
+            mov r14, rax            ; r14 = bigInt 
+            mov r15, 0              ; i = 0
+            .loopStart
+                mov rdi, r14
+                call biIsZero     
+                cmp rax, 1
+                je .loopEnd
+                cmp r15, r13
+                je .loopEnd 
+                ;body
+                    mov rdi, r14
+                    mov rsi, BASE
+                    call biDivShort   
+                    add rax, '0' 
+                    mov [r12 + r15 * CHAR_SIZE], al
+                ;body
+                inc r15
+                jmp .loopStart 
+            .loopEnd 
 
+            pop rdi             ; getBigInt
+            
+            mov r8, 1
+            cmp r8, [rdi + SIGN]
+            jne .trimmed
+                cmp r15, r13
+                je .trimmed
+                    mov al, '-'
+                    mov [r12 + r15 * CHAR_SIZE], al
+                    inc r15
+            .trimmed 
+            
+            mov rdi, r12
+            mov rsi, r15
+            call reverse
+            xor r8, r8
+            mov [r12 + r15 * CHAR_SIZE], r8
+
+            cmp r15, 0
+            jne .notZero
+                mov al, '0'
+                mov [r12 + r15 * CHAR_SIZE], al
+                inc r15
+            .notZero 
+
+            mov rdi, r14
+            call biDelete
 
             pop r15
             pop r14

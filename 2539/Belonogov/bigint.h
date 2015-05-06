@@ -54,6 +54,18 @@ void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt deno
  */
 int biCmp(BigInt a, BigInt b);
 
+/////////////////////my functions
+
+long long biDivShort(BigInt , long long );
+
+BigInt biCopy(BigInt); 
+
+long long biIsZero(BigInt);
+
+void biMulShort(BigInt, unsigned long long);
+void biAddShort(BigInt, unsigned long long);
+
+
 #ifdef __cplusplus
 }
 #endif
