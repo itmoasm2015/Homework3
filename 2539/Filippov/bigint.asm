@@ -42,6 +42,26 @@ struc BigInt
 	.digits   : resq 1
 endstruc
 
+; Вызывает malloc с предварительным выравниванием стека на 16 байт
+%macro alignedMalloc 0
+	push r12
+	mov r12, rsp
+	and rsp, ~15	; rsp & ~15 зануляет младшие 4 бита, то есть после этого rsp делится на 16
+	call malloc
+	mov rsp, r12
+	pop r12
+%endmacro
+
+; Вызывает free с предварительным выравниваем стека на 16 байт
+%macro alignedFree 0
+	push r12
+	mov r12, rsp
+	and rsp, ~15	; аналогично alignedMalloc
+	call free
+	mov rsp, r12
+	pop r12
+%endmacro
+
 ; Добавляет на стек регистры, переданные в аргументах, в прямом порядке
 %macro mpush 1-*
 	%rep %0
@@ -79,19 +99,21 @@ endstruc
 ; Очищает память, предварительно сохранив все регистры
 %macro callFree 1
 	pushAll
-	mov r11, %1	
+	push r12
+	mov r12, %1	
 	xor rdi, rdi				; запоминаем указатель на структуру с длинным числом
-	mov edi, [r11 + BigInt.digits]		; удаляем указатель на цифры длинного числа
-	;call free
-	mov rdi, r11				; удаляем указатель на структуру
-	call free
+	mov edi, [r12 + BigInt.digits]		; удаляем указатель на цифры длинного числа
+	;alignedFree
+	mov rdi, r12				; удаляем указатель на структуру
+	alignedFree
+	pop r12
 	popAll
 %endmacro
 
 %macro callFreeVector 1
 	pushAll
 	mov rdi, %1				; удаляем указатель на вектор
-	;call free
+	;alignedFree
 	popAll
 %endmacro
 
@@ -102,7 +124,7 @@ endstruc
 	lea rdi, [%2 * 4]			; %2 * 4 -- количество байт, которые надо выделить
 
 	mpush rdi, rax
-	call malloc				; выделяем память под новый вектор
+	alignedMalloc				; выделяем память под новый вектор
 	mov r13, rax				; копируем указатель на новый вектор в R13
 	mpop rdi, rax
 	
@@ -129,7 +151,7 @@ endstruc
 %macro createBigIntWithCapacity 1
 	mov rdi, 16				; 16 байт выделяем под структуру
 	mpush %1, rsi
-	call malloc				; RAX -- выделенная структура
+	alignedMalloc				; RAX -- выделенная структура
 	mpop %1, rsi
 	mov byte [rax + BigInt.sign], 0		; Записываем 0 в знак и размер вектора
 	mov dword [rax + BigInt.size], 0	;
@@ -233,7 +255,7 @@ ensureCapacity:
 	mov rdi, BASE_LENGTH			; 
 	inc rdi					;
 	push rdi				; выделяем BASE_LENGTH + 1 байтов для строки (+1 для \0)
-	call malloc				;
+	alignedMalloc				;
 	pop rdi					;
 	pop %1
        
