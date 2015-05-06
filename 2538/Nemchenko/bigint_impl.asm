@@ -286,7 +286,8 @@ biSub:
     ;jmp .before_ret                    ; }
 
     .just_sub:
-    call ensure_first_greater 
+    call ensure_first_greater          ; rax = 1, if abs(dst) < abs(src)
+    mov rdx, [rdi + SIZE_FIELD]        ; rdx = dst->size
 
     mov r10, 0                         ; i = 0;
     mov r11, [rdi + DATA_FIELD]        ; r11 = dst->data
@@ -306,7 +307,7 @@ biSub:
             add r11, SIZEOF_FLD        ; r11 = next(dst)
 
             inc r10                    ; i++
-            cmp r10, rax               ; i < max_size or carry -> continue
+            cmp r10, rdx               ; i < max_size or carry -> continue
             jl .while_sub              ; else break
             popfq                      ; restore eflags
             pushfq                     ; store eflags
@@ -634,6 +635,16 @@ add_short:
 ; void ensure_first_greater(BigInt* fst, BigInt* scd)
 ;   rdi = fst
 ;   rsi = scd
+; result:
+;   if (abs(fst) > abs(scd)) {
+;      rax = 0;
+;   } else {
+;      temp = new BigInt(scd->size);
+;      temp = deep_copy(scd)
+;      scd = fst;
+;      fst = temp
+;      rax = 1
+;   }
 ensure_first_greater:
     push qword [rdi + SIGN_FIELD]
     push qword [rsi + SIGN_FIELD]
@@ -651,10 +662,12 @@ ensure_first_greater:
     call_fun_2 copy_BigInt, rax, rsi                 ;   deep_copy: rax = rsi
     mov rsi, rdi                                     ;   scd = fst
     mov rdi, rax                                     ;   fst = rax
+    mov rax, 1
     ret                                              ;
                                                      ; }
 
     .end_ensure
     pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     pop qword [rsi + SIGN_FIELD]
+    mov rax, 0
     ret
