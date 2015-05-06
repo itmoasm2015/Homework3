@@ -61,7 +61,6 @@ allocate:
         ;; Initialize struct eith pointer to data
         mov [rax + 8], r12
 .exit:
-
         remAlignStack16
         pop r13
         pop r12
@@ -208,13 +207,32 @@ biFromInt:
         mov qword rdi, 1
         call allocate
         pop rdi
+        ;; Check successful allocation
         test rax, rax
         jz .exit
-        ;; Init bigint
+        ;; Set size
         mov qword [rax], 1
-        mov rdx, [rax + 8]
+        ;; Save pointer
+        mov rsi, rax
+        push rax
+
+        ;; Manage sign
+        cmp rdi, 0
+        je .exit
+        jl .neg
+        
+        ;; Init positive bigint
+        setSign rsi, 1
+        mov rdx, [rsi + 8]
+        mov [rdx], rdi
+        jmp .exit
+.neg:
+        setSign rsi, -1
+        neg rdi
+        mov rdx, [rsi + 8]
         mov [rdx], rdi
 .exit:
+        pop rax
         ret
 
 
@@ -307,13 +325,21 @@ biFromString:
         pop r12
         ret
 
-biToString:     
+
+biDelete:
+        push rdi
+        mov rax, [rdi + 8]
+        mov rdi, rax
+        call free
+        pop rdi
+        call free
         ret
 
-biDelete:       
+biSign:
+        mov rax, [rdi + 16]
         ret
 
-biSign: 
+biCmp:
         ret
 
 biAdd:  
@@ -325,8 +351,8 @@ biSub:
 biMul:  
         ret
 
-biDivRem:       
+biDivRem:
         ret
 
-biCmp:  
+biToString:
         ret

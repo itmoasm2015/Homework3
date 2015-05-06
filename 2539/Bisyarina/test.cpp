@@ -49,68 +49,68 @@ string toString(BigInt w) {
 	return s;
 }
 
+void test(string s, int sign, BigInt b) {
+	cout << s << endl;
+	string l;
+	if ((l = toString(b)) == s)
+		cout << "OK init" << endl;
+	else
+		cout << "Fail init: expected:" << s << " found: " << l << endl;
+	int curr;
+	if ((curr = biSign(b)) == sign) 
+		cout << "OK sign" << endl;
+	else
+		cout << "Fail sign: expected:" << sign << " found: " << curr << endl;
+}
 
 int main() {
 	
 	BigInt m = biFromInt(123);
 	string s = "123";
-	string l;
-	if ((l = toString(m)) == s)
-		cout << "OK" << endl;
-	else
-		cout << "False exp:" << s << " found: " << l << endl;
-	
-	string s2 = "123";
-	BigInt m2 = biFromString(s2.c_str());
-	string l2;
-	if ((l2 = toString(m2)) == s2)
-		cout << "OK" << endl;
-	else
-		cout << "False exp:" << s2 << " found: " << l2 << endl;
+	test(s, 1, m);
+	biDelete(m);
 
 
-	
-	string s3 = "123123123123123123";
-	BigInt m3 = biFromString(s3.c_str());
-	string l3;
-	if ((l3 = toString(m3)) == s3)
-		cout << "OK" << endl;
-	else
-		cout << "False exp:" << s3 << " found: " << l3 << endl;
+	m = biFromInt(0);
+	s = "0";
+	test(s, 0, m);
+	biDelete(m);
 
-	string s4 = "123123123123123123123";
-	BigInt m4 = biFromString(s4.c_str());
-	string l4;
-	if ((l4 = toString(m4)) == s4)
-		cout << "OK" << endl;
-	else
-		cout << "False exp:" << s4 << " found: " << l4 << endl;
-
-	string s5 = "-123123123123123123123";
-	BigInt m5 = biFromString(s5.c_str());
-	string l5;
-	if ((l5 = toString(m5)) == s5)
-		cout << "OK" << endl;
-	else
-		cout << "False exp:" << s5 << " found: " << l5 << endl;
+	m = biFromInt(-123);
+	s = "-123";
+	test(s, -1, m);
+	biDelete(m);
 
 
-	string s6 = "-123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123";
-	BigInt m6 = biFromString(s6.c_str());
-	string l6;
-	if ((l6 = toString(m6)) == s6)
-		cout << "OK" << endl;
-	else
-		cout << "False exp:" << s6 << " found: " << l6 << endl;
+	s = "123";
+	m = biFromString(s.c_str());
+	test(s, 1, m);
+	biDelete(m);
+
+	s = "123123123123123123";
+	m = biFromString(s.c_str());
+	test(s, 1, m);
+	biDelete(m);
 
 
-	string s7 = "0";
-	BigInt m7 = biFromString(s7.c_str());
-	string l7;
-	if ((l7 = toString(m7)) == s7)
-		cout << "OK" << endl;
-	else
-		cout << "False exp:" << s7 << " found: " << l7 << endl;
+	s = "123123123123123123123";
+	m = biFromString(s.c_str());
+	test(s, 1, m);
+	biDelete(m);
 
+	s = "-123123123123123123123";
+	m = biFromString(s.c_str());
+	test(s, -1, m);
+	biDelete(m);
+
+	s = "-123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123";
+	m = biFromString(s.c_str());
+	test(s, -1, m);
+	biDelete(m);
+
+	s = "0";
+	m = biFromString(s.c_str());
+	test(s, 0, m);
+	biDelete(m);
 	return 0;
 }
