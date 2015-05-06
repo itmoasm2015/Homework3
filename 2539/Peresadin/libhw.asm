@@ -30,7 +30,7 @@ struc VectorInt
     elem:      resq 1
 endstruc
 
-TEN equ 10
+TEN equ 10;Константа 10
 BASE equ 100000000;Основание системы счисления = 10^8
 BASE_LEN equ 8;Длина в цифрах одной ячейки длинной арифметики
 
@@ -128,7 +128,7 @@ biFromString:
         ja .calc_dig_loop
             mov r8, rdi;Если осталось меньше 8 цифр, сдвинем границы
         .calc_dig_loop
-            mov edx, 10
+            mov edx, TEN
             mul edx
             xor edx, edx
             mov dl, [r8];В dl очередная цифра
@@ -160,7 +160,24 @@ biFromString:
         jne .not_zero
             mov qword [rax + sign], 1
     .not_zero
-    pop rbx
+    pop rbx;Восстанавливаем rbx
+
+	push r12
+	push rax
+    length r12, rax
+    mov rdi, [rax + vec]
+    .pop_back_zeroes_loop;Выкидываем ведущие нули
+        call back
+        cmp eax, 0
+        jne .break
+        cmp r12, 1
+        je .break
+        call popBack
+        dec r12
+        jmp .pop_back_zeroes_loop
+    .break
+	pop rax
+    pop r12
     ret
 
     .error;Если ввели некорректное число - вернем NULL
@@ -241,7 +258,8 @@ cmpData:
             ja .more
             jb .less
             sub rax, 4
-            sub rbx, 4;Уменьшаем указатели
+            sub rbx, 4
+		sub rcx, 1;Уменьшаем указатели
             jns .cmp_loop
         jmp .equals
     .more;Первое число больше
@@ -623,7 +641,7 @@ biMul:
     mov rdi, [rsp + 8]
     call back
     cmp eax, 0
-    jne .no_pop_zero;Выкидываем лидирующие нули из результирующего вектора
+    jne .no_pop_zero;Выкидываем лидирующий ноль из результирующего вектора
         call popBack
     .no_pop_zero
     pop rdi
@@ -649,7 +667,7 @@ biMul:
     ret
 
 
-;Макрос для biToString
+;Макрос для проверки достижения limit в biToString. Проверяет, что %1 + 1 < %2, иначе переходит к метке конца biToString
 %macro check_limit 2
     mov r11, %1
     inc r11
@@ -657,65 +675,78 @@ biMul:
     je .done_biToString
 %endmacro
 
+;Переводит число в строку и записывает в buffer
+;Принимает
+	;rdi - чиcло
 writeToBuffer:
-    push rbx
-    mov rbx, 10
+    push rbx;Сохраняем rbx
+    mov rbx, TEN
     mov rcx, BASE_LEN
     dec rcx
     mov rax, rdi
-    .loop_write_dig
+    .loop_write_dig;Цикл вызывается 8 раз, каждый раз число делится на 10, и очередная цифра записывается в buffer
         xor rdx, rdx
-        div qword rbx
+        div qword rbx;Делим число на 10
         add dl, '0'
-        mov [buffer + rcx], dl
-        dec rcx
+        mov [buffer + rcx], dl;Записываем цифру в buffer
+        dec rcx;Уменьшаем указатель на позицию в buffer
         jns .loop_write_dig
-    pop rbx
+    pop rbx;Восстанавливаем rbx
     ret
 
+;Переводит длинное число в строку
+;Принимает
+	;rdi - число
+	;rsi - строку
+	;rdx - limit
+;Строковое представление числа записывает в rsi
 biToString:
     push rdi
     push rsi
     push rdx
-    push rbx
+    push rbx;Сохраняем регистры
     xor rbx, rbx
-    check_limit rbx, rdx
-    call biSign
+    check_limit rbx, rdx;Если передали limit = 1 - сразу выходим
+    call biSign;Узнаем знак числа
     mov rdi, [rsp + 24]
     cmp rax, 0
     je .zero
-    jns .not_minus
+    jns .not_minus;Записываем знак числа в строку
         mov rsi, [rsp + 16]
         mov byte [rsi], '-'
-        inc rbx
+        inc rbx;rbx - длина уже записанных данных в строку
 
     .not_minus
+
+	;Находим длину числа, записываем в результирующую строку первую цифру числа без ведущих нулей
     length rax, rdi
     mov rdi, [rdi + vec]
-    mov rdi, [rdi + elem]
-    mov [rsp + 24], rdi
+    mov rdi, [rdi + elem];Узнали указатель на массив с цифрами
+    mov [rsp + 24], rdi;Перезаписали сохраненное длинное число вектором
     dec rax
     xor r9, r9
     mov r9d, [rdi + 4*rax]
-    mov rdi, r9
-    push rax;pointer to vector element
-    call writeToBuffer
+    mov rdi, r9;Узнали первую цифру числа
+    push rax
+    call writeToBuffer;Записываем ее в buffer
     pop rax
     mov rdx, [rsp + 8]
 
     xor r8, r8
-    .loop_skip_zero
+    .loop_skip_zero;Пропускаем ведущие нули
         cmp byte [buffer + r8], '0'
         jne .break_loop_skip_zero
         inc r8 
         jmp .loop_skip_zero
     .break_loop_skip_zero
+	;В r8 указатель на первую ненулевую цифру в buffer
 
-    .loop_write_first_digit
+    .loop_write_first_digit;Переносим цифры из buffer в результирующую строку
+	check_limit rbx, rdx
         mov cl, [buffer + r8]
-        mov [rsi + rbx], cl
+        mov [rsi + rbx], cl;Записываем очередную цифру в из буфера в результирующую строку
         inc rbx
-        inc r8
+        inc r8;Сдвигаем указатели 
         cmp r8, BASE_LEN
         jne .loop_write_first_digit
 
@@ -727,19 +758,19 @@ biToString:
 
         mov rdi, [rsp + 24]
         xor r9d, r9d
-        mov r9d, [rdi + 4*rax]
+        mov r9d, [rdi + 4*rax];Достаем очередную цифру длинного числа
         mov rdi, r9
         push rax
-        call writeToBuffer
+        call writeToBuffer;Переводим ее в buffer
         pop rax
 
         mov rdx, [rsp + 8]
-        .write_dig
+        .write_dig;Записываем из буфера в результирующую строку
             check_limit rbx, rdx
-            mov cl, [buffer + r8]
-            mov [rsi + rbx], cl
+            mov cl, [buffer + r8];Достаем очередную цифру из буфера
+            mov [rsi + rbx], cl;Записуем в результирующую строку
             inc rbx
-            inc r8
+            inc r8;Сдвигаем указатели
             cmp r8, BASE_LEN
             jne .write_dig
          dec rax
@@ -747,15 +778,15 @@ biToString:
     .break_loop_to_string
     jmp .done_biToString
 
-    .zero
+    .zero;Если число равно нулю - обработаем это отдельно
         mov rsi, [rsp + 16]
         mov byte [rsi], '0'
         inc rbx
     .done_biToString
-    mov byte [rsi + rbx], 0
-    pop rbx
-    add rsp, 24
+    mov byte [rsi + rbx], 0;Записуем терминальный символ
+    pop rbx;Восстанавливаем rbx
+    add rsp, 24;Выкидываем из стека элементы
     ret
 
 section .bss
-    buffer: resb 10
+    buffer: resb 10;Буфер для сохранения строкового представления каждой цифры длинного числа
