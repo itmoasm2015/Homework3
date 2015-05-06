@@ -23,75 +23,84 @@ global biSign
 global biMul
 global biToString
 
+;Структура вектора еще раз для обращения к его полям
 struc VectorInt
     sz:        resq 1
     alignSize: resq 1
-    elem:      resq 1;элементы вектора
+    elem:      resq 1
 endstruc
 
 TEN equ 10
-BASE equ 100000000
-BASE_LEN equ 8
-
-%macro element 3;to vec index
-    push r15
-    mov r15, [%2 + vec]
-    mov r15, [r15 + elem]
-    mov %1, dword [r15 + 4*%3]
-    pop r15
-%endmacro
-
-%macro setElement 3;vec index x
-    push r15
-    mov r15, [%1 + vec]
-    mov r15, [r15 + elem]
-    mov dword [r15 + 4*%2], %3
-    pop r15
-%endmacro
+BASE equ 100000000;Основание системы счисления = 10^8
+BASE_LEN equ 8;Длина в цифрах одной ячейки длинной арифметики
 
 ;Структура длинного числа
 struc BigInt
-    sign:     resq 1
-    vec:      resq 1
+    sign:     resq 1;Знак - если sign == 0 - число меньше нуля, если sign == 1 - число >= 0 нуля
+    vec:      resq 1;Вектор, хранящий цифры числа
 endstruc
 
-%macro length 2;to vec
+;Макрос для получения значения i-й цифры длинного числа
+;Принимает
+	;%1 - куда записать результат
+	;%2 - длинное число
+	;%3 - i-я цифра
+%macro element 3;to vec index
     push r15
-    mov r15, [%2 + vec]
-    mov %1, [r15 + sz]
+    mov r15, [%2 + vec];Узнаем вектор длинного числа
+    mov r15, [r15 + elem];Узнаем массив вектора, хранящий данные
+    mov %1, dword [r15 + 4*%3];Записываем в %1 цифру с индексом %3
     pop r15
 %endmacro
 
+;Макрос для получения длины числа
+	;%1 - куда записать результат
+	;%2 - длинное число
+%macro length 2;to vec
+    push r15
+    mov r15, [%2 + vec];Узнаем вектор длинного числа
+    mov %1, [r15 + sz];Записываем в %1 длину числа
+    pop r15
+%endmacro
+
+;Удаляет длинное число
+;Принимает
+	;rdi - длинное число
 biDelete:
     push rdi
     mov rdi, [rdi + vec]
-    call deleteVector
+    call deleteVector;Удаляем вектор этого длинного числа
     pop rdi
-    call free_align
+    call free_align;Удаляем структуру длинного числа
     ret
 
+;Создает "пустое" длинное число
 newBi:
     mov rdi, BigInt_size
-    call malloc_align
+    call malloc_align;Создаем структуру числа
     push rax
     xor rdi, rdi
-    call newVector
+    call newVector;Создаем вектор для длинного числа
     pop rdx
     mov [rdx + vec], rax
     mov rax, rdx
     ret
 
+;Создает длинное число из строки
+;Принимает
+	;rdi - указатель на строку
+;Возвращает - новое длинное число
 biFromString:
-    push rbx
+    push rbx;Сохраняем rbx
     mov rbx, 1
     cmp byte [rdi], '-' 
-    jne .not_minus
+    jne .not_minus;Проверяем, что первый знак минус и запоминаем в rbx
         xor rbx, rbx
         inc rdi
     .not_minus
     
     xor rcx, rcx
-    .loop_end_line
+    .loop_end_line;Проверяем, что строка состоит из цифр
         cmp byte [rdi], '0'
         jb .error
         cmp byte [rdi], '9'
@@ -100,55 +109,63 @@ biFromString:
         inc rcx
         cmp byte [rdi], 0
         jne .loop_end_line
+	;rcx после цикла содержит количество цифр в числе
     cmp rcx, 0
-    je .error
+    je .error;Если число пустое - выходим с ошибкой
     push rdi
     push rcx
-    call newBi
+    call newBi;Создаем новое пустое число
     pop rcx
     pop rdi
     mov rsi, rax
     sub rdi, rcx
     add rcx, rdi
-    .loop_num
+    .loop_num;Идем с конца по числу и кладем по 8 цифр в вектор
         xor eax, eax
-        mov r8, rcx
+        mov r8, rcx;Начиная с r8-символа очередные 8 цифр числа
         sub r8, BASE_LEN
         cmp r8, rdi
         ja .calc_dig_loop
-            mov r8, rdi
+            mov r8, rdi;Если осталось меньше 8 цифр, сдвинем границы
         .calc_dig_loop
             mov edx, 10
             mul edx
             xor edx, edx
-            mov dl, [r8]
+            mov dl, [r8];В dl очередная цифра
             sub dl, '0'
-            add eax, edx
+            add eax, edx;eax = eax * 10 + dl
             inc r8
             cmp r8, rcx
             jne .calc_dig_loop
-        push rcx
+	;В eax после выполнения цикла очередные 8 цифр числа
+        push rcx;Сохраняем регистры перед вызовом pushBack
         push rdi
         push rsi
         mov rdi, [rsi + vec]
         mov esi, eax
-        call pushBack
+        call pushBack;Кладем в вектор очередные 8 цифр
         pop rsi
-        pop rdi
+        pop rdi;Восстанавливаем регистры
         pop rcx
-        sub rcx, BASE_LEN
+        sub rcx, BASE_LEN;Сдвигаем rcx, который указывает на конец текущей подстроки из 8 цифр
         cmp rcx, rdi
         ja .loop_num
-    ;TODO delete
-    length rdx, rsi
     mov rax, rsi
-    mov [rax + sign], rbx
+    mov [rax + sign], rbx;Записывем знак числа
+    length rdx, rsi
+    cmp rdx, 1 
+    jne .not_zero;Если строка "-0" - сохраним число как 0
+        element edx, rsi, 0
+        cmp edx, 0
+        jne .not_zero
+            mov qword [rax + sign], 1
+    .not_zero
     pop rbx
     ret
 
-    .error
+    .error;Если ввели некорректное число - вернем NULL
     xor rax, rax
-    pop rbx
+    pop rbx;Восстанавливаем rbx
     ret
 
 biFromInt:
@@ -188,14 +205,22 @@ biFromInt:
     pop rax
     ret
 
+;Сравнивает числа без учета знака
+;Принимает
+	;rdi - первое длинное число
+	;rsi - второе длинное число
+;Возвращает
+	;1 - если числа равны
+	;0 - если первое число больше второго
+	;-1 - если первое число меньше второго
 cmpData:
-    push rbx
+    push rbx;Сохраняем rbx
     length rax, rdi
-    length rbx, rsi
-    cmp rax, rbx
-    ja .more
-    jb .less
-    ;lens equal
+    length rbx, rsi;Узнаем количество цифр в обоих длинных числах
+    cmp rax, rbx;Сравниваем длины чисел
+    ja .more;Если длина первого числа больше, чем длина второго - первое число больше
+    jb .less;Если длина второго числа больше, чем длина первого - второе число больше
+    ;Если длины равны
         mov rcx, rax
         dec rcx
         mov rax, [rdi + vec]
@@ -205,43 +230,47 @@ cmpData:
         mov rbx, [rsi + vec]
         mov rbx, [rbx + elem]
         lea rbx, [rbx + 4*rcx]
-
-        .cmp_loop
+	;Записали в rax и rbx указатели на последние (в векторе) цифры чисел
+        .cmp_loop;
             mov edx, [rax]
-            cmp edx, [rbx]
+            cmp edx, [rbx];Сравниваем цифры чисел
             ja .more
             jb .less
             sub rax, 4
-            sub rbx, 4
-            sub rcx, 1
+            sub rbx, 4;Уменьшаем указатели
             jns .cmp_loop
         jmp .equals
-    .more
+    .more;Первое число больше
         xor rax, rax
         jmp .cmpData_done
-    .less
+    .less;Второе число больше
         mov rax, 1
         jmp .cmpData_done
-    .equals
+    .equals;Равны
         mov rax, -1
     .cmpData_done
-    pop rbx
+    pop rbx;Восстанавливаем rbx
     ret
 
+;Сравнивает два длинных числа
+;Принимает
+	;rdi - первое длинное число
+	;rsi - второе длинное число
+;Возвращает результат сравнения	
 biCmp:
     mov rax, [rsi + sign]
-    cmp [rdi + sign], rax
-    ja .more
-    jb .less
-    ;signs equal
+    cmp [rdi + sign], rax;Сравниваем знаки чисел
+    ja .more;Если знак первого числа больше - значит оно больше
+    jb .less;Если знак второго числа больше - значит оно больше
+    ;Знаки равны, сравниваем без учета знаков
         call cmpData
         cmp rax, 0
-        js .equals
+        js .equals;Рассматриваем результат вызова функци
         xor rax, [rdi + sign]
         cmp rax, 0
         je .less
         jmp .more
-    .more
+    .more;Метки для случаев сравнения
         mov eax, 1
         jmp .cmp_done
     .less
@@ -252,15 +281,19 @@ biCmp:
     .cmp_done
     ret
 
+;Возвращает знак числа
+;Принимает
+	;rdi - длинное число
+;Возвращает - знак длинного числа
 biSign:
-    cmp qword [rdi + sign], 0
+    cmp qword [rdi + sign], 0;Если бит знака равен нулю - число отрицательное
     je .minus
         mov rdi, [rdi + vec]
         cmp qword [rdi + sz], 1
-        je .len_eq1
+        je .len_eq1;Если знак числа = 1 и длина числа > 1 то число положительное
             mov eax, 1
             jmp .sign_done
-        .len_eq1
+        .len_eq1;Если знак числа = 1 и длина числа = 1 и в векторе лежит 0 - то число нулевое, иначе положительное
             mov rax, [rdi + elem]
             cmp dword [rax], 0
             je .zero
@@ -274,64 +307,76 @@ biSign:
     .sign_done
     ret
 
+;Складывает цифры длинного числа без учета знака
+;Принимает
+	;rdi - первое длинное число
+	;rsi - второе длинное число
+;Сохраняет результат в первом числе
 addData:
     push rbx
     length r9, rdi
-    length rax, rsi
+    length rax, rsi;Узнаем длины чисел (r9 - длина первого, rax - длина второго)
     mov r11, rax
     cmp r9, rax
     ja .ok_max
-        mov r9, rax
+        mov r9, rax;r9 = max(r9, rax)
     .ok_max
     length r8, rdi
     cmp r8, r9
     je .not_push
-        push rsi
+	;Если длина первого числа меньше длины второго - дополним его ведущими нулями
+        push rsi;Сохраняем регистры
         push rdi
         mov rdi, [rdi + vec]
-        xor rsi, rsi
+        xor rsi, rsi;Будем класть нули - присваем rsi ноль
         mov rbx, r9
-        .loop_push
+        .loop_push;Цикл бежит до max(len1, len2) - len1
             push r8
-            call pushBack
+            call pushBack;Добавляем нули в начало числа
             pop r8
             inc r8
             cmp r8, rbx
             jb .loop_push
-        pop rdi
+        pop rdi;Восстанавливаем регистры
         pop rsi
         mov r9, rbx
     .not_push
 
-    xor r8, r8
+    xor r8, r8;Индекс цифры первого числа
     mov rcx, r9
-    xor rax, rax;carry
-    mov rbx, BASE
+    xor rax, rax;В rax будет перенос при сложении
+    mov rbx, BASE;Сохраняем модуль арифметики в rbx, чтобы работать с ним
     mov r9, [rdi + vec]
     mov r9, [r9 + elem]
     mov r10, [rsi + vec]
-    mov r10, [r10 + elem]
+    mov r10, [r10 + elem];Сохраняем указатели на массивы цифр длинных чисел
     .loop
-        add eax, [r9 + 4*r8]
+        add eax, [r9 + 4*r8];Добавляем к переносу очердную цифру первого числа
         cmp r8, r11
-        jnb .not_add
+        jnb .not_add;Если второе число еще не закончилось - добавляем его цифру в eax
             add eax, [r10 + 4*r8]
         .not_add
         xor edx, edx
-        div rbx
-        mov [r9 + 4*r8], edx
+        div rbx;Делим накопленную сумму в rax на основание системы счисления
+        mov [r9 + 4*r8], edx;Сохраняем результат
         inc r8
         cmp r8, rcx
         jne .loop
-    cmp rax, 0
+    cmp rax, 0;Если перенос не нулевой - добавим его в конец длинного числа
     je .done
         mov rdi, [rdi + vec]
         mov rsi, rax
         call pushBack
     .done
-    pop rbx
+    pop rbx;Восстанавливаем rbx
     ret
 
+;Вычитает цифры длинного числа без учета знака
+;Принимает
+	;rdi - первое длинное число
+	;rsi - второе длинное число
+;Предполагается, что в первом числе не меньше цифр, чем во втором
+;Сохраняет результат в первом числе
 subData:
     length rcx, rsi
     xor r8, r8
@@ -387,14 +432,20 @@ subData:
     pop r12
     ret
 
+;Складывает два длинных числа
+;Принимает
+	;rdi - первое длинное число
+	;rsi - второе длинное число
+;Результат сохраняет в первом числе
 biAdd:
     mov rax, [rsi + sign]
     cmp rax, [rdi + sign]
-    jne .not_eq_sign
+    jne .not_eq_sign;Если знаки чисел равны, просто складываем их цифры
         call addData
         jmp .done
     .not_eq_sign
-        call cmpData
+	;Если знаки чисел неравны
+        call cmpData;Сравниваем значения чисел без учета знака
         cmp rax, 0
         je .a_more_b
             cmp rax, -1
@@ -403,21 +454,23 @@ biAdd:
                 push rsi
                 xchg rdi, rsi
                 mov rdi, [rdi + vec]
-                call copyVector
+                call copyVector;Скопируем цифры первого числа
                 pop rdi
-                pop rsi
+                pop rsi;Достали из стека оба числа, поменяв их местами
+		;Будем вычитать из второго числа первое, затем просто поменяем вектора с цифрами местами
 
-                push rax
+                push rax;Сохраняем регистры, чтобы не затереть их вызовами функций
                 push rdi
                 push rsi
-                call subData
+                call subData;Вычитаем из второго числа первое
                 mov rax, [rsp]
                 mov rdi, [rax + vec]
-                call deleteVector
+                call deleteVector;Удаляем вектор первого числа
                 pop rsi
                 pop rdi
-                mov rax, [rdi + vec]
-                mov [rsi + vec], rax
+                mov rax, [rdi + vec];Достаем вектор из второго числа
+                mov [rsi + vec], rax;И записываем его в первое
+		;Восстанавливаем ветор второго числа и записываем его обратно
                 pop rax
                 mov [rdi + vec], rax
                 mov rax, [rdi + sign]
@@ -430,35 +483,42 @@ biAdd:
                 mov qword [rdi + sign], 1
                 jmp .done
         .a_more_b
+		;Если первое число больше второго (без учета знака)
             push rdi
             push rsi
-            call subData
+            call subData;Просто вычитаем из первого второе
             pop rsi
             pop rdi
             mov rax, [rsi + sign]
             cmp [rdi + sign], rax
             ja .b_neg
+		;Если первое число отрицательное, то результат будет отрицательный
                 mov qword [rdi + sign], 0
             .b_neg
             jmp .done
     .done
     ret
 
+;Вычитает два длинных числа
+;Принимает
+	;rdi - первое длинное число
+	;rsi - второе длинное число
+;Результат сохраняет в первом числе
 biSub:
     push rdi
-    push rsi
+    push rsi;Сохраняем регистры, чтобы не потерять при вызове функций
     xchg rdi, rsi
     call biSign
     cmp rax, 0
-    je .zero
+    je .zero;Если второе число 0 - никак не меняем первое
         mov rsi, [rsp]
-        xor qword [rsi + sign], 1
+        xor qword [rsi + sign], 1;Меняем знак второго числа
         mov rdi, [rsp + 8]
-        call biAdd
+        call biAdd;Вычисляем a-b как a+(-b)
         mov rsi, [rsp]
-        xor qword [rsi + sign], 1
+        xor qword [rsi + sign], 1;Возвращаем знак числа
     .zero
-    add rsp, 16
+    add rsp, 16;Выкидываем сохраненные регистры
     ret
 
 biMul:

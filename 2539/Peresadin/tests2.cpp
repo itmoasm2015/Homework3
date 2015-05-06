@@ -362,7 +362,6 @@ void test8(int test, int cnt, int iters, int len) {
         BigInt b = biFromString(s.c_str());
 
         int o = rand() % cnt;
-        cerr << "it = " << it << " op = " << o << endl;
         if (o == 0) {
             if (rand() % 2) {
                 biAdd(a, b);
@@ -736,7 +735,7 @@ mpz_class xb = mpz_class(sb);
 xa -= xb;
 cout << (xa.get_str() == string(buf));*/
 
-//    test8(8, 2, 1000, 1000);
+    test8(8, 2, 1000, 1000);
     test8(10, 3, 100, 200);
 
 /*    test11(); 
