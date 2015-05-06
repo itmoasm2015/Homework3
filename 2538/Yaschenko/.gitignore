@@ -1,0 +1,7 @@
+# objects and libs
+*.o
+*.a
+
+# executables
+tests
+main
