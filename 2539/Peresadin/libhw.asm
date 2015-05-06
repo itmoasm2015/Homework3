@@ -168,39 +168,43 @@ biFromString:
     pop rbx;Восстанавливаем rbx
     ret
 
+;Создает длинное число из числа
+;Принимает
+	;rdi - указатель на строку
+;Возвращает - новое длинное число
+
 biFromInt:
-    push rdi
-    call newBi
+    push rdi;Сохраняем число
+    call newBi;Создаем новое пустое число
     pop rdi
 
     cmp rdi, 0
-    js .minus
-    ;plus
-        mov qword [rax + sign], 1
+    js .minus;Выставляем знак длинного числа
+        mov qword [rax + sign], 1;Знак = 1, если число >= 0
         jmp .sign_done
     .minus
-        mov qword [rax + sign], 0
-        imul rdi, -1
+        mov qword [rax + sign], 0;Знак = 0, если число < 0
+        imul rdi, -1;Делаем число беззнаковым
     .sign_done
 
-    push rax
+    push rax;Сохраняем регистры, чтобы не затереть вызовами функций
     push r12
     push rbx
-    mov rbx, BASE
+    mov rbx, BASE;Сохраняем основание системы, чтобы оперировать с ним
     xchg rdi, rax
-    mov rdi, [rdi + vec]
+    mov rdi, [rdi + vec];Достаем вектор из длинного числа
     mov r12, rdi
-    .push_long_long
-        xor rdx, rdx
+    .push_long_long;Делим число на 10^8, кладем в результирующий вектор о статок, до тех пор, пока число не станет равным 0
+        xor rdx, rdx;Обнуляем старшую часть делимого
         div rbx
         mov rsi, rdx
-        push rax
+        push rax;В rax число, сохраняем его перед вызовом pushBack
         call pushBack
         pop rax
         mov rdi, r12
         cmp rax, 0
         jne .push_long_long
-    pop rbx
+    pop rbx;Восстанавливаем регистры
     pop r12
     pop rax
     ret
@@ -378,36 +382,38 @@ addData:
 ;Предполагается, что в первом числе не меньше цифр, чем во втором
 ;Сохраняет результат в первом числе
 subData:
-    length rcx, rsi
+    length rcx, rsi;Узнаем длину меньшего числа
     xor r8, r8
-    xor rax, rax;carry
+    xor rax, rax;В rax будет заем из предыдущего разярад
     mov r9, [rdi + vec]
     mov r9, [r9 + elem]
     mov r10, [rsi + vec]
-    mov r10, [r10 + elem]
+    mov r10, [r10 + elem];Получаем указатели на массивы с цифрами каждого числа
     .loop
         imul eax, -1
         add eax, [r9 + 4*r8]
         sub eax, [r10 + 4*r8]
+	;eax = a[r8] - b[r8] - eax
         jns .pos_carry
+		;Если eax < 0, то записываем результат и устанавливаем бит заема в единицу
             add eax, BASE
             mov [r9 + 4*r8], eax
             mov eax, 1
             jmp .done_sub
         .pos_carry
-            mov [r9 + 4*r8], eax
+            mov [r9 + 4*r8], eax;Если eax >= 0 записываем результат и устанавливаем бит заема в ноль
             xor eax, eax
         .done_sub
-        inc r8
+        inc r8;Сдвигаем указатель
         cmp r8, rcx
         jne .loop
 
-    cmp eax, 0
+    cmp eax, 0;Если остался заем - нужно отнять его от числа
     je .done
-    .sub_carry_loop
+    .sub_carry_loop;Отнимаем от числа, то что осталось от вычитания
         imul eax, -1
         add eax, [r9 + 4*r8]
-        jns .pos_carry_2
+        jns .pos_carry_2;Если есть заем в следующий разряд - продолжаем цикл, иначе останавливаемся
             add eax, BASE
             mov [r9 + 4*r8], eax
             mov eax, 1
@@ -419,7 +425,7 @@ subData:
     push r12
     length r12, rdi
     mov rdi, [rdi + vec]
-    .pop_back_zeroes_loop
+    .pop_back_zeroes_loop;Выкидываем из начала образовавшиеся нули
         call back
         cmp eax, 0
         jne .break
@@ -521,11 +527,17 @@ biSub:
     add rsp, 16;Выкидываем сохраненные регистры
     ret
 
+;Умножает два длинных числа
+;Принимает
+	;rdi - первое длинное число
+	;rsi - второе длинное число
+;Результат сохраняет в первом числе
 biMul:
     push rbx
     push r12
-    push r13
+    push r13;Сохраняем регистры
 
+	;Узнаем знак числа и запоминаем его. Проверяем, если какое-то из чисел равно нулю - возвращаем ноль
     push rdi
     push rsi
     call biSign
@@ -536,57 +548,58 @@ biMul:
     add rsp, 8
     cmp rax, 0
     je .res_zero
-
+	
+	;Находим сумму длин чисел и выделяем новый вектор такой длины
     push rax
     mov rax, [rsp + 8]
-    length r13, rax
+    length r13, rax;Нашли длину первого числа
     mov rsi, [rsp + 16]
-    length r12, rsi
+    length r12, rsi;Нашли длину второго чисал
     mov rdi, r12
     add rdi, r13
-    call newVector
+    call newVector;Создали вектора такой длины
     mov rsi, [rsp + 8]
-    mov rdi, [rsp + 16]
+    mov rdi, [rsp + 16];Восстановили rdi и rsi
     push rax
 
-    xor r8, r8
+    xor r8, r8;r8 - индекс цифры первого числа
     .loop1
-        xor r9, r9
+        xor r9, r9;r9 - индекс цифры второго числа
         mov rcx, [rsp]
         mov rcx, [rcx + elem]
-        lea rcx, [rcx + 4*r8]
-        xor rax, rax
+        lea rcx, [rcx + 4*r8];Считаем указатель на результирующий вектор, который указывает в позицию r8
+        xor rax, rax;В rax перенос в следующий разряд
         .loop2
             xor rdx, rdx
             mov edx, [rcx]
-            add rax, rdx
+            add rax, rdx;rax = rax + [rcx]
             mov r10, rax
             xor rax, rax
             xor rbx, rbx
             element eax, rdi, r8
-            element ebx, rsi, r9
-            mul rbx
-            add rax, r10
+            element ebx, rsi, r9;Узнаем сотвествующий элементы из вектора
+            mul rbx;Умножаем их
+            add rax, r10;Прибавляем предыдущий перенос
             xor rdx, rdx
             mov rbx, BASE
-            div rbx
+            div rbx;Берем по модулю
             mov [rcx], edx
 
-            add rcx, 4
+            add rcx, 4;Сдвигаем указатель на результат и на цифру второго числа
             inc r9
             cmp r9, r13
             jne .loop2
 
-            .loop_carry
+            .loop_carry;Если остался какой-то перенос - сохраним его в результат
                 cmp rax, 0
                 je .break_loop_carry
                 xor rdx, rdx
                 mov edx, [rcx]
-                add rax, rdx
-                mov rbx, BASE
-                div rbx
-                mov dword [rcx], edx
-                add rcx, 4
+                add rax, rdx;Складываем перенос с текущей цифрой результата
+                mov rbx, BASE;Берем по модулю
+                div rbx;Находим остаток
+                mov dword [rcx], edx;Записываем в результат
+                add rcx, 4;Сдвигаем указатель на цифру результат
                 jmp .loop_carry
             .break_loop_carry
         inc r8
@@ -595,7 +608,7 @@ biMul:
     pop rax
     pop rdx
     add rsp, 16
-    cmp rdx, -1
+    cmp rdx, -1;Достаем знак из стека и записываем в результат соотвествующий знак
     je .less_zero
         mov qword [rdi + sign], 1
         jmp .sign_done
@@ -605,20 +618,20 @@ biMul:
     push rax
     push rdi
     mov rdi, [rdi + vec]
-    call deleteVector
+    call deleteVector;Удаляем вектор первого числа
 
     mov rdi, [rsp + 8]
     call back
     cmp eax, 0
-    jne .no_pop_zero
+    jne .no_pop_zero;Выкидываем лидирующие нули из результирующего вектора
         call popBack
     .no_pop_zero
     pop rdi
     pop rax
-    mov [rdi + vec], rax
+    mov [rdi + vec], rax;Сохраняем результирующий вектор в первое число
     jmp .done
 
-    .res_zero
+    .res_zero;Если результат ноль, удаляем вектор старого числа, записываем новый знак, создаем вектор с нулем
         pop rsi
         pop rdi
         mov qword [rdi + sign], 1
@@ -630,12 +643,13 @@ biMul:
         pop rdi
         mov [rdi + vec], rax
     .done
-    pop r13
+    pop r13;Восстанавливаем регистры
     pop r12
     pop rbx
     ret
 
 
+;Макрос для biToString
 %macro check_limit 2
     mov r11, %1
     inc r11
