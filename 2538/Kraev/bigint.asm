@@ -167,34 +167,6 @@ biFromInt:
     x86_64_calle_pop
     ret
 
-extern printf
-;stupid function to display BigInt with base (2^64) digits
-stupidDebugPrint:
-    x86_64_calle_push
-    mov r12, rdi
-    mov rdi, printf1_string
-    mov rsi, [r12]
-    mov rdx, [r12 + 8]
-    mov rcx, [r12 + 16]
-    call_aligned printf
-
-       
-    mov r13, [r12 + 16] 
-    mov r14, [r12 + 24]
-    mov r15, 0
-    do
-        mov rdi, printf2_string
-        mov rsi, [r14 + r15*8]
-        call_aligned printf
-        inc r15
-    while r15, l, r13
-    
-    mov rdi, printf_new_line
-    call_aligned printf
-     
-    x86_64_calle_pop
-    ret
-
 ;;;  Create a BigInt from a decimal string representation.
 ;;;  Returns NULL on incorrect string.
 ;;; 
@@ -240,9 +212,6 @@ biFromString:
     mov rdi, r13 ;multiply our number by 10
     mov rsi, 10
     call mul_long_short
-
-;    mov rdi, r13
-;    call stupidDebugPrint
 
     mov rdi, r13
     mov rsi, r14
