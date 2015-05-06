@@ -215,7 +215,7 @@ biAdd:
 
     .just_add:
 
-    call_fun_2 get_max_size, rdi, rsi  ; rax = max(dst->size, src->size)
+    call get_max_size                  ; rax = max(dst->size, src->size)
     push rax
 
     mov r13, [rdi + SIZE_FIELD]        ; r13 = dst->size
@@ -276,42 +276,24 @@ biSub:
     push r12
     push r13
 
-    mov  r12, [rdi + SIGN_FIELD]        ; r12 = dst->sign
-    mov  rdx, [rsi + SIGN_FIELD]        ; rdx = src->sign
-    xor  rdx, r12                       ; if one bigInt < 0 and another > 0 {
-    cmp rdx, -2                         ;    dst->sign = abs(dst->sign)
-    jne .just_add                       ;    src->sign = abs(src->sign)
-    abs [rdi + SIGN_FIELD], 1           ;    dst -= src 
-    abs [rsi + SIGN_FIELD], 2           ;    dst->sign *= r12; // dst was > 0, dst - src
-    call_fun_2 biSub, rdi, rsi          ;    // if dst was < 0, -(dst - src) -> change sign
-    mov  rdx, [rdi + SIGN_FIELD]        ;
-    imul rdx, r12                       ; 
-    mov  [rdi + SIGN_FIELD], rdx        ; }
-    jmp .before_ret
+    mov  r12, [rdi + SIGN_FIELD]       ; r12 = dst->sign
+    mov  rdx, [rsi + SIGN_FIELD]       ; rdx = src->sign
+    xor  rdx, r12                      ; if one bigInt < 0 and another > 0 {
+    cmp  rdx, -2                       ;    
+    jne .just_sub                      ;    src->sign = -src->sign
+    neg qword [rsi + SIGN_FIELD]       ;    dst += src
+    call_fun_2 biAdd, rdi, rsi         ;    return; 
+    ;jmp .before_ret                    ; }
 
-    .just_add:
-
-    call_fun_2 get_max_size, rdi, rsi  ; rax = max(dst->size, src->size)
-    push rax
-
-    mov r13, [rdi + SIZE_FIELD]        ; r13 = dst->size
-    cmp r13, [rsi + SIZE_FIELD]
-    jg .add_bignum                     ; if (dst->size <= src->size) { 
-    shl rax, 1                         ;   rax *= 2
-    call_fun_2 realloc_data, rdi, rax  ;   reallocate dst->data
-                                       ; }
-
-    ; dst->capcity > src->size + dst->size
-    .add_bignum:
-    pop rax                            ; rax = max_size
-    mov [rdi + SIZE_FIELD], rax        ; dst->size = max_size
+    .just_sub:
+    call ensure_first_greater 
 
     mov r10, 0                         ; i = 0;
     mov r11, [rdi + DATA_FIELD]        ; r11 = dst->data
     mov r12, [rsi + DATA_FIELD]        ; r12 = src->data
     clc                                ; clear carry flag
     pushfq                             ; store eflags
-    .while_add:                        ; while (i < max_size || carry)
+    .while_sub:                        ; while (i < max_size || carry)
         mov r13, 0                     ; val = 0
         cmp r10, [rsi + SIZE_FIELD]    ; 
         jge .skip_set_val              ; if (i < src->size) {
@@ -319,16 +301,16 @@ biSub:
         add r12, SIZEOF_FLD            ; }
         .skip_set_val:
             popfq                      ; restore eflags
-            adc [r11], r13             ; dst->data[i] += val + carry
+            sbb [r11], r13             ; dst->data[i] -= val + carry
             pushfq                     ; store eflags
             add r11, SIZEOF_FLD        ; r11 = next(dst)
 
             inc r10                    ; i++
             cmp r10, rax               ; i < max_size or carry -> continue
-            jl .while_add              ; else break
+            jl .while_sub              ; else break
             popfq                      ; restore eflags
             pushfq                     ; store eflags
-            jc .while_add                  
+            jc .while_sub                  
     popfq                              ; restore eflags
     cmp  r10, rax                      ; cmp(i, max_size)
     je  .end_add
@@ -340,10 +322,9 @@ biSub:
     mov r12, [rsi + SIGN_FIELD]        ; 
     mov [rdi + SIGN_FIELD], r12        ; }
 
-    .before_ret
+    .before_ret:
     pop r13
     pop r12
-    ret
     ret
 
 ; void biMul(BigInt dst, BigInt src);
@@ -466,7 +447,7 @@ copy_BigInt:
     ret
 
 ; deep copy data from src to dest
-; void copy_BigInt(BigInt* dest, BigInt* src)
+; void copy_data(BigInt* dest, BigInt* src)
 ;   rdi = destination pointer to BigInt
 ;   rsi = source pointer to BigInt
 copy_data:
@@ -475,6 +456,7 @@ copy_data:
     mov rdi, [rdi + DATA_FIELD] ; rdi = dest->data
     mov rsi, [rsi + DATA_FIELD] ; rsi = src->data
 
+    cld
     repnz movsq                 ; copy src->size of src->data to dest->data
     ret
 
@@ -573,13 +555,11 @@ push_back:
 ; return value:
 ;   rax = max(rdi->size, rsi->size)
 get_max_size:
-    add rdi, SIZE_FIELD   ; rdi refer to first->size
-    add rsi, SIZE_FIELD   ; rsi refer to second->size
-    mov rax, [rdi]        ; rax = first->size
+    mov rax, [rdi + SIZE_FIELD]        ; rax = first->size
 
-    cmp [rsi], rax        ; second->size - first->size
+    cmp [rsi + SIZE_FIELD], rax        ; second->size - first->size
     jle .end_max_size                
-    mov rax, [rsi]        ; second->size > first->size -> rax = second->size
+    mov rax, [rsi + SIZE_FIELD]        ; second->size > first->size -> rax = second->size
 
     .end_max_size:
     ret
@@ -649,4 +629,32 @@ add_short:
     ;mov qword [rdi + SIGN_FIELD], 1   ;   }
                                       ;; }
     .end_add
+    ret
+
+; void ensure_first_greater(BigInt* fst, BigInt* scd)
+;   rdi = fst
+;   rsi = scd
+ensure_first_greater:
+    push qword [rdi + SIGN_FIELD]
+    push qword [rsi + SIGN_FIELD]
+
+    abs [rdi + SIGN_FIELD], 1                        ; fst = abs(fst)
+    abs [rsi + SIGN_FIELD], 2                        ; scd = abs(scd)
+    call biCmp
+    cmp rax, 0                                       ; if ( abs(fst) > abs(scd) ) return
+    jge .end_ensure                                  ; else {
+    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
+    pop qword [rsi + SIGN_FIELD]
+
+    call_fun_2 createBigInt, [rsi + SIZE_FIELD], rsi ;   rax = new BigInt();
+                                                     ;   rax->capacity = scd->size 
+    call_fun_2 copy_BigInt, rax, rsi                 ;   deep_copy: rax = rsi
+    mov rsi, rdi                                     ;   scd = fst
+    mov rdi, rax                                     ;   fst = rax
+    ret                                              ;
+                                                     ; }
+
+    .end_ensure
+    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
+    pop qword [rsi + SIGN_FIELD]
     ret
