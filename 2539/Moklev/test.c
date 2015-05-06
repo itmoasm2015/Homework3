@@ -95,7 +95,7 @@ const char * malformed_string[6] = {
     " 123",
     "21930129380129830192830982130-",
     "+12367",
-    "9929291929912919291299129 29912991912"
+    "-"
 };
 
 void print_long(BigInt a, bool flag) {
@@ -116,18 +116,145 @@ void print_long(BigInt a, bool flag) {
 long long lalka(unsigned long long a);
 
 int main() {
-    {
-        BigInt a = biFromString("100000000000000000000");
-        BigInt b = biFromString("3");
+    // ?. Simple biDivRem test
+    flag = true;
+    for (int k = 0; k < 10000; k++) {
+        #define N 100
+        #define M 98
+        char sa[N];
+        char sb[N];
+        char sd[M];
+        for (int i = 0; i < N; i++) {
+            sa[i] = '1' + rand() % 9;
+            if (i < N - 1)
+                sb[i] = '1' + rand() % 9;
+            if (i < M)
+                sd[i] = '0' + rand() % 10;
+        }
+        sa[N - 1] = '\0';
+        sb[N - 1] = '\0';
+        sd[M - 1] = '\0';
+
+        BigInt a = biFromString(sa);
+        BigInt c = biFromString(sa);
+        BigInt b = biFromString(sb);
+        BigInt d = biFromString(sd);
+        biMul(a, b);
+        biAdd(a, d);
+
         BigInt q = biFromInt(0);
         BigInt r = biFromInt(0);
         biDivRem(&q, &r, a, b);
-        char s[100];
-        biToString(q, s, 100);
-        printf("Q = %s\n", s);
-        biToString(r, s, 100);
-        printf("R = %s\n", s);
-        return 0;
+        if (biCmp(c, q) != 0 || biCmp(r, d) != 0) {
+            print_long(a, 1);
+            print_long(b, 1);
+            printf("%d %d\n", biCmp(c, q), biCmp(r, d));
+            char sq[100];
+            char sr[100];
+            biToString(q, sq, 100);
+            biToString(r, sr, 100);
+            printf("\033[0;31mFailed:\033[0m\na = %s\nb = %s\nd = %s\nq = %s\nr = %s\n", sa, sb, sd, sq, sr);
+            flag = false;
+            break;
+        } 
+        biDelete(a);
+        biDelete(b);
+        biDelete(c);
+        biDelete(d);
+        biDelete(q);
+        biDelete(r);
+        #undef N
+        #undef M
+    }
+    report(flag, simple_div_test);
+    // ?. Signed biDivRem test
+    signedlal: {
+    }
+    flag = true;
+    for (int i = 0; i < 1000; i++) {
+        #define N 1000
+        int l1 = rand() % N + 3;
+        int l2 = rand() % N + 3;
+        char sa[l1 + 1];
+        char sb[l2 + 1];
+        for (int k = 0; k < l1; k++)
+            sa[k] = '0' + rand() % 10;
+        for (int k = 0; k < l2; k++)
+            sb[k] = '0' + rand() % 10;
+        if (sb[l2 - 1] == '0')
+            sb[l2 - 1] = '1';
+        sa[l1] = '\0';
+        sb[l2] = '\0';
+        if (rand() % 2)
+            sa[0] = '-';
+        if (rand() % 2)
+            sb[0] = '-';
+
+        BigInt a = biFromString(sa);
+        BigInt b = biFromString(sb);
+        BigInt q = biFromInt(0);
+        BigInt r = biFromInt(0);
+        biDivRem(&q, &r, a, b);
+       
+        flag &= biSign(r) == 0 || biSign(r) == biSign(b);
+        if (!flag)
+            printf("\033[0;31mFailed:\033[0m\nbiSign(r) = %d\nbiSign(b) = %d\n", biSign(r), biSign(b));
+        biMul(q, b);
+        biAdd(q, r);
+        flag &= biCmp(a, q) == 0; 
+        if (!flag) {
+            printf("\033[0;31mFailed:\033[0m\n");
+            print_long(a, true);
+            print_long(q, true);
+        }
+        if (!flag) 
+            break;
+        biDelete(a);
+        biDelete(b);
+        biDelete(q);
+        biDelete(r);
+        #undef N
+    }
+    report(flag, sign_div_test);
+    // ?. Huge biMul && biDelete test
+    {
+        BigInt a = biFromInt(1);
+        BigInt b = biFromInt(1);
+        BigInt c = biFromInt(1);
+        BigInt r = biFromInt(0);
+        BigInt z = biFromInt(0);
+        for (int i = 0; i < 1000; i++) {
+            biMul(a, b);
+            biAdd(b, c);
+        }
+        for (int i = 0; i < 1000; i++) {
+            biSub(b, c);
+            biDivRem(&a, &r, a, b);
+            flag = (biCmp(r, z) == 0);
+            if (!flag)
+                break;
+        }
+        report(flag && biCmp(a, c) == 0, huge_factorial_mul_div_test);
+        biDelete(a);
+        biDelete(b);
+        biDelete(c);
+        biDelete(r);
+        biDelete(z);
+    }
+    // ?. Test for NULL result of biDivRem(_, _, _, 0)
+    {
+        BigInt q = biFromInt(42);
+        BigInt r = biFromInt(69);
+        BigInt _q = q;
+        BigInt _r = r;
+        BigInt a = biFromString("-19264123974691238746123978461927384691287312879346917283469127346");
+        BigInt b = biFromInt(0);
+        biDivRem(&q, &r, a, b);
+        report(q == NULL && r == NULL, null_div_result);
+        biDelete(a);
+        biDelete(b);
+        biDelete(_q);
+        biDelete(_r);
     }
     // 1. Memory leak check
     for (int i = 0; i < 10000; i++) {
