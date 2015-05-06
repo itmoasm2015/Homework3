@@ -1,33 +1,19 @@
-CC = gcc
-ASM = yasm
-AR = ar
+CXXFLAGS=-g 
 
-CFLAGS = -Wall -Wextra -std=c99 -g -L. -I.
-ASMFLAGS = -f elf64 -gdwarf2
+YASM_FLAGS=-f elf64 -g dwarf2
 
+all: test
 
+test: test.o libhw.a
+	g++ $(CXXFLAGS) -o test test.o libhw.o -lgmp
 
-RM = rm -f
+libhw.a: libhw.o
+	ar rcs libhw.a libhw.o
 
-LIB = libhw.a
-TARGET = tests
-C_SRS = tests.c
-ASM_SRS = bigint.s
-OBJ = bigint.o tests.o
-
-all: $(TARGET)
+libhw.o: bigint.s
+	yasm bigint.s $(YASM_FLAGS) -o libhw.o
 
 clean:
-	$(RM) $(TARGET) $(LIB) $(OBJ)
-
-$(TARGET): $(LIB) tests.o
-	$(CC) -o $@ $(CFLAGS) tests.o -lhw
-
-tests.o: tests.c
-	$(CC) -o $@ -c $(CFLAGS) $^
-
-$(LIB): bigint.o
-	$(AR) rcs $@ $<
-
-bigint.o: bigint.s
-	$(ASM) -o $@ $(ASMFLAGS) $^
+	rm *.o
+	rm ./test
+	rm *.a
