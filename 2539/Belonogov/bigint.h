@@ -33,7 +33,7 @@ void biDelete(BigInt bi);
 int biSign(BigInt bi);
 
 /** dst += src */
-int biAdd(BigInt dst, BigInt src);
+void biAdd(BigInt dst, BigInt src);
 
 /** dst -= src */
 void biSub(BigInt dst, BigInt src);
@@ -49,10 +49,28 @@ void biMul(BigInt dst, BigInt src);
  */
 void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 
-/** Compare two BitInts.
+/** Compare two BigInts.
  * \returns sign(a - b)
  */
 int biCmp(BigInt a, BigInt b);
+
+/////////////////////my functions
+
+long long biDivShort(BigInt , long long );
+
+BigInt biCopy(BigInt); 
+
+long long biIsZero(BigInt);
+
+void biMulShort(BigInt, unsigned long long);
+void biAddShort(BigInt, unsigned long long);
+
+BigInt biAddMy(BigInt dst, BigInt src);
+BigInt biSubMy(BigInt dst, BigInt src);
+BigInt biMulMy(BigInt dst, BigInt src);
+void biMove (BigInt dst, BigInt src);
+
+
 
 #ifdef __cplusplus
 }
