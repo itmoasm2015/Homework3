@@ -192,7 +192,7 @@ biAdd:
     mov  r12, [rdi + SIGN_FIELD]        ; r12 = dst->sign
     mov  rdx, [rsi + SIGN_FIELD]        ; rdx = src->sign
     xor  rdx, r12                       ; if one bigInt < 0 and another > 0 {
-    cmp rdx, -2                        ;    dst->sign = abs(dst->sign)
+    cmp rdx, -2                         ;    dst->sign = abs(dst->sign)
     jne .just_add                       ;    src->sign = abs(src->sign)
     abs [rdi + SIGN_FIELD], 1           ;    dst -= src 
     abs [rsi + SIGN_FIELD], 2           ;    dst->sign *= r12; // dst was > 0, dst - src
@@ -272,10 +272,12 @@ biSub:
     jne .just_sub                      ;    src->sign = -src->sign
     neg qword [rsi + SIGN_FIELD]       ;    dst += src
     call_fun_2 biAdd, rdi, rsi         ;    return; 
-    ;jmp .before_ret                    ; }
+    jmp .before_ret                    ; }
 
     .just_sub:
-    call ensure_first_greater          ; rax = 1, if abs(dst) < abs(src)
+    ; rax = 1, if abs(dst) < abs(src), save rsi, rdi
+    call ensure_first_greater
+
     mov rdx, [rdi + SIZE_FIELD]        ; rdx = dst->size
 
     mov r10, 0                         ; i = 0;
@@ -302,17 +304,16 @@ biSub:
             pushfq                     ; store eflags
             jc .while_sub                  
     popfq                              ; restore eflags
-    cmp  r10, rax                      ; cmp(i, max_size)
-    je  .end_add
-    add qword [rdi + SIZE_FIELD], 1    ; increase size if last operation was carry
 
-    .end_add:
-    cmp qword [rdi + SIGN_FIELD], 0    ; if (dst->sign == 0) {
-    jne .before_ret                    ;   dst->sign = src->sign;
-    mov r12, [rsi + SIGN_FIELD]        ; 
-    mov [rdi + SIGN_FIELD], r12        ; }
+    cmp rax, 1                         ; if (abs(dst) was < abs(src)) {
+    jne .before_ret                    ;   dst->sign = -src->sign;
+    mov r12, [rsi + SIGN_FIELD]        ;   delete old instance of BigInt 
+    neg r12                            ;   which hold in rsi
+    mov [rdi + SIGN_FIELD], r12        ; 
+    call_fun_1 biDelete, rsi           ; }
 
     .before_ret:
+    call_fun_1 clear_leader_zero, rdi
     pop r13
     pop r12
     ret
@@ -342,7 +343,7 @@ biCmp:
     mov rcx, [rsi + SIZE_FIELD]     ; rcx = b->size
     cmp rdx, rcx
     je .number_cmp                  ; if (a->size > b.size) {
-    jl .ret_neg_sign                ;   return rax == a->sign
+    jl .ret_neg_sign                ;   return (rax == a->sign)
     ret                             ; }
 
     ; rcx = a->size = b->size; 
@@ -475,9 +476,9 @@ set_or_push_back:
     .end_set_or:
     ret
 
-; BigInt* createBigInt(long long num_dig)
-; rdi - number of data
 ; allocate BigInt and allocate BigInt->data, which contain "cnt" qwords. 
+; BigInt* createBigInt(long long num_dig)
+;   rdi - number of data
 ; return value:
 ;   rax = pointer to allocated BigInt
 createBigInt:
@@ -494,8 +495,8 @@ createBigInt:
     ret
 
 ; void move_bigNum(BigInt* dest, BigInt* src)
-; rdi = destination pointer to BigInt
-; rsi = source pointer to BigInt
+;   rdi = destination pointer to BigInt
+;   rsi = source pointer to BigInt
 move_bigNum:
     ;copy size, sign from src to dest
     push rsi
@@ -520,8 +521,8 @@ move_bigNum:
 
 ; void push_back(BigInt* src, long long arg);
 ;
-; rdi - pointer to the structure BigInt
-; rsi - arg::(unsigned long long)  which will be pushed into the "data"
+;   rdi - pointer to the structure BigInt
+;   rsi - arg::(unsigned long long)  which will be pushed into the "data"
 push_back:
     call_fun_2 ensure_capacity, rdi, rsi ; ensure capacity and save register rsi
     
@@ -536,8 +537,8 @@ push_back:
     ret
 
 ; long long get_max_size(BigInt* first, BigInt* second)
-; rdi = first
-; rsi = second
+;   rdi = first
+;   rsi = second
 ;
 ; return value:
 ;   rax = max(rdi->size, rsi->size)
@@ -637,7 +638,7 @@ ensure_first_greater:
 
     abs [rdi + SIGN_FIELD], 1                        ; fst = abs(fst)
     abs [rsi + SIGN_FIELD], 2                        ; scd = abs(scd)
-    call biCmp
+    call_fun_2 biCmp, rdi, rsi                        ; save rdi, rsi
     cmp rax, 0                                       ; if ( abs(fst) > abs(scd) ) return
     jge .end_ensure                                  ; else {
     pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
@@ -657,3 +658,25 @@ ensure_first_greater:
     pop qword [rsi + SIGN_FIELD]
     mov rax, 0
     ret
+
+; void clear_leader_zero(BigInt* src)
+;   rdi = src
+; result:
+;   clear leader zero in src, and set sign appropriately
+clear_leader_zero:
+    mov rcx, [rdi + SIZE_FIELD]                      ; rcx = src->size
+    mov rax, [rdi + DATA_FIELD]                      ; rax = src->data
+    .loop:
+        cmp qword [rax + rcx * SIZEOF_FLD - 8], 0    ; if (src->data[rcx - 1] == 0) {
+        jne .end                                     ;   rcx--;
+        sub rcx, 1                                   ; }
+        jnz .loop
+    .end
+    mov [rdi + SIZE_FIELD], rcx                      ; src->size = rcx
+    cmp rcx, 0                                       ; if (rcx == 0) {
+    jne .before_ret                                  ;   src->sign = 0;
+    mov qword [rdi + SIGN_FIELD], 0                  ;   src->size = 1;
+    mov qword [rdi + SIZE_FIELD], 1                  ; }
+    .before_ret
+    ret
+
