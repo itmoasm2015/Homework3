@@ -163,14 +163,18 @@ biFromString:
 	call biDelete 
 	xor Res, Res
 	end
+
 biDelete:
 	begin
-	
+	mov r15, rsp	
+	and rsp, ~15
 	mov r12, Arg1
 	mov Arg1, [Arg1 + bigint.data]
 	call free		;free vector
+	and rsp, ~15
 	mov Arg1, r12
 	call free		;free struc
+	mov rsp, r15
 	end
 
 ;; checks, if expand needed and then calls expandVec 
@@ -789,6 +793,7 @@ expandVec:
 	lea Arg3, [r14 * 8]	;size in bytes
 	call memcpy
 	
+	and rsp, ~15		;align the stack
 	mov Arg1, r13
 	call free		;free previous data
 	
