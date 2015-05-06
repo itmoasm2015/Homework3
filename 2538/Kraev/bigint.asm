@@ -18,6 +18,14 @@ section .text
     %endrep
 %endmacro
 
+%macro pushall 0
+    mpush rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11 
+%endmacro
+%macro popall 0
+    mpop rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11
+%endmacro
+
+
 ; save registers for some calls, like malloc
 %macro x86_64_calle_push 0
     mpush rbp, rbx, r12, r13, r14, r15 
@@ -29,7 +37,7 @@ section .text
 %endmacro
 
 ;nasm macros for plain structures
-
+;store bigint with base 2^64 in data_ptr
 struc big_int 
     .sign:         resq 1
     .capacity:     resq 1
@@ -134,13 +142,14 @@ biCreate:
    mov rsi, 8
    call_aligned calloc ;allocate memory for structure of BigInt
 
-   mov r13, rax ; allocate memory for data of BigInt
+   mov r13, rax ; allocated memory for data of BigInt
    mov rdi, 8
    mov rsi, r12
    call_aligned calloc
    
    mov [r13 + big_int.data_ptr], rax ;init values of BigInt
    mov [r13 + big_int.capacity], r12
+   mov qword [r13 + big_int.vsize], 1 ;size == 0?? it is impossible and was breaking all my conventions.
    mov rax, r13 
 
    x86_64_calle_pop
@@ -156,7 +165,6 @@ biFromInt:
     call biCreate ; Create BigInt with initial capacity = 8
     mov r13, rax 
     mov r14, [rax + big_int.data_ptr]
-    mov qword [r13 + big_int.vsize], 1 ;we have only one digit
     if r12, l, 0
         mov qword [rax + big_int.sign], 1;something, like abs() 
         neg r12
@@ -173,16 +181,18 @@ biFromInt:
 ;;; BigInt biFromString(char const *s);
 biFromString:
     x86_64_calle_push
-    
+     
     mov r12, rdi ;save some regs for future
-    mov rdi, 1 
+    mov rdi, 8 
     call biCreate; create zero bigInt
     mov r13, rax ; and save it
-    
-    if r12, e, 0;this string is empty
+   
+    if r12, e, 0;this string is null 
         jmp .error
-    endif 
+    endif
+     
     xor r15, r15
+    xor r14, r14; operations on low part of registers don't flush other part of it ;(
     mov r14b, [r12]  
     if r14b, e, '-';check for minus sign in the beginning 
         inc r12
@@ -204,24 +214,21 @@ biFromString:
     endif   
     if r14b, l, '0'; is our symbol a digit?
         jmp .error ;oops
-    endif
-    if r14b, g, '9'
+    elif r14b, g, '9'
         jmp .error; another oops
     endif 
-    
+     
     mov rdi, r13 ;multiply our number by 10
     mov rsi, 10
     call mul_long_short
-
     mov rdi, r13
     mov rsi, r14
     sub rsi, 48 ;make our character more similar to digit
     call add_long_short; and add it
-  
     inc r12
     mov r14b, [r12] ;let's examine next character 
     jmp .digits 
-  
+ 
     .error: 
     mov rdi, r13;some errors occures
     call biDelete; we should delete unneseccary BigInts
@@ -278,6 +285,7 @@ add_long_short:
     x86_64_calle_push
     mov r13, rsi 
     mov r12, rdi
+    
     mov rsi, [rdi + big_int.vsize]
     inc rsi
     call ensure_capacity ;expand if we really need it;
@@ -341,7 +349,8 @@ mul_long_short:
 
 ;removes leading zeros in the end of our number and make any zero - positive zero
 normalize:
-    mpush r12
+    x86_64_calle_push
+    ;mpush r12
     mov r12, rdi 
     mov rdi, [r12 + big_int.data_ptr]
     mov rcx, [r12 + big_int.vsize]
@@ -364,7 +373,7 @@ normalize:
             mov qword [r12 + big_int.sign], 0;make all zeros positive.
         endif
     endif 
-    mpop r12
+    x86_64_calle_pop 
     ret 
 
 ; rdi += rsi
@@ -905,8 +914,3 @@ biToString:
 biDivRem:
     ret
 
-
-section .data
-      printf1_string: db "Integer: %lld %lld %lld", 13, 10, 0 
-      printf2_string: db "%llu<->", 0
-      printf_new_line: db 13, 10 
