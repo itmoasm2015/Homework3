@@ -16,14 +16,12 @@ void assertEquals(BigInt a, int x) {
 void assertEquals(BigInt a, int64_t x) {
 	assert(a != 0);
 	biToString(a, out, INF);
-	//printf("%s %s\n", out, std::to_string(x).c_str());
 	assert(!strcmp(out, std::to_string(x).c_str()));
 }
 
 void assertEquals(BigInt a, std::string &x) {
 	assert(a != 0);
 	biToString(a, out, INF);
-	//printf("%s %s\n", out, x.c_str());
 	assert(!strcmp(out, x.c_str()));
 }
 
@@ -71,8 +69,8 @@ void testBiFromString() {
 	numbers.push_back(std::make_pair("-0000000000000000000000000000000000000000000000000000000000", "0"));
 	numbers.push_back(std::make_pair(std::to_string(MAX_VALUE), std::to_string(MAX_VALUE)));
 	numbers.push_back(std::make_pair(std::to_string(MIN_VALUE), std::to_string(MIN_VALUE)));
-	//std::string backZeroesNumber = "900000000000000000000000000000000000000";
-	//numbers.push_back(std::make_pair(backZeroesNumber, backZeroesNumber));
+	std::string backZeroesNumber = "900000000000000000000000000000000000000";
+	numbers.push_back(std::make_pair(backZeroesNumber, backZeroesNumber));
     for (int test = 0; test != 100; ++test) {
 		int length = rand() % 1000 + 1;
 		std::string number = randomStringNumber(length);
@@ -90,7 +88,6 @@ void testBiFromString() {
 		numbers.push_back(std::make_pair(number, beforeNumber));
 	}
 	for (std::pair<std::string, std::string> x : numbers) {
-		//printf("!! %s\n", x.first.c_str());
 		BigInt a = biFromString(x.first.c_str());
 		assertEquals(a, x.second);
 		biDelete(a);
@@ -296,6 +293,21 @@ void testBiMul() {
 	printf("Running testBiMul\n");
 
 	BigInt a, b;
+
+	a = biFromString("00000000000");
+	b = biFromInt(0);
+	biMul(a, b);
+	assert(!biCmp(a, biFromInt(0)));
+
+	a = biFromString("2");
+	b = biFromString("0");
+	biMul(a, b);
+	assert(!biCmp(a, biFromInt(0)));
+
+	a = biFromString("0");
+	b = biFromInt(3);
+	biMul(a, b);
+	assert(!biCmp(a, biFromString("0")));
 
 	a = biFromString("2");
 	b = biFromString("3");
