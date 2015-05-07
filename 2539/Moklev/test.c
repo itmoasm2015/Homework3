@@ -116,6 +116,18 @@ void print_long(BigInt a, bool flag) {
 long long lalka(unsigned long long a);
 
 int main() {
+    flag = true;
+    for (int i = 0; i < 10; i++) {
+        BigInt a = biFromString(huge_numbers[i]);
+        BigInt b = biFromInt(0);
+        biSub(a, a);
+        flag &= biCmp(a, b) == 0;
+        if (!flag)
+            break;
+        biDelete(a);
+        biDelete(b);
+    }
+    report(flag, self_sub_test);
     // ?. Simple biDivRem test
     flag = true;
     for (int k = 0; k < 10000; k++) {
