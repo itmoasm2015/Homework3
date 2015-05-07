@@ -56,7 +56,7 @@ endstruc
 %macro alignedFree 0
 	push r12
 	mov r12, rsp
-	and rsp, ~15	; аналогично alignedMalloc
+	and rsp, ~15	; Аналогично alignedMalloc
 	call free
 	mov rsp, r12
 	pop r12
