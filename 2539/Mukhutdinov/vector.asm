@@ -1,11 +1,8 @@
 ;;; vector.asm
-;;; Operations on auto-resizing vectors of uint64
+;;; Operations on auto-resizing vectors of uint64_t
 
 %include "macro.inc"
 %include "vector.inc"
-
-section .data
-CONST_0:        dq 0
 
 section .text
 
