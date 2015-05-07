@@ -19,6 +19,7 @@ global vectorBack
 global vectorCapacity
 global vectorPopBack
 global vectorEmpty
+global vectorCopy
 
 %assign DEFAULT_CAPACITY 8
 %assign ELEM_SIZE        4
@@ -281,3 +282,48 @@ vectorPopBack:
 	ret
 
 
+;; Vector vectorCopy(Vector v);
+;;
+;; Makes a copy of a given vector V.
+;; Takes:
+;;	* RDI: pointer to vector V.
+;; Returns:
+;;	* RAX: copy of vector V.
+vectorCopy:
+	push		rdi
+
+;; Allocate memory for data.
+	mov		rdi, [rdi + Vector.capacity]
+	mov		rsi, ELEM_SIZE
+	call		calloc
+	push		rax
+;; Copy data with memcpy
+; 1st parameter: dst
+	mov		rdi, rax
+; 2nd parameter: src
+	mov		rax, [rsp + 8]
+	mov		rsi, [rax + Vector.data]
+; 3rd parameter: count
+	mov		rdx, [rax + Vector.capacity]
+	imul		rdx, ELEM_SIZE
+
+	call		memcpy
+
+;; Allocate memory for Bigint struct.
+	mov		rdi, 1
+	mov		rsi, Vector_size
+	call		calloc
+; stack: *newData | *oldVector
+
+	pop		rdx
+	pop		rdi
+
+	mov		rcx, [rdi + Vector.size]
+	mov		[rax + Vector.size], rcx
+
+	mov		rcx, [rdi + Vector.capacity]
+	mov		[rax + Vector.capacity], rcx
+
+	mov		[rax + Vector.data], rdx
+
+	ret

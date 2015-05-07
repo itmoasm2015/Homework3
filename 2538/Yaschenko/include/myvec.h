@@ -36,6 +36,8 @@ size_t vectorSize(Vector v);
 /** Returns capacity of \v. */
 size_t vectorCapacity(Vector v);
 
+Vector vectorCopy(Vector v);
+
 #ifdef __cplusplus
 }
 #endif

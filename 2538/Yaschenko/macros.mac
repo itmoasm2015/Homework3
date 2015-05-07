@@ -111,6 +111,11 @@
 	call	vectorSet
 %endmacro
 
+%macro vector_copy 1
+	mov	rdi, %1
+	call	vectorCopy
+%endmacro
+
 %macro bigint_set_sign 2
 	mov	%1, %2
 %endmacro

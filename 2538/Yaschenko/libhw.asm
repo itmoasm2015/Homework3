@@ -16,6 +16,7 @@ extern vectorGet
 extern vectorSet
 extern vectorEmpty
 extern vectorPopBack
+extern vectorCopy
 
 global biFromInt
 global biFromString
@@ -438,36 +439,6 @@ biCmpAbs:
 	ret
 
 
-
-;; void biMul(BigInt dst, BigInt src);
-;;
-;; Multiplies DST by SRC inplace.
-;; Takes:
-;;	* RDI: pointer to DST.
-;;	* RSI: pointer to SRC.
-__biMul:
-	mpush		r12, r13, r14, r15
-
-	mpush		rdi, rsi
-	vector_size	[rsi + Bigint.vector]
-	mov		r9, rax
-	mpop		rdi, rsi
-
-	mpush		rdi, rsi, r9
-	vector_size	[rdi + Bigint.vector]
-	mov		r8, rax
-	mpop		rdi, rsi, r9
-
-	mov		rcx, r8
-	add		rcx, r9
-
-	mpush		rdi, rsi, r8, r9
-	bigint_new	rcx
-	mpop		rdi, rsi, r8, r9
-
-	push		rax
-;; stack: *C | ...
-
 ;; void biMul(BigInt dst, BigInt src);
 ;;
 ;; Multiplies DST by SRC inplace.
@@ -648,3 +619,97 @@ _biTrimZeros:
 .done:
 	ret
 
+
+;; void biAdd(BigInt dst, BigInt src);
+;;
+;; Adds Bigint SRC to Bigint DST.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+biAdd:
+	mov		rdx, [rsi + Bigint.sign]
+	mov		rax, [rdi + Bigint.sign]
+;; Save signs.
+	mpush		rax, rdx
+
+	cmp		rdx, SIGN_ZERO
+	je		.done
+
+	cmp		rax, SIGN_ZERO
+	jne		.non_zero
+
+.copy_dst_to_src:
+	push		rsi
+
+	push		rdi
+	vector_delete	[rdi + Bigint.vector]
+	pop		rdi
+
+	push		rdi
+	vector_copy	[rdi + Bigint.vector]
+	pop		rdi
+
+	pop		rsi
+
+	mov		[rdi + Bigint.vector], rax
+
+	mov		rcx, [rsi + Bigint.sign]
+	mov		[rdi + Bigint.sign], rcx
+
+;; Forget signs.
+	add		rsp, 16
+
+	jmp		.done
+
+.non_zero:
+	mpop		rax, rdx
+
+	cmp		rax, rdx
+	jne		.signs_diff
+
+.signs_equal:
+
+.signs_diff:
+
+.done:
+	ret
+
+
+;; void _biAddDigits(Bigint dst, Bigint src);
+;;
+;; Adds one Bigint's digits to another's.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+_biAddDigits:
+	
+
+
+
+
+;; Makes a copy of Bigint.
+;; Takes:
+;;	* RDI: pointer to Bigint.
+;; Returns:
+;;	* RAX: pointer to a newly created copy.
+biCopy:
+	push		rdi
+;; Allocates memory for BigInt struct.
+	mov		rdi, 1
+	mov		rsi, Bigint_size
+	call		calloc
+	pop		rdi
+	push		rax
+;; Make a copy of vector.
+	push		rdi
+	call		vectorCopy
+	pop		rdi
+
+	pop		rdx
+	mov		rcx, [rdi + Bigint.sign]
+	mov		[rdx + Bigint.sign], rcx
+	mov		[rdx + Bigint.vector], rax
+
+	mov		rax, rdx
+
+	ret
