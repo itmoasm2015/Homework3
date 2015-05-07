@@ -15,7 +15,7 @@ ll get_max_size(BI* first, BI* second)
 
 void push_back(BI* src, ll arg);
 
-void move_bigNum(BI* dest, BI* src)
+void move_bigInt(BI* dest, BI* src)
 
 BI* createBigInt(ll num_dig)
 

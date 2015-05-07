@@ -207,9 +207,47 @@ void test_sub() {
     cerr << "---COMPLETE---" << endl;
 }
 
+void test_mul() {
+    BigInt n1 = biFromString("99");
+    BigInt n2 = biFromString("99");
+    BigInt n3 = biFromString("99999999999999999999999999999999999980000000000000000000000000000000000001");
+    BigInt n4 = biFromInt(99 * 99);
+    biMul(n1, n2);
+    assert(biCmp(n1, n4) == 0);
+
+    n1 = biFromString("9999999999999999999999999999999999999");
+    n2 = biFromString("9999999999999999999999999999999999999");
+    biMul(n1, n2);
+    assert(biCmp(n1, n3) == 0);
+
+    n1 = biFromString("-9999999999999999999999999999999999999");
+    n2 = biFromString("9999999999999999999999999999999999999");
+    biMul(n1, n2);
+    biMul(n3, biFromInt(-1));
+    assert(biCmp(n1, n3) == 0);
+
+    n1 = biFromString("-9999999999999999999999999999999999999");
+    n2 = biFromString("9999999999999999999999999999999999999");
+    biMul(n1, n2);
+    biMul(n3, biFromInt(-1));
+    biMul(n1, biFromInt(-1));
+    assert(biCmp(n1, n3) == 0);
+}
+
 int main() {
+    //void* temp =calloc(10, 8);
+    //free(temp);
+    //BigInt bi1 = biFromInt(2ll);
+    //cout << "asdfasdfasdf" << endl;
+    //BigInt bi2 = biFromInt(-123ll);
+    //BigInt bi3 = biFromInt(-123ll);
+    //biAdd(bi1, bi2);
+    //biSub(bi1, bi2);
+    //assert(biCmp(bi2, bi3) == 0);
+    
     test_constructors();
     test_add();
     test_sub();
+    test_mul();
     return 0;
 }
