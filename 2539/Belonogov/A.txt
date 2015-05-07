@@ -1,0 +1,48 @@
+порядок передачи аргументов
+rdi 
+rsi
+rdx
+rcx
+r8
+r9
+
+r10, r11, rax - можно портить
+
+
+ESI – „Source index”;
+EDI – „Destination index”;
+EBP – „Base pointer”;
+ESP – „Stack pointer
+
+СS – „Code segment”;
+DS – „Data segment”;
+ES – „Extra segment”;
+FS – „F segment”;
+GS – „G segment”;
+SS – „Stack segment”.
+
+Содержатся в регистре EFLAGS.
+Основные флаги состояния:
+СF – беззнаковый перенос;
+ZF – ноль;
+SF – знак (отрицательный);
+OF – знаковый перенос.
+
+lea
+
+-------------------GDB
+n next line, stepping over function calls
+s next line, stepping into function calls
+
+
+MOVD Move doubleword
+MOVQ Move quadword
+
+colorscheme asm1
+
+set ft=nasm
+
+
+
+
+

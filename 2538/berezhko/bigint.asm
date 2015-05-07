@@ -30,6 +30,29 @@ BASE equ 1000000000
 ;;      =  1 if BigInt > 0
 ;;      =  0 if BigInt == 0
 
+;; Round rsp to the previous common multiply of 16
+;; This macro useful for align stack
+%macro roundToSixteen 0
+        and rsp, ~15 ; zero last four bits
+%endmacro
+
+%macro callfree 0
+    push r12
+    mov r12, rsp        ; save rsp
+    roundToSixteen      ; align stack
+    call free
+    mov rsp, r12        ; load rsp
+    pop r12
+%endmacro
+
+%macro callcalloc 0
+    push r12
+    mov r12, rsp        ; save rsp
+    roundToSixteen      ; align stack
+    call calloc
+    mov rsp, r12        ; load rsp
+    pop r12
+%endmacro
 
 ;; Create BigInt with one memory cell for address to values
 ;;
@@ -39,7 +62,9 @@ BASE equ 1000000000
         push rdi
         push rsi
         mov rdi, 8   ; size of address to values
+        sub rsp, 8
         call malloc
+        add rsp, 8
         pop rsi
         pop rdi
 %endmacro
@@ -117,7 +142,7 @@ BASE equ 1000000000
         mov rdi, %1     ; rdi = numbers count
         add rdi, 2      ; for sign and bigdigits count
         mov rsi, 4      ; 32bit
-        call calloc
+        callcalloc
         pop rsi
         pop rdi
 %endmacro
@@ -316,7 +341,7 @@ biFromString:
     .bad_format:
     push rdi
     mov rdi, rsi
-    call free       ; delete allocated memory
+    callfree       ; delete allocated memory
     pop rdi
 
     xor rax, rax    ; return NULL
@@ -334,12 +359,12 @@ biFromString:
 ;;
 ;; Input:
 ;;   rdi - BigInt
-%macro biDelteMacro 0
+%macro biDeleteMacro 0
         push rdi
         mov rdi, [rdi]  ; rdi = BigInt.values
-        call free       ; delete BigInt.values
+        callfree       ; delete BigInt.values
         pop rdi
-        call free       ; delete BigInt
+        callfree       ; delete BigInt
 %endmacro
 
 ;; Delete BigInt
@@ -619,7 +644,7 @@ biCmp:
         push rbx
             ;;;;; DELETING ;;;;;
         push rsi
-        call free   ; delete a
+        callfree   ; delete a
         pop rsi
             ;;;;; ALLOCATION ;;;;;
         push rsi
@@ -741,7 +766,7 @@ biCmp:
         push rdi
         push rsi
         mov rdi, r12
-        call free       ; delete tmp
+        callfree       ; delete tmp
         pop rsi
         pop rdi
 
@@ -809,7 +834,7 @@ biCmp:
         push rdi
         push rsi
         mov rdi, r12
-        call free       ; delete tmp
+        callfree       ; delete tmp
         pop rsi
         pop rdi
 
@@ -834,7 +859,7 @@ biCmp:
         cmp rax, 0          ; a == b
         jne %%not_equal
         push rsi
-        call free           ; delete a.values
+        callfree           ; delete a.values
         ; a = 0:
         pop rsi
         callocNDigits 1     ; 1 bigdigit
@@ -869,7 +894,7 @@ biCmp:
 
         push rdi
         mov rdi, r12    ; rdi = a.values
-        call free       ; delete a.values
+        callfree       ; delete a.values
         pop rdi
 
         mov rsi, r13    ; rsi = b.values
@@ -946,6 +971,8 @@ biCmp:
         mov r12d, [rdi] ; r12 = (abs(a)-abs(b)).sign
         neg r12d        ; r12 = -(abs(a)-abs(b)).sign
         mov [rdi], r12d ; rdi = -(abs(a)-abs(b))
+        mov eax, -1     ;
+        mov [rsi], eax  ; load b.sign
         jmp %%finish
         %%continue4:
 
@@ -1144,7 +1171,7 @@ biAdd:
         push rdi
         push rsi
         mov rdi, r12
-        call free       ; delete tmp
+        callfree       ; delete tmp
         pop rsi
         pop rdi
 
