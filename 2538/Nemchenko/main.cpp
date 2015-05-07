@@ -43,7 +43,7 @@ void test_constructors() {
     n2 = biFromInt(1LL << 63);
     n1 = biFromString("-9223372036854775808");
     assert(biCmp(n1, n2) == 0);
-    cerr << "---END_BI_CONSTRUCT----" << endl;
+    cerr << "---COMPLETE----" << endl;
 }
 void test_add() {
     cerr << "---TEST_BI_ADD_CMP----" << endl;
@@ -142,6 +142,7 @@ void test_add() {
 }
 
 void test_sub() {
+    cerr << "---TEST_BI_SUB_CMP----" << endl;
     BigInt n5 = biFromString("1");
     BigInt n6 = biFromString("100000000000000000000000000000000000000000000000000000000000000000000000");
 
@@ -152,7 +153,6 @@ void test_sub() {
 
     biSub(n5, n6);
 
-    cerr << "---TEST_BI_SUB_CMP----" << endl;
     BigInt n1 = biFromString("-1");
     BigInt n2 = biFromString("100000000000000000000000000000000000000000000000000000000000000000000000");
 
@@ -174,7 +174,6 @@ void test_sub() {
     assert(biCmp(n1, n2) == 1);
     assert(biCmp(n2, biFromInt(0)) == 0);
     assert(biCmp(n2, biFromString("-00000000000000000000000")) == 0);
-    cerr << "---COMPLETE---" << endl;
 
 
     n1 = biFromString("12341234981273409182570918237409128347");
@@ -204,10 +203,19 @@ void test_sub() {
     assert(biCmp(n1, n3) == 0);
     assert(biCmp(n1, n2) == 1);
     assert(biCmp(n2, n1) == -1);
+
+    BigInt bi1 = biFromInt(2ll);
+    BigInt bi2 = biFromInt(-123ll);
+    BigInt bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    biSub(bi1, bi2);
+    assert(biCmp(bi2, bi3) == 0);
+    assert(biCmp(bi1, biFromString("2")) == 0);
     cerr << "---COMPLETE---" << endl;
 }
 
 void test_mul() {
+    cerr << "---TEST_BI_MUL----" << endl;
     BigInt n1 = biFromString("99");
     BigInt n2 = biFromString("99");
     BigInt n3 = biFromString("99999999999999999999999999999999999980000000000000000000000000000000000001");
@@ -232,19 +240,10 @@ void test_mul() {
     biMul(n3, biFromInt(-1));
     biMul(n1, biFromInt(-1));
     assert(biCmp(n1, n3) == 0);
+    cerr << "---COMPLETE----" << endl;
 }
 
 int main() {
-    //void* temp =calloc(10, 8);
-    //free(temp);
-    //BigInt bi1 = biFromInt(2ll);
-    //cout << "asdfasdfasdf" << endl;
-    //BigInt bi2 = biFromInt(-123ll);
-    //BigInt bi3 = biFromInt(-123ll);
-    //biAdd(bi1, bi2);
-    //biSub(bi1, bi2);
-    //assert(biCmp(bi2, bi3) == 0);
-    
     test_constructors();
     test_add();
     test_sub();

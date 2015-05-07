@@ -317,10 +317,11 @@ biSub:
 
     cmp rax, 1                         ; if (abs(dst) was < abs(src)) {
     jne .before_ret                    ;   dst->sign = -src->sign;
-    mov r12, [rsi + SIGN_FIELD]        ;   delete old instance of BigInt 
+    xchg rsi, rdi
+    call_fun_2 move_bigInt, rdi, rsi   ; 
+    mov r12, [rdi + SIGN_FIELD]        ;   delete old instance of BigInt 
     neg r12                            ;   which hold in rsi
-    mov [rdi + SIGN_FIELD], r12        ; 
-    call_fun_1 biDelete, rsi           ; }
+    mov [rdi + SIGN_FIELD], r12        ; } 
 
     .before_ret:
     call_fun_1 clear_leader_zero, rdi
@@ -714,18 +715,23 @@ ensure_first_greater:
 
     abs [rdi + SIGN_FIELD], 1                        ; fst = abs(fst)
     abs [rsi + SIGN_FIELD], 2                        ; scd = abs(scd)
-    call_fun_2 biCmp, rdi, rsi                        ; save rdi, rsi
+    call_fun_2 biCmp, rdi, rsi                       ; save rdi, rsi
     cmp rax, 0                                       ; if ( abs(fst) > abs(scd) ) return
     jge .end_ensure                                  ; else {
     pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     pop qword [rsi + SIGN_FIELD]
 
-    call_fun_2 createBigInt, [rsi + SIZE_FIELD], rsi ;   rax = new BigInt();
-                                                     ;   rax->capacity = scd->size 
-    call_fun_2 copy_BigInt, rax, rsi                 ;   deep_copy: rax = rsi
-    mov rsi, rdi                                     ;   scd = fst
-    mov rdi, rax                                     ;   fst = rax
+    push qword [rsi + SIZE_FIELD]
+    call_fun_2 createBigInt, [rsi + SIZE_FIELD], rsi ; rax = new BigInt();
+                                                     ; rax->capacity = scd->size 
+    call_fun_2 copy_BigInt, rax, rsi                 ; deep_copy: rax = rsi
+    mov rsi, rdi                                     ; scd = fst
+    mov rdi, rax                                     ; fst = rax
+    pop rax                                          ; rax = previous scd->size
+    call_fun_2 realloc_data, rsi, rax                ; ensure that second number
+                                                     ; have at least rax capacity
     mov rax, 1
+    
     ret                                              ;
                                                      ; }
 
