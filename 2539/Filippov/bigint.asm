@@ -118,15 +118,18 @@ endstruc
 %endmacro
 
 ; Создает новый вектор по указателю на структуру с длинным числом и размеру
-; Старый вектор удаляется
+; %1 -- числа
+; %2 -- новый размер
 %macro newVector 2
 	mpush rdi, %1, %2, r12, r13
 	lea rdi, [%2 * 4]			; %2 * 4 -- количество байт, которые надо выделить
 
+	;push %1
 	mpush rdi, rax
 	alignedMalloc				; выделяем память под новый вектор
 	mov r13, rax				; копируем указатель на новый вектор в R13
 	mpop rdi, rax
+	;pop %1
 	
 	xor r12, r12				; R12 -- указатель на цифру
 	push r14
@@ -238,6 +241,14 @@ ensureCapacity:
 	xor r12, r12
 	mov r12d, [%1 + BigInt.digits]	; 
 	mov dword [r12 + rdi * 4], %2d 	; добавляем в конец числа новую цифру
+
+	pushAll
+	xor rsi, rsi
+	mov esi, [r12 + rdi * 4 - 4]
+	mov rdi, intFormat
+	xor rax, rax
+	call printf	
+	popAll
 
 	inc rdi                     	; увеличиваем на один RDI -- размер числа
 	mov [%1 + BigInt.size], edi    	; и изменяем размер в указателе, конец
@@ -782,6 +793,8 @@ biAdd:
 	biCopy rdi, rax					; В случае a = 0 копируем b в а и удаляем скопированное число b
 	callFree rax
 .finish:
+	mov rax, rdi
+	deleteZeroesFromBigInt rax
 	ret
 
 ; void biSub(BigInt a, BigInt b);
@@ -956,6 +969,8 @@ biSub:
 	imul r8, r15
 	mov byte [rdi + BigInt.sign], r8b
 	pop r15
+	mov rax, rdi
+	deleteZeroesFromBigInt rax
 	ret 
 
 ; void biMul(BigInt a, BigInt b);
