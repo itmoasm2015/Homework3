@@ -103,7 +103,7 @@ endstruc
 	mov r12, %1	
 	xor rdi, rdi				; запоминаем указатель на структуру с длинным числом
 	mov edi, [r12 + BigInt.digits]		; удаляем указатель на цифры длинного числа
-	;alignedFree
+	alignedFree
 	mov rdi, r12				; удаляем указатель на структуру
 	alignedFree
 	pop r12
@@ -113,23 +113,27 @@ endstruc
 %macro callFreeVector 1
 	pushAll
 	mov rdi, %1				; удаляем указатель на вектор
-	;alignedFree
+	alignedFree
 	popAll
 %endmacro
 
 ; Создает новый вектор по указателю на структуру с длинным числом и размеру
-; %1 -- числа
+; %1 -- число
 ; %2 -- новый размер
 %macro newVector 2
 	mpush rdi, %1, %2, r12, r13
 	lea rdi, [%2 * 4]			; %2 * 4 -- количество байт, которые надо выделить
+	push r9
+	mov r9, %2
+	mov [%1 + BigInt.capacity], r9d
+	pop r9
 
-	;push %1
+	mpush %1, %2
 	mpush rdi, rax
 	alignedMalloc				; выделяем память под новый вектор
 	mov r13, rax				; копируем указатель на новый вектор в R13
 	mpop rdi, rax
-	;pop %1
+	mpop %1, %2
 	
 	xor r12, r12				; R12 -- указатель на цифру
 	push r14
@@ -152,10 +156,10 @@ endstruc
 ; RAX -- результат
 ; сохраняет RDI
 %macro createBigIntWithCapacity 1
+	mpush %1, rdi, rsi
 	mov rdi, 16				; 16 байт выделяем под структуру
-	mpush %1, rsi
 	alignedMalloc				; RAX -- выделенная структура
-	mpop %1, rsi
+	mpop %1, rdi, rsi
 	mov byte [rax + BigInt.sign], 0		; Записываем 0 в знак и размер вектора
 	mov dword [rax + BigInt.size], 0	;
 	mov [rax + BigInt.capacity], %1d	; Вместимость берем из аргумента
@@ -208,8 +212,8 @@ ensureCapacity:
 	je .before_simple_push_back         
 	push r11
 	xor r11, r11
-	mov r11d, [rax + r8 * 4 + 9]	; [RAX + r8 * 4 + 9] -- цифра с индексом R8 числа RAX
-	mov [r12 + r8 * 4 + 9], r11d    ; копируем это значение в соответствующую цифру R12
+	mov r11d, [rax + r8 * 4]	; [RAX + r8 * 4] -- цифра с индексом R8 числа RAX
+	mov [r12 + r8 * 4], r11d    	; копируем это значение в соответствующую цифру R12
 	pop r11
 	inc r8                          ; следующая цифра
 	jmp .fill_values
@@ -235,25 +239,17 @@ ensureCapacity:
                                 	; можем вызвать ensureCapacity, он все сделает, что нам надо
 	mpush %2, rax
 	call ensureCapacity				
+	mov %1, rdx
 	mpop %2, rax
 
 	mpush r12
 	xor r12, r12
 	mov r12d, [%1 + BigInt.digits]	; 
 	mov dword [r12 + rdi * 4], %2d 	; добавляем в конец числа новую цифру
-
-	pushAll
-	xor rsi, rsi
-	mov esi, [r12 + rdi * 4 - 4]
-	mov rdi, intFormat
-	xor rax, rax
-	call printf	
-	popAll
-
 	inc rdi                     	; увеличиваем на один RDI -- размер числа
 	mov [%1 + BigInt.size], edi    	; и изменяем размер в указателе, конец
-
 	mpop r12
+
 	mpop rdi, rsi, rdx, rcx
 %endmacro
 
@@ -502,7 +498,7 @@ biFromInt:
 ; ответ в RAX
 ; делает большое число по строке (строка удовлетворяет ^-?\d+$)
 ; если строка некорректна, возвращает 0
-biFromString:
+biFromString:	
 	createBigInt					; Создаем длинное число -- ответ (хранится в RAX)
 	mov byte [rax + BigInt.sign], 1			; Изначально скажем, что оно положительное
 	xor rcx, rcx
@@ -580,7 +576,7 @@ biFromString:
 	pushBack rax, r8
 	jmp .finish
 .error_occurred:
-	;callFree rax					; Если произошла ошибка, возвращаем NULL	
+	callFree rax					; Если произошла ошибка, возвращаем NULL	
 	xor rax, rax
 .finish:
 	ret
@@ -729,31 +725,38 @@ biAdd:
 	jmp .finish
 .add:							; Разобрались со всеми случаями, теперь просто складываем два длинных положительных числа
 	mpush r12, r13, r14, r15
-	mzero rcx, r8, r9, r10, r11, r12, r13, r14, r15
-	mov r12d, [rdi + BigInt.digits]			; R12 -- указатель на цифры первого числа
-	mov r13d, [rax + BigInt.digits]			; R13 -- указатель на цифры второго числа
-	mov r14, r12					; R14 -- указатель на цифры первого числа (не меняется)
-	mov r15, r13					; R15 -- указатель на цифры второго числа (не меняется)
-							; RCX -- перенос
+	mzero rcx, r8, r9, r10, r11, r14, r15	; RCX -- перенос
+	xor r12, r12			; R12 -- номер цифры первого числа
+	xor r13, r13			; R13 -- номер цифры второго числа	
 .sum_digits:
 	mov r10d, [rdi + BigInt.size]			; R10 -- длина первого числа
 	mov r11d, [rax + BigInt.size]			; R11 -- длина второго числа
+	mov r14, [rdi + BigInt.digits]					; R14 -- указатель на цифры первого числа
+	mov r15, [rax + BigInt.digits]					; R15 -- указатель на цифры второго числа
 	
-	lea rdx, [r14 + r10 * 4]			; RDX -- указатель на конец вектора цифра первого числа
-	cmp r12, rdx					; Если R12 < RDX, то текущая цифра первого числа не 0
+	cmp r12, r10					; Если R12 < R10, то текущая цифра первого числа не 0
 	jl .first_non_zero
 	xor r8, r8					; Иначе -- она ноль
 	jmp .second
 .first_non_zero:
-	mov r8d, [r12]					; Пишем в R8 текущую цифру первого числа
+	push r15
+	xor r15, r15
+	mov r15d, [rdi + BigInt.digits]
+	lea r15, [r15 + r12 * 4]
+	mov r8d, [r15]					; Пишем в R8 текущую цифру первого числа
+	pop r15
 .second:
-	lea rdx, [r15 + r11 * 4]			; Аналогично находим текущую цифру второго числа -- R9
-	cmp r13, rdx					;
+	cmp r13, r11					; Аналогично находим вторую цифру
 	jl .second_non_zero
 	xor r9, r9					; Тут она 0
 	jmp .check_finish
 .second_non_zero:
-	mov r9d, [r13]					; А тут нет, записываем ее в R9
+	push r15
+	xor r15, r15
+	mov r15d, [rax + BigInt.digits]
+	lea r15, [r15 + r13 * 4]
+	mov r9d, [r15]					; А тут нет, записываем ее в R9
+	pop r15
 .check_finish:
 	cmp r8, 0					; Если обе цифры равны 0 и перенос тоже, заканчиваем сложение
 	jne .ok
@@ -771,8 +774,7 @@ biAdd:
 	mov rcx, 1
 	sub r8, BASE
 .write_digit:
-	lea rdx, [r14 + r10 * 4]			; Иначе цифра нормальная и можно просто записать ее в конец ответа
-	cmp r12, rdx
+	cmp r12, r10 ; Иначе цифра нормальная и можно просто записать ее в конец ответа
 	jl .non_zero
 	mpush r8					; Если в числе не хватает цифр, добавим 0 в конец и запишем новую цифру вместо него
 	mov r8, 0
@@ -782,9 +784,14 @@ biAdd:
 	pop rbx
 	mpop r8
 .non_zero:
-	mov [r12], r8d					; Записываем в конец новую цифру
-	add r12, 4					; И переходим к следующим цифрам
-	add r13, 4
+	push r15
+	xor r15, r15
+	mov r15d, [rdi + BigInt.digits]
+	lea r15, [r15 + r12 * 4]
+	mov [r15], r8d					; Записываем в конец новую цифру
+	pop r15
+	inc r12					; И переходим к следующим цифрам
+	inc r13
 	jmp .sum_digits
 .sum_is_done:
 	mpop r12, r13, r14, r15
@@ -1016,11 +1023,12 @@ biMul:
 .multiply:
 	mov r8d, dword [rdi + BigInt.size]
 	mov r9d, dword [rsi + BigInt.size]
-	lea r8, [r8 + r9]
+	lea r9, [r8 + r9]
 	mpush rdi, rsi
-	createBigIntWithCapacity r8
-	mov [rax + BigInt.size], r8d
+	createBigIntWithCapacity r9
+	mov [rax + BigInt.size], r9d
 	mpop rdi, rsi
+
 	xor r8, r8
 	mov r8b, byte [rdi + BigInt.sign]
 	mov byte [rax + BigInt.sign], r8b
@@ -1166,4 +1174,3 @@ section .data
 intFormat:	db '%d', 10, 0
 intFormat2:	db '!!! %d', 10, 0
 stringFormat:	db '%s', 10, 0
-
