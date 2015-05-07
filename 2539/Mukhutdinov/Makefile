@@ -1,5 +1,6 @@
-CC=gcc
-CFLAGS=-Wall -m64 -g -O3 -std=c11 -I../../include
+CXX=g++
+CXXFLAGS=-Wall -g -O3 -std=c++11 -I../../include
+LDFLAGS=-lboost_unit_test_framework
 YASM=yasm
 YFLAGS=-f elf64 -g dwarf2
 AR=ar rcs
@@ -7,7 +8,7 @@ AR=ar rcs
 all: test lib
 
 test: test.o vector.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 lib: vector.o
 	$(AR) libhw.a $^

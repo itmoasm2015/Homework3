@@ -12,7 +12,12 @@ section .text
 extern malloc
 extern free
 
-global vectorNew, vectorDelete, vectorEnsureCapacity, vectorAdd
+global vectorNew
+global vectorDelete
+global vectorSize
+global vectorResize
+global vectorGet
+global vectorSet
 
 ;; @cdecl64
 ;; Vector vectorNew(unsigned int initialCapacity);
@@ -68,7 +73,43 @@ vectorDelete:
               ret
 
 ;; @cdecl64
-;; void vectorResize(Vector vec, unsigned int newSize);
+;; int vectorSize(Vector vec)
+;;
+;; Returns vector size.
+;;
+;; @param  RDI vec
+;; @return RAX Vector size
+vectorSize:
+              mov   rax, [rdi + vector.size]
+              ret
+
+;; @cdecl64
+;; uint64_t vectorGet(Vector vec, unsigned int i);
+;;
+;; Get element by index.
+;;
+;; @param  RDI vec
+;; @param  RSI i
+;; @return RAX Vector size
+vectorGet:
+              mov   rax, [rdi + rsi*8 + vector.data]
+              ret
+
+;; @cdecl64
+;; void vectorSet(Vector vec, unsigned int i, uint64_t val);
+;;
+;; Set element by index.
+;;
+;; @param  RDI vec
+;; @param  RSI i
+;; @param  RDX val
+;; @return RAX Vector size
+vectorSet:
+              mov   [rdi + rsi*8 + vector.data], rdx
+              ret
+
+;; @cdecl64
+;; Vector vectorResize(Vector vec, unsigned int newSize);
 ;;
 ;; Resizes a vector, reallocating if necessary
 ;;
@@ -77,13 +118,13 @@ vectorDelete:
 ;; @return RAX Address of resized vector
 vectorResize:
               CDECL_ENTER 0, 0
-              mov   r8, [rdi + vector.size]
-              mov   r9, [rdi + vector.capacity]
+              mov   r12, [rdi + vector.size]     ; size
+              mov   r13, [rdi + vector.capacity] ; capacity
 
-              cmp   rsi, r9         ; Check if new size exceeds capacity
+              cmp   rsi, r13        ; Check if new size exceeds capacity
               jle   .assign_size    ; and reallocate vector, if so
 
-              mpush  rdi, rsi
+              mpush rsi, rdi
               lea   rdi, [rsi*2]
               call  vectorNewRaw    ; Allocate a bigger vector
 
@@ -92,31 +133,33 @@ vectorResize:
 
               lea   rsi, [rdi + vector.data] ; Prepare pointers for copying
               lea   rdi, [rax + vector.data]
-              mov   rcx, r8         ; the old size is in RCX
+              mov   rcx, r12        ; the old size is in RCX
 
               cld                   ; Copy data
               rep   movsq
 
+              push  rax
               pop   rdi             ; Clear old vector
               call  vectorDelete
 
+              pop   rax
               mov   rdi, rax        ; Point RDI to new vector and restore passed size in RSI
               pop   rsi
 .assign_size:
               mov   [rdi + vector.size], rsi
-              cmp   rsi, r8         ; If new size is bigger than old, zero out the tail
+              cmp   rsi, r12        ; If new size is bigger than old, zero out the tail
               jle   .return
 
-              push  rdi
+              push  rdi             ; Prepare pointers for tail zeroing
               add   rdi, vector_size
-              add   rdi, r8
+              add   rdi, r12
               mov   rcx, rsi
-              sub   rcx, r8
+              sub   rcx, r12
 
-              xor   rax, rax
+              xor   rax, rax        ; Zero it out
               cld
               rep   stosb
               pop   rdi
 .return:
-              mov   rax, rdi
+              mov   rax, rdi        ; Return vector address in RAX
               CDECL_RET
