@@ -9,7 +9,9 @@
 using namespace std;
 
 #define db(x) cerr << #x << " = " << x << endl
+#define mp make_pair
 
+const int N = 1e6;
 char s[1000];
 
 void p(void * ptr, int k = 0) {
@@ -18,8 +20,13 @@ void p(void * ptr, int k = 0) {
         x++;
     cout << (*x) << endl;
 }
+void detailPrint(BigInt);
 
-void print(BigInt c) {
+void print(BigInt c, bool flag = false) {
+    if (flag) {
+        detailPrint(c);
+        return;
+    }
     char s[10000];
     biToString(c, s, 1000);
     cout << s << endl;
@@ -31,14 +38,25 @@ int sign(int x) {
     return 1;
 }
 
-void t2() {
+void equal(BigInt a, string s) {
+    char t[N];
+    biToString(a, t, N); 
+    string tt(t);
+    if (tt != s) {
+        db(tt);
+        db(s);
+    }
+    assert(tt == s);
+}
+
+void testCmp() {
     /// test cmp
     if (0) {
-        BigInt aa = biFromInt(-3);
-        BigInt bb = biFromInt(-4);
-        cerr << "dd\n";
+        BigInt aa = biFromInt(100);
+        BigInt bb = biFromInt(11);
+        //cerr << "dd\n";
         cerr << biCmp(aa, bb) << endl;
-        cerr << "dd\n";
+        //cerr << "dd\n";
     }
     else {
         for (int i = 0; i < 100; i++) {
@@ -179,12 +197,195 @@ void t5() {
     exit(0);
 }
 
+
+
+void testSum() {
+    string s, t;
+    s = "14947181269259654621";
+    t = "15677406474858260664";
+    BigInt a = biFromString(s.c_str());
+    BigInt b = biFromString(t.c_str());
+    //biSubMy(a, b); //(-121
+    //detailPrint(a);
+    //detailPrint(b);
+
+    biAdd(a, b); //(-121
+    //detailPrint(a);
+    cerr << "OK\n";
+    //exit(0);
+}
+
+void testDiv() {
+    // check Div
+    string s, t;
+    s = "0";
+    t = "-62";
+    BigInt a = biFromString(s.c_str());
+    BigInt b = biFromString(t.c_str());
+    BigInt c, e;
+    if (0) {
+        BigInt d = biDivRem(&c, NULL, a, b);
+        cerr << "----------\n";;
+        print(d);
+        detailPrint(d);
+    }
+    else {
+        biDivRem(&c, &e, a, b);
+        cerr << "div:  ";
+        detailPrint(c);
+        cerr << "rem:  ";
+        print(e);
+        detailPrint(c);
+    }
+    exit(0);
+}
+
+void testSetBit() {
+    /// check set bit
+    BigInt a = biFromInt(0);
+    print(a); 
+    biSetBit(a, 40);
+    biSetBit(a, 63);
+    biSetBit(a, 2);
+    print(a); 
+    exit(0);
+}
+
+void testBigShl() {
+    // bigshl
+    string s = "-10000000000000000000000000000000000000000000000000000000000001";
+    BigInt a = biFromString(s.c_str());
+    biBigShl(a, 3);
+    detailPrint(a);
+    print(a);
+}
+
+string getRandString() {
+    int n = 2;
+    string s;
+    if (rand() % 2) s += "-";
+    for (int i = 0; i < n; i++) {
+        char ch = (rand() % 10 + '0');
+        if (ch == '0' && i == 0) ch = '1';
+        s += ch;
+    }
+    return s;
+}
+
+pair < mpz_class, mpz_class > myDivRem(mpz_class a, mpz_class b) {  // r c
+    if (a % b == 0) {
+        return mp(a / b, mpz_class(0));
+    }
+    mpz_class c = abs(a) / abs(b);
+    mpz_class r = abs(a) % abs(b);
+    mpz_class C, R;
+    if (a >= 0 && b >= 0) {
+        C = c;
+        R = r;
+    } 
+    if (a < 0 && b >= 0) {
+        C = - c - 1;
+        R = abs(b) - r;
+        //return mp(-c - 1, b - r);
+    }
+    if (a >= 0 && b < 0) {
+        C = - c - 1; 
+        R = r - abs(b);
+        //return mp(-c - 1, r - b);
+    }
+    if (a < 0 && b < 0) {
+        C = c;
+        R = -r;
+    }
+    cerr << C << " " << R << endl;
+    //return mp(c, -r);
+    cerr << a << endl;
+    cerr << b * C + R << endl;
+    assert(a == b * C + R);
+    return mp(C, R);
+}
+
+
+void bigTest() {
+    for (int ser = 0; ser < 200; ser++) {
+        BigInt a = biFromInt(0);
+        mpz_class b = 0;
+        for (int t = 0; t < 100; t++) {
+            cerr << "================== " << t << endl;
+            int type = rand() % 5;
+            string ss = getRandString();
+            //db(s);
+            BigInt c = biFromString(ss.c_str());
+            mpz_class d(ss);
+            db(type);
+            cerr << "a: ";
+            print(a, 1);
+            cerr << "c: ";
+            print(c);
+            if (type == 0) {
+                biAdd(a, c);
+                b += d; 
+            }
+            if (type == 1) {
+                biSub(a, c);
+                b -= d;
+            }
+            if (type == 2) {
+                biMul(a, c);
+                b *= d;
+            }
+            if (type == 3) {
+                BigInt t1, t2;
+                biDivRem(&t1, &t2, a, c);
+                a = t1;
+                b = myDivRem(b, d).first;
+            }
+            char s[N]; 
+            biToString(a, s, N);     
+            string mpzS = b.get_str(); 
+            string tt(s);
+            db(tt);
+            db(mpzS);
+            assert(tt == mpzS);
+        }
+        cerr << "OK\n";
+    }
+    cerr << "OK\n";
+}
+
+void tmpTest() {
+    string s, t;
+    s = "0";
+    t = "4";
+    BigInt a = biFromString(s.c_str());
+    BigInt b = biFromString(t.c_str());
+    BigInt t1, t2;
+    print(a);
+    print(b);
+    biDivRem(&t1, &t2, a, b);
+    
+    print(t1); 
+    print(t2); 
+
+
+    //mpz_class a(10);
+    //mpz_class b(-7); 
+    //myDivRem(a, b);
+}
+
 int main() {
     //t1();
-    //t2();
+    //testCmp();
     //t3();
     //t4();
-    t5();
+    //t5();
+    //testSum();
+    //testDiv();
+    //testSetBit();
+    //testBigShl();
+    bigTest();
+    //tmpTest();
+    return 0;
     BigInt b = biFromInt(0);
     BigInt c = biCopy(b);
     p(c);

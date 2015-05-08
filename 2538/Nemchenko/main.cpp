@@ -211,6 +211,12 @@ void test_sub() {
     biSub(bi1, bi2);
     assert(biCmp(bi2, bi3) == 0);
     assert(biCmp(bi1, biFromString("2")) == 0);
+
+    n1 = biFromString("-00000000000");
+    n2 = biFromString("-1293847102398471029384710293487102394871327409128374");
+    biSub(n1, n2);
+    biMul(n2, biFromString("-00000000000001"));
+    assert(biCmp(n1, n2) == 0);
     cerr << "---COMPLETE---" << endl;
 }
 
@@ -244,9 +250,21 @@ void test_mul() {
 }
 
 int main() {
-    test_constructors();
-    test_add();
-    test_sub();
-    test_mul();
+    //2^1024 + (-(2^1024 - 1)) ≠ 1
+    BigInt b = biFromInt(1LL << 32);
+    BigInt c = biFromInt(1LL << 32);
+    for (int i = 0; i < 31; ++i) {
+        biMul(b, c);
+    }
+    BigInt d = biFromString("-179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215");
+
+    biAdd(b, d);
+    assert(biCmp(b, biFromInt(1)) == 0);
+    
+
+    //test_constructors();
+    //test_add();
+    //test_sub();
+    //test_mul();
     return 0;
 }
