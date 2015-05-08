@@ -1,7 +1,7 @@
 default rel
 extern fprintf, stderr, exit
 
-extern malloc, calloc, strlen, free, memcpy, realloc
+extern malloc, calloc, strlen, free, memcpy, realloc, memmove, abort
 
 global biFromInt
 global biFromString
@@ -20,6 +20,8 @@ global hw_strlen
 global hw_free
 global hw_memcpy
 global hw_realloc
+global hw_abort
+global hw_memmove
 
 extern hw_biFromInt
 extern hw_biFromString
@@ -66,6 +68,10 @@ WRAP memcpy
 
 WRAP realloc
 
+WRAP memmove
+
+WRAP abort
+
 fail:
     mov rdi, [stderr]
     mov rsi, r11
@@ -81,3 +87,5 @@ sstrlen: db "Misaligned stack in strlen call", 10, 0
 sfree: db "Misaligned stack in free call", 10, 0
 smemcpy: db "Misaligned stack in memcpy call", 10, 0
 srealloc: db "Misaligned stack in realloc call", 10, 0
+smemmove: db "Misaligned stack in memmove call", 10, 0
+sabort: db "Misaligned stack in abort call", 10, 0

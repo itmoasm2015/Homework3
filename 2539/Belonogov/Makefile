@@ -6,7 +6,7 @@ CXXFLAGS=-Wall -Wextra -g -std=c++1y
 #DEPS=../../include/bigint.h
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CXXFLAGS) $^ -o $@ -lgmpxx -lgmp 
+	$(CC) $(CXXFLAGS) $^ -o $@ -lgmpxx -lgmp -fsanitize=address
 
 libhw.o: libhw.asm
 	rm -f $(TARGET)

@@ -611,17 +611,34 @@ biAdd:
 biSub:
     enter 0, 0
 
-    push r15
-    mov r15, [rsi + BigInt.sign]    ; just change b.sign, call biAdd and return b.sign back
-    xor r15, 1                      ; change b.sign
-    mov [rsi + BigInt.sign], r15
-    push rsi
-    call biAdd                      ; a += (-b)
-    pop rsi
-    xor r15, 1                      ; change b.sign back
-    mov [rsi + BigInt.sign], r15   
-    pop r15
+    mpush rbx, r13, r14, r15
+    mov r14, rdi                    ; save arguments
+    mov r15, rsi
 
+    xor rbx, rbx                    ; was not copied
+    cmp r14, r15                    ; if &a == &b => copy b
+    mov rbx, 1                      ; set copied flag
+    mov rdi, r15
+    call biCopyOf                   ; copy(b)
+    mov r15, rax                    ; store copy
+
+    mov r13, [r15 + BigInt.sign]    ; just change b.sign, call biAdd and return b.sign back
+    xor r13, 1                      ; change b.sign
+    mov [r15 + BigInt.sign], r13
+    mov rdi, r14
+    mov rsi, r15
+    call biAdd                      ; a += (-b)
+    xor r13, 1                      ; change b.sign back
+    mov [r15 + BigInt.sign], r13   
+
+    test rbx, rbx                   
+    jz .return                      ; if wasn't copied -- skip
+
+    mov rdi, r15
+    call biDelete                   ; deallocate temporarily allocated BigInt
+
+.return:
+    mpop rbx, r13, r14, r15
     leave
     ret
 
@@ -1150,11 +1167,21 @@ biDivRem:
 .non_zero_denominator:
     mpush rbx, r12, r13, r14, r15       
     xor rbx, rbx   ; was_normalized(B) ; save registers
-    mov r12, [rdi] ; Q -- quotient
-    mov r13, [rsi] ; R -- remainder
+    mov r12, rdi   ; &Q -- quotient
+    mov r13, rsi   ; &R -- remainder
     mov r14, rdx   ; A -- numerator
     mov r15, rcx   ; B -- denominator
     ; A / B = Q + R / B
+
+    mov rdi, 0
+    call biFromInt
+    mov [r12], rax
+    mov r12, [r12]
+
+    mov rdi, 0
+    call biFromInt
+    mov [r13], rax
+    mov r13, [r13]
 
     ; ---- copy A and B ---- ;
 
