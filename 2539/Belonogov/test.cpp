@@ -224,10 +224,10 @@ void testDiv() {
     BigInt b = biFromString(t.c_str());
     BigInt c, e;
     if (0) {
-        BigInt d = biDivRem(&c, NULL, a, b);
-        cerr << "----------\n";;
-        print(d);
-        detailPrint(d);
+        //BigInt d = biDivRem(&c, NULL, a, b);
+        //cerr << "----------\n";;
+        //print(d);
+        //detailPrint(d);
     }
     else {
         biDivRem(&c, &e, a, b);
@@ -261,7 +261,7 @@ void testBigShl() {
 }
 
 string getRandString() {
-    int n = 2;
+    int n = 100;
     string s;
     if (rand() % 2) s += "-";
     for (int i = 0; i < n; i++) {
@@ -297,12 +297,18 @@ pair < mpz_class, mpz_class > myDivRem(mpz_class a, mpz_class b) {  // r c
         C = c;
         R = -r;
     }
-    cerr << C << " " << R << endl;
+    //cerr << C << " " << R << endl;
     //return mp(c, -r);
-    cerr << a << endl;
-    cerr << b * C + R << endl;
+    //cerr << a << endl;
+    //cerr << b * C + R << endl;
     assert(a == b * C + R);
     return mp(C, R);
+}
+
+int sign(mpz_class a) {
+    if (a == 0) return 0;
+    if (a < 0) return -1;
+    return 1;
 }
 
 
@@ -311,17 +317,17 @@ void bigTest() {
         BigInt a = biFromInt(0);
         mpz_class b = 0;
         for (int t = 0; t < 100; t++) {
-            cerr << "================== " << t << endl;
-            int type = rand() % 5;
+            //cerr << "================== " << t << endl;
+            int type = rand() % 6;
             string ss = getRandString();
             //db(s);
             BigInt c = biFromString(ss.c_str());
             mpz_class d(ss);
-            db(type);
-            cerr << "a: ";
-            print(a, 1);
-            cerr << "c: ";
-            print(c);
+            //db(type);
+            //cerr << "a: ";
+            //print(a);
+            //cerr << "c: ";
+            //print(c);
             if (type == 0) {
                 biAdd(a, c);
                 b += d; 
@@ -340,15 +346,29 @@ void bigTest() {
                 a = t1;
                 b = myDivRem(b, d).first;
             }
+            if (type == 4) {
+                BigInt t1, t2;
+                biDivRem(&t1, &t2, a, c);
+                a = t2;
+                b = myDivRem(b, d).second;
+            }
+            if (type == 5) {
+                int x = biCmp(a, c);
+                mpz_class r = (b - d);
+                BigInt g = biSubMy(a, c);
+                int y = biSign(g);
+                assert(sign(r) == x && y == x);
+                //db(x);
+            }
             char s[N]; 
             biToString(a, s, N);     
             string mpzS = b.get_str(); 
             string tt(s);
-            db(tt);
-            db(mpzS);
+            //db(tt);
+            //db(mpzS);
             assert(tt == mpzS);
         }
-        cerr << "OK\n";
+        //cerr << "OK\n";
     }
     cerr << "OK\n";
 }
@@ -373,6 +393,71 @@ void tmpTest() {
     //myDivRem(a, b);
 }
 
+void testsFromGitHub() {
+    string s;
+    s = "-";
+    BigInt x = biFromString(s.c_str());
+    assert(x == 0);
+    s = "a";
+    x = biFromString(s.c_str());
+    assert(x == 0);
+//2^1024 + (-(2^1024 - 1)) ≠ 1
+
+    s = "179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216";
+    BigInt a = biFromString(s.c_str());
+    BigInt b = biFromString(s.c_str());
+    biSub(b, biFromInt(1));
+    biMul(b, biFromInt(-1));
+    biAdd(a, b);
+    assert(biCmp(a, biFromInt(1)) == 0);
+
+    BigInt bi1, bi2, bi3, bi5;
+    bi1 = biFromInt(2ll);
+    bi2 = biFromInt(-123ll);
+    bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    biSub(bi1, bi2);
+    assert(biCmp(bi2, bi3) == 0);
+
+    bi1 = biFromInt(0xffffffffll);
+    bi2 = biFromInt(0xffffffffll);
+    bi5 = biFromInt(0xffffffffll + 0xffffffffll);
+    biAdd(bi1, bi2);
+    assert(biCmp(bi1, bi5) == 0);
+
+    bi1 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215"); // 2**1024 - 1
+    bi2 = biFromInt(-1ll);
+    biSub(bi1, bi2);
+
+    bi1 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215"); // 2**1024 -1
+    bi2 = biFromInt(-1ll);
+    biSub(bi1, bi2);
+    assert(bi1);
+    bi2 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216"); // 2**1024
+    assert(biCmp(bi1, bi2) == 0);
+
+    bi1 = biFromInt(4611686018427387904ll);
+    bi2 = biFromInt(-9223372036854775807LL);
+    biAdd(bi2, bi1);
+    biAdd(bi2, bi1);
+    assert(biCmp(bi2, biFromInt(1)) == 0);
+    cerr << "git test OK\n";
+
+    bi1 = biFromInt(1);
+    bi2 = biFromInt(0);
+    BigInt bi4;
+    biDivRem(&bi3, &bi4, bi1, bi2);
+    assert(bi3 == NULL && bi4 == NULL);
+
+    bi1 = biFromInt(10000000000001);
+    bi2 = biFromInt(10000000000000001);
+    biMul(bi1, bi2);
+    //print(bi1);
+    char ss[10];
+    biToString(bi1, ss, 10);
+    //cerr << ss << endl;
+}
+
 int main() {
     //t1();
     //testCmp();
@@ -385,6 +470,7 @@ int main() {
     //testBigShl();
     bigTest();
     //tmpTest();
+    testsFromGitHub();
     return 0;
     BigInt b = biFromInt(0);
     BigInt c = biCopy(b);
