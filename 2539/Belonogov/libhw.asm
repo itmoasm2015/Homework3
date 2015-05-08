@@ -691,7 +691,7 @@ section .text
 
 
        
-            ;BigInt biSubMy(BigInt l, BigInt r);
+        ; BigInt biSubMy(BigInt l, BigInt r);
         ; l = rdi
         ; r = rsi 
         biSubMy:
@@ -707,74 +707,67 @@ section .text
             mov r8, [r12 + SIGN]    ; l.sign
             mov r9, [r14 + SIGN]    ; r.sign
             cmp r8, r9
-            jne .callAdd
+            jne .callAdd            ; jump if l.sign != r.sign
                 push r8
-                push r9    ; save signs on the stack
-                xor r10, r10  ; 0
-                mov [r12 + SIGN], r10
-                mov [r14 + SIGN], r10 
-                mov rdi, r12
-                mov rsi, r14
-                call biCmp    
+                push r9               ; save signs on the stack
+                xor r10, r10          ; 0
+                mov [r12 + SIGN], r10 ; set l.sign = 0 <=> +
+                mov [r14 + SIGN], r10 ; set r.sign = 0 <=> + 
+                call2 biCmp, r12, r14
 
                 pop r9
                 pop r8
-                mov [r12 + SIGN], r8
-                mov [r14 + SIGN], r9
+                mov [r12 + SIGN], r8  ; recovery sign
+                mov [r14 + SIGN], r9  ; recovery sign
                 cmp rax, -1 
-                jne .letsSub
-                    mov rdi, r14
-                    mov rsi, r12
-                    call biSubMy   
+                jne .letsSub        ; if |l| < |r| then swap arguments and call this function again
+                                    ; a - b =  -(b - a)
+                    call2 biSubMy, r14, r12
                     mov r10, [rax + SIGN]
                     xor r10, 1
-                    mov [rax + SIGN], r10
+                    mov [rax + SIGN], r10   ; reverse result.sign 
                 jmp .overSub
                 .letsSub
-                    mov rdi, [r12 + SIZE]
-                    call createBigInt
+                    call1 createBigInt, [r12 + SIZE]
                     mov r8, rax                 ; result bigInt
                     mov r9, [r8 + POINTER]      ; result vector
-                    xor rcx, rcx
-                    mov r10, [r12 + SIZE]
+                    xor rcx, rcx                ; i = 0 loop variable
+                    mov r10, [r12 + SIZE]       ; size
                     xor rdx, rdx                ; carry
                     ;clc                         ; clear cf flag
                         
                     .loopStart
                         cmp rcx, r10
-                        je .loopEnd
-                            mov rax, [r13 + rcx * LONG_LONG_SIZE]
-                            sub rax, rdx
-                            mov rdx, 0
-                            adc rdx, 0
-                            cmp rcx, [r14 + SIZE]
-                            jge .notSub
-                                sub rax, [r15 + rcx * LONG_LONG_SIZE]
+                        je .loopEnd             ; jump if i == size
+                            mov rax, [r13 + rcx * LONG_LONG_SIZE]   ; rax = vector[i]
+                            sub rax, rdx                            ; rax -= carry 
+                            mov rdx, 0                              ; 
+                            adc rdx, 0                              ; rdx = CF
+                            cmp rcx, [r14 + SIZE]                   ; 
+                            jge .notSub                             ; 
+                                sub rax, [r15 + rcx * LONG_LONG_SIZE];  i < size()
                                 adc rdx, 0
                             .notSub
                             mov [r9 + rcx * LONG_LONG_SIZE], rax
-                        inc rcx
+                        inc rcx                                     ; i++
                         jmp .loopStart 
                     .loopEnd 
                     mov rcx, [r14 + SIGN]
-                    mov [r8 + SIGN], rcx
+                    mov [r8 + SIGN], rcx                             ; r8.sign = l.sign
                     mov rax, r8 
                 .overSub
 
             jmp .overCallAdd
-            .callAdd
-                xor r9, 1
+            .callAdd                  
+                xor r9, 1             ; change sign 
                 mov [r14 + SIGN], r9  ; a + b = a - (- b)
-                mov rdi, r12
-                mov rsi, r14
-                call biAddMy          ;result in rax
+                call2 biAddMy, r12, r14  ; result in rax
                 mov r9, [r14 + SIGN]
                 xor r9, 1
                 mov [r14 + SIGN], r9  ; recovery sign bit
             .overCallAdd
             push rax
-            mov rdi, rax
-            call normalize
+            call1 normalize, rax      ; delete leading zeros
 
             pop rax
 
@@ -800,11 +793,11 @@ section .text
             mov r8, [r12 + SIGN]    ; sign l
             mov r9, [r14 + SIGN]    ; sign r
             cmp r8, r9
-            jne .diffSign
+            jne .diffSign           ; jump if l.sign != r.sing
                 mov r8, [r12 + SIZE]  ; l.len
                 mov r9, [r14 + SIZE]  ; r.len
                 cmp r8, r9
-                je .cmpVector   
+                je .cmpVector         ; jump if l.len == r.len
                     cmp r8, r9
                     jl .lessLen
                         mov rax, 1    ; l.len > r.len
@@ -815,40 +808,41 @@ section .text
 
                 jmp .notCmpVector
                 .cmpVector 
-                    mov rcx, r8 
+                    mov rcx, r8                                ; r8 = i = size
                     mov rax, 0
                     .loopStart
-                        dec rcx 
-                        mov r10, [r13 + rcx * LONG_LONG_SIZE]
-                        mov r11, [r15 + rcx * LONG_LONG_SIZE]
+                        dec rcx                                ; i--
+                        mov r10, [r13 + rcx * LONG_LONG_SIZE]  ; r10 = l[i]
+                        mov r11, [r15 + rcx * LONG_LONG_SIZE]  ; r11 = r[i]
                         cmp r10, r11 
-                        je .notInteresting
+                        je .notInteresting                     ; jump if l[i] == r[i]
                             cmp r10, r11
                             jb .lLess
-                                mov rax, 1 
+                                mov rax, 1                     ; l[i] > r[i] => l > r
                                 jmp .rLess
                             .lLess
-                                mov rax, -1
+                                mov rax, -1                    ; l[i] < r[i] => l < r
                             .rLess
-                            mov rcx, 0
-                        .notInteresting
-                    cmp rcx, 0
-                    jne .loopStart
+                            mov rcx, 0                         ; i = 0 <=> break
+                        .notInteresting                        ; l[i] == r[i]
+                    cmp rcx, 0                               
+                    jne .loopStart                             ; jump if i != 0 
                 .notCmpVector
-                mov r8, [r12 + SIGN]
+                mov r8, [r12 + SIGN]                           ; if r12.sign == -1 then
+                                                               ; reverse result
                 cmp r8, 1
                 jne .notRev 
-                    imul rax, -1
+                    imul rax, -1                    
                 .notRev
                  
             jmp .go
-            .diffSign 
+            .diffSign          ; l.sign != r.sign
                 cmp r8, 1
                 je .c1
-                    mov rax, 1        
+                    mov rax, 1    ; l.sign == '+'
                     jmp .c2
                 .c1
-                    mov rax, -1
+                    mov rax, -1   ; r.sign == '+'
                 .c2
             .go 
             pop r15
@@ -888,42 +882,41 @@ section .text
                         cmp r11, [r14 + SIZE]
                         je .loopEnd2
                         ;{
-                            mov rax, [r13 + r10 * LONG_LONG_SIZE]
-                            mov rdi, [r15 + r11 * LONG_LONG_SIZE]                
-                            mul rdi
+                            mov rax, [r13 + r10 * LONG_LONG_SIZE]    ; rax = l[i]
+                            mov rdi, [r15 + r11 * LONG_LONG_SIZE]    ; rdi = r[j] 
+                            mul rdi                                  ; l[i] *= r[j]
 
-                            add rax, rcx    ; add cary
+                            add rax, rcx                             ; add carry
                             adc rdx, 0      
 
-                            mov rsi, r10    ; rsi = i
-                            add rsi, r11    ; rsi = i + j
+                            mov rsi, r10                             ; rsi = i
+                            add rsi, r11                             ; rsi = i + j
 
-                            mov rdi, [r9 + rsi * LONG_LONG_SIZE]  ;add value from result
+                            mov rdi, [r9 + rsi * LONG_LONG_SIZE]     ;add value from result
                             add rax, rdi
                             adc rdx, 0 
                             
-                            mov rcx, rdx      ; set carry
-                            mov [r9 + rsi * LONG_LONG_SIZE], rax
+                            mov rcx, rdx                             ; set carry
+                            mov [r9 + rsi * LONG_LONG_SIZE], rax     ; write rax
                         ;}
-                        inc r11
+                        inc r11                                      ; j++
                         jmp .loopStart2
                     .loopEnd2
-                    mov rsi, r10   
+                    mov rsi, r10    ; 
                     add rsi, r11    ; rsi = i + r.size()
-                    add [r9 + rsi * LONG_LONG_SIZE], rcx 
+                    add [r9 + rsi * LONG_LONG_SIZE], rcx  ; write carry
                 ;}
-                inc r10
+                inc r10             ; i++
                 jmp .loopStart1
             .loopEnd1
             
             mov r10, [r12 + SIGN]
-            xor r10, [r14 + SIGN]   ; calculate sign of result
+            xor r10, [r14 + SIGN]   ; calculate sign of result  = l.sign ^ r.sign
             
-            mov [r8 + SIGN], r10 
+            mov [r8 + SIGN], r10    ; write res.sign = l.sign ^ r.sign 
 
             push r8
-            mov rdi, r8
-            call normalize
+            call1 normalize, r8
             pop r8
             mov rax, r8   ;return result
 
@@ -938,25 +931,26 @@ section .text
  ;*/
 ;int biSign(BigInt bi);
         ; rdi = bigInt 
+
         biSign:
             push r14
-            mov r14, rdi
-            call biIsZero 
+            mov r14, rdi                 ; r14 = bigint
+            call biIsZero               
             cmp rax, 1 
-            je .retZero
+            je .retZero                  ; if bigInt == 0
                 xor rcx, rcx
                 cmp rcx, [r14 + SIGN]
                 je .retOne
-                mov rax, -1
+                mov rax, -1             ; bigInt < 0
 
             jmp .overRetOne
-            .retOne
-                mov rax, 1
+            .retOne                     ; bigInt > 0
+                mov rax, 1               
 
             .overRetOne
 
             jmp .overRetZero
-            .retZero 
+            .retZero                      ; bigInt == 0
                 mov rax, 0
             .overRetZero
 
@@ -973,25 +967,22 @@ section .text
             mov r12, rdi
             mov r14, rsi
         
-            mov rdi, [r12 + POINTER]
-            call myDelete 
+            call1 myDelete, [r12 + POINTER]  
 
-            mov r8, [r14 + POINTER]
+            mov r8, [r14 + POINTER]     ; copy POINTER
             mov [r12 + POINTER], r8;
 
-            mov r8, [r14 + SIGN]
+            mov r8, [r14 + SIGN]        ; copy SIGN
             mov [r12 + SIGN], r8;
 
-            mov r8, [r14 + CAPACITY]
+            mov r8, [r14 + CAPACITY]    ; copy CAPACITY
             mov [r12 + CAPACITY], r8;
 
-            mov r8, [r14 + SIZE]
+            mov r8, [r14 + SIZE]        ; copy SIZE
             mov [r12 + SIZE], r8;
     
 
-            mov rdi, r14
-            call myDelete
-            
+            call1 myDelete, r14         ; delete old BigInt
 
             pop r14
             pop r12
@@ -1003,14 +994,13 @@ section .text
 ;void biAdd(BigInt l, BigInt r);
         ; rdi = l
         ; rsi = r
-        biAdd:
+        ; implementation "+=" through  "+"
+        biAdd:             
             push r14
             mov r14, rdi 
             call biAddMy 
            
-            mov rdi, r14
-            mov rsi, rax 
-            call biMove 
+            call2 biMove, r14, rax
 
             pop r14
             ret
@@ -1019,14 +1009,12 @@ section .text
 ;/** dst -= src */
 ;void biSub(BigInt dst, BigInt src);
         
+        ; implementation "-=" through  "-"
         biSub: 
             push r14
             mov r14, rdi 
             call biSubMy 
-           
-            mov rdi, r14
-            mov rsi, rax 
-            call biMove 
+            call2 biMove, r14, rax
 
             pop r14
             ret
@@ -1034,14 +1022,13 @@ section .text
 
 ;/** dst *= src */
 ;void biMul(BigInt dst, BigInt src);
+        ; implementation "*=" through "*"
         biMul:
             push r14
             mov r14, rdi 
             call biMulMy 
            
-            mov rdi, r14
-            mov rsi, rax 
-            call biMove 
+            call2 biMove, r14, rax
 
             pop r14
             ret
@@ -1063,15 +1050,12 @@ section .text
 
 
             ;cl;shl 1, rsi
-            push rcx
-            xor rcx, rcx
-            mov rcx, rsi
+            push rcx 
+            mov rcx, rsi    
             shl rax, cl      ; 1 << shift
             
             pop rcx
-            or  [r15 + rcx * LONG_LONG_SIZE], rax
-
-
+            or  [r15 + rcx * LONG_LONG_SIZE], rax   ; "or" appropriate element and bit with one
 
             pop r15
             pop r14
@@ -1085,10 +1069,9 @@ section .text
             push r12                
             push r14               
             push r15                
-            mov r14, rdi
-            mov r12, rsi    ;count multiplications
-            
-        ;;;;;;;;;;;;;;;;;;;;;; r14 = A ;  r12 = B
+            mov r14, rdi    ; r14 bigInt
+            mov r12, rsi    ; count multiplications
+
             mov rdi, 1 
             shl rdi, 32
             call biFromInt         ; rax = 2^32
@@ -1096,25 +1079,16 @@ section .text
             mov rsi, rax
             mov r15, rdi            ; r15 = 2^64
             call biMul              ; rax = 2^64
-
-            ;mov rdi, 1
-            ;call biFromInt
             
-             
             .loopStart1
-                cmp r12, 0 
-                je .loopEnd1
-                ;{
-                    mov rdi, r14
-                    mov rsi, r15
-                    call biMul
-                ;}
-                dec r12
+                cmp r12, 0       
+                je .loopEnd1    ; jump if i == 0
+                    call2 biMul, r14, r15
+                dec r12          ; i--;
                 jmp .loopStart1
             .loopEnd1 
 
-            mov rdi, r15
-            call biDelete             ; r15 = 2^64
+            call1 biDelete, r15             ; r15 = 2^64
             
             pop r15
             pop r14
@@ -1124,12 +1098,13 @@ section .text
 
         ;biChangeSign(BigInt) 
         ;rdi = bigInt
+        ; it's simple only "xor 1" field SIGN
         biChangeSign:
             push r14
             mov r14, rdi
-            mov r8, [r14 + SIGN]
-            xor r8, 1
-            mov [r14 + SIGN], r8
+            mov r8, [r14 + SIGN]    ; SIGN
+            xor r8, 1               ; ^= 1
+            mov [r14 + SIGN], r8    ; write down
             pop r14
             ret
 
@@ -1147,6 +1122,16 @@ section .text
     ; numerator = rdx     =    A
     ; denominator = rcx   =    B
     ; A / B
+    ; implementation:  B1 = B * 2^x,  so that B1 >= A 
+    ; and after then will execute this cycle 
+    ; i = x
+    ; while (B1 >= B) 
+    ;    if (A >= B1) 
+    ;        A -= B1
+    ;        R |= i
+    ;    B1 /= 2
+    ;    i--
+    ; return R
         biDivRem:
             push r12                ; bigInt l
             push r13                ; vector l 
@@ -1161,9 +1146,9 @@ section .text
             mov r14, rdx
             mov r15, rcx
 
-            call1 biIsZero, r15
+            call1 biIsZero, r15     ; handles case when  denominator == 0
             cmp rax, 1
-            je .fail
+            je .fail                ; if denominator == 0 then  => fail
 
             mov rdi, r12
             mov rsi, r13
@@ -1181,41 +1166,28 @@ section .text
             push r8                 ; save sign information on stack
                                     ; with followig format num.sign * 2 + den.sing
 
-            call biCopy
+
+            call biCopy             ; create copy of numerator
             mov r12, rax 
             
-            mov rdi, r15
-            call biCopy
+            call1 biCopy, r15       ; create copy of denominator
             mov r14, rax
-
-
 
             xor r10, r10                
             mov [r12 + SIGN], r10       ; set l.sign to 0
             mov [r14 + SIGN], r10       ; set r.sign to 0
  
-            ;mov r13, [r12 + POINTER]
-            ;mov r15, [r14 + POINTER] 
-
 
             mov rdi, [r12 + SIZE]
             sub rdi, [r14 + SIZE]
-            inc rdi 
-            ;inc rdi                ; TODO maybe
+            inc rdi                    ; calculate result.size = l.size - r.size + 1
             cmp rdi, 1
-            jge .notSetOne
+            jge .notSetOne             ; result.size = max(1, result.size)
                 mov rdi, 1
             .notSetOne
-            mov r13, rdi             ; r13  contains max answer size
+            mov r13, rdi              ; r13  contains max answer size
 
-            ;mov rdi, r12
-            ;mov rsi, r14
-            ;call biCmp                   
-            ;cmp rax, -1
-            ;je .quotientZero            ; jump if numerator < denominator
-
-            call2 biBigShl, r14, r13
-
+            call2 biBigShl, r14, r13  
 
             mov rdi, r13
             call createBigInt         ; create bigInt for result
@@ -1228,74 +1200,69 @@ section .text
             ; r13 - loop variable
             ; r12 - numerator
 
+            ; here begins the cycle described in the title
             .loopStart2
-                ;{
-                    call2 biCmp, r12, r14
+                    call2 biCmp, r12, r14          
                     cmp rax, -1
-                    je .notOne
+                    je .notOne                   ; if I can sub B1 from A;;;;;; A >= B
                         call2 biSub, r12, r14
                         call2 biSetBit, r15, r13
                     .notOne
-                ;}
                 cmp r13, 0
                 je .loopBreak
                 
-                call2 biDivShort, r14, 2
-                dec r13
+                call2 biDivShort, r14, 2           ; B1 /= 2
+                dec r13                            ; i --
                 jmp .loopStart2 
             .loopBreak
 
             pop r13
 
-            call1 normalize, r15 ; quotient c
             call1 normalize, r12 ; remainder r
             call1 normalize, r14 ; denomirator b
+            call1 normalize, r15 ; quotient c
 
+            ; to the present moment  
+            ; r12 contains remainder
+            ; r15 contains quotient  if numerator was > 0 and denominor was > 0 
+
+            ; let's start handle COOL cases with sign quotient and remainder 
 
             call1 biIsZero, r12
             cmp rax, 1
-            jne .remNotZero
-                mov r8, r13
+            jne .remNotZero   
+                mov r8, r13   ; this case then quotient == 0
                 and r8, 1     ; only first bit
                 mov r9, r13
                 shr r9, 1     ; 010 -> 001
                 xor r8, r9    ; 
                 mov [r15 + SIGN], r8
-
+ 
                 jmp .beforeRet
             .remNotZero
 
-            
-
             cmp r13, 2
-            jne .not10
+            jne .not10                     ; case then num < 0 and denom > 0 
                 call2 biAddShort, r15, 1   ;c + 1
                 call1 biChangeSign, r15    ; -c -1
                          
-                call2 biSub, r12, r14
-                call1 biChangeSign, r12 
+                call2 biSub, r12, r14     ; r - b
+                call1 biChangeSign, r12   ; b - r
                 jmp .beforeRet
             .not10
           
             cmp r13, 1
-            jne .not01
-                ;call1 biFromInt, -1
-                ;mov r13, rax
-                ;call2 biAdd, r15, r13
-                ;call1 biDelete, r13
-                call2 biAddShort, r15, 1
-                call1 biChangeSign, r15
-                call2 biSub, r12, r14
+            jne .not01                   ; case then num > 0 and denom < 0
+                call2 biAddShort, r15, 1 ; c + 1
+                call1 biChangeSign, r15  ; - c - 1
+                call2 biSub, r12, r14    ; r - b
                 jmp .beforeRet
             .not01
        
             cmp r13, 3
             jne .not11 
-                call1 biChangeSign, r12
-
-
+                call1 biChangeSign, r12 ; -r
             .not11
-
             .beforeRet
 
             call1 biDelete, r14
