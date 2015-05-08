@@ -35,8 +35,8 @@ global biGetVector
 section .text
 
 ;; Bigint stores digits with 1e9 base.
-%assign	BASE		1000000000
-%assign	BASE_LEN	9
+%assign	BASE		1000000000000000000
+%assign	BASE_LEN	18
 %assign	SIGN_PLUS	1
 %assign	SIGN_MINUS	-1
 %assign	SIGN_ZERO	0
@@ -235,13 +235,20 @@ biToString:
 
 	mov	rbx, BASE / 10
 
+;; Flag if digits started.
+	xor		r8, r8
+
 .first_digit_loop:
 	xor	rdx, rdx
 	div	rbx
 
+	cmp		r8, 0
+	jne		.write_digit
 	cmp	rax, 0
 	je	.skip_write
 
+.write_digit:
+	mov		r8, 1
 	add	rax, 48
 
 	;write_byte rsi, rcx, rax

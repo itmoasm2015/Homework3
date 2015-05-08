@@ -22,7 +22,7 @@ global vectorEmpty
 global vectorCopy
 
 %assign DEFAULT_CAPACITY 8
-%assign ELEM_SIZE        4
+%assign ELEM_SIZE        8
 
 
 ;; Vector vectorNew(size_t size);
@@ -141,11 +141,7 @@ vectorGet:
 	jge	.out_of_bounds
 
 	mov	rax, [rdi + Vector.data]
-	push	rbx
-	mov	rbx, [rax + rsi * ELEM_SIZE]
-	xor	rax, rax
-	mov	eax, ebx
-	pop	rbx
+	mov	rax, [rax + rsi * ELEM_SIZE]
 
 	ret
 .out_of_bounds:
@@ -167,8 +163,7 @@ vectorBack:
 	dec	rsi
 
 	mov	rdi, [rdi + Vector.data]
-	xor	rax, rax
-	mov	eax, dword [rdi + rsi * ELEM_SIZE]
+	mov	rax, [rdi + rsi * ELEM_SIZE]
 
 	ret
 .out_of_bounds:
@@ -189,7 +184,7 @@ vectorSet:
 	jge	.out_of_bounds
 
 	mov	rax, [rdi + Vector.data]
-	mov	[rax + rsi * ELEM_SIZE], edx
+	mov	[rax + rsi * ELEM_SIZE], rdx
 
 	ret
 .out_of_bounds
@@ -255,7 +250,7 @@ vectorPushBack:
 
 	mov	rax, [rdi + Vector.data]
 	mov	rcx, [rdi + Vector.size]
-	mov	dword [rax + rcx * ELEM_SIZE], esi
+	mov	[rax + rcx * ELEM_SIZE], rsi
 	inc	rcx
 	mov	[rdi + Vector.size], rcx
 
