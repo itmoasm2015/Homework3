@@ -1167,11 +1167,21 @@ biDivRem:
 .non_zero_denominator:
     mpush rbx, r12, r13, r14, r15       
     xor rbx, rbx   ; was_normalized(B) ; save registers
-    mov r12, [rdi] ; Q -- quotient
-    mov r13, [rsi] ; R -- remainder
+    mov r12, rdi   ; &Q -- quotient
+    mov r13, rsi   ; &R -- remainder
     mov r14, rdx   ; A -- numerator
     mov r15, rcx   ; B -- denominator
     ; A / B = Q + R / B
+
+    mov rdi, 0
+    call biFromInt
+    mov [r12], rax
+    mov r12, [r12]
+
+    mov rdi, 0
+    call biFromInt
+    mov [r13], rax
+    mov r13, [r13]
 
     ; ---- copy A and B ---- ;
 

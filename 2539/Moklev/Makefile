@@ -21,7 +21,7 @@ stack: wrap stack_test
 run: test
 	./test
 
-memtest: all
+memtest: all test
 	valgrind --vgdb=full --leak-check=full ./test
 
 clean:
