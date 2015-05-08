@@ -640,11 +640,14 @@ section .text
                 cmp rdx, 0
                 je .notIncrease
                     push rdx
+                    push r8
                     mov rdi, r8
                     call incSize
+                    pop r8
                     pop rdx
                     mov r9, [r8 + POINTER]
                     mov rcx, [r8 + SIZE]
+                    dec rcx
                     mov [r9 + rcx * LONG_LONG_SIZE], rdx
                 .notIncrease
                 mov rax, r8
@@ -737,6 +740,8 @@ section .text
                         inc rcx
                         jmp .loopStart 
                     .loopEnd 
+                    mov rcx, [r14 + SIGN]
+                    mov [r8 + SIGN], rcx
                     mov rax, r8 
                 .overSub
 
@@ -1101,6 +1106,16 @@ section .text
             ret
 
 
+        ;biChangeSign(BigInt) 
+        ;rdi = bigInt
+        biChangeSign:
+            push r14
+            mov r14, rdi
+            mov r8, [r14 + SIGN]
+            xor r8, 1
+            mov [r14 + SIGN], r8
+            pop r14
+            ret
 
 ;/** Compute quotient and remainder by divising numerator by denominator.
  ;*  quotient * denominator + remainder = numerator
@@ -1179,8 +1194,6 @@ section .text
             ; r12 - numerator
 
             .loopStart2
-                cmp r13, -1
-                je .loopEnd2
                 ;{
                     call2 biCmp, r12, r14
                     cmp rax, -1
@@ -1188,41 +1201,80 @@ section .text
                         call2 biSub, r12, r14
                         call2 biSetBit, r15, r13
                     .notOne
-                    call2 biDivShort, r14, 2
-                   
-
                 ;}
+                cmp r13, 0
+                je .loopBreak
+                
+                call2 biDivShort, r14, 2
                 dec r13
                 jmp .loopStart2 
-            .loopEnd2 
+            .loopBreak
 
+            pop r13
+
+            call1 normalize, r15 ; quotient c
+            call1 normalize, r12 ; remainder r
+            call1 normalize, r14 ; denomirator b
+
+
+            call1 biIsZero, r12
+            cmp rax, 1
+            jne .remNotZero
+                mov r8, r13
+                and r8, 1     ; only first bit
+                mov r9, r13
+                shr r9, 1     ; 010 -> 001
+                xor r8, r9    ; 
+                mov [r15 + SIGN], r8
+
+                jmp .beforeRet
+            .remNotZero
+
+            
+
+            cmp r13, 2
+            jne .not10
+                call2 biAddShort, r15, 1   ;c + 1
+                call1 biChangeSign, r15    ; -c -1
+                         
+                call2 biSub, r12, r14
+                call1 biChangeSign, r12 
+                jmp .beforeRet
+            .not10
+          
+            cmp r13, 1
+            jne .not01
+                ;call1 biFromInt, -1
+                ;mov r13, rax
+                ;call2 biAdd, r15, r13
+                ;call1 biDelete, r13
+                call2 biAddShort, r15, 1
+                call1 biChangeSign, r15
+                call2 biSub, r12, r14
+                jmp .beforeRet
+            .not01
+       
+            cmp r13, 3
+            jne .not11 
+                call1 biChangeSign, r12
+
+
+            .not11
+
+            .beforeRet
 
             call1 biDelete, r14
 
             call1 normalize, r15 ; quotient c
-            call1 normalize, r14 ; remainder r
-
-            pop r13
-            cmp r13, 1
-            jne .not10
-                mov r10, [r15 + SIGN]  ; c.sing
-                xor r10, 1
-                mov [r15 + SIGN], r10 
-                
-                call1 biFromInt, 1
-                mov r14, rax
-
-                call2 biSub, r15, r14
-                           
-            .not10
-           
-
+            call1 normalize, r12 ; remainder r
+            call1 normalize, r14 ; denomirator b
 
 
             pop rsi
             pop rdi
 
             mov [rdi], r15
+            mov [rsi], r12
 
             pop r15
             pop r14

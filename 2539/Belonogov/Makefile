@@ -16,6 +16,7 @@ libhw.o: libhw.asm
 test.o: test.cpp
 	rm -f $(TARGET)
 	$(CC) $(CXXFLAGS) -c $< -o $@ 
+	#-fsanitize=address
 
 clean:
 	rm -f $(TARGET)
