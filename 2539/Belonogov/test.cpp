@@ -387,13 +387,12 @@ void tmpTest() {
     print(t1); 
     print(t2); 
 
-
     //mpz_class a(10);
     //mpz_class b(-7); 
     //myDivRem(a, b);
 }
 
-void testsFromGitHub() {
+void smartTest() {
     string s;
     s = "-";
     BigInt x = biFromString(s.c_str());
@@ -441,7 +440,6 @@ void testsFromGitHub() {
     biAdd(bi2, bi1);
     biAdd(bi2, bi1);
     assert(biCmp(bi2, biFromInt(1)) == 0);
-    cerr << "git test OK\n";
 
     bi1 = biFromInt(1);
     bi2 = biFromInt(0);
@@ -456,6 +454,7 @@ void testsFromGitHub() {
     char ss[10];
     biToString(bi1, ss, 10);
     //cerr << ss << endl;
+    cerr << "smartTest OK\n";
 }
 
 int main() {
@@ -469,8 +468,7 @@ int main() {
     //testSetBit();
     //testBigShl();
     bigTest();
-    //tmpTest();
-    testsFromGitHub();
+    smartTest();
     return 0;
     BigInt b = biFromInt(0);
     BigInt c = biCopy(b);
