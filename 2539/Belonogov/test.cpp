@@ -31,14 +31,14 @@ int sign(int x) {
     return 1;
 }
 
-void t2() {
+void testCmp() {
     /// test cmp
     if (0) {
-        BigInt aa = biFromInt(-3);
-        BigInt bb = biFromInt(-4);
-        cerr << "dd\n";
+        BigInt aa = biFromInt(100);
+        BigInt bb = biFromInt(11);
+        //cerr << "dd\n";
         cerr << biCmp(aa, bb) << endl;
-        cerr << "dd\n";
+        //cerr << "dd\n";
     }
     else {
         for (int i = 0; i < 100; i++) {
@@ -179,12 +179,68 @@ void t5() {
     exit(0);
 }
 
+void t6() {
+    BigInt a = biFromInt(2);
+    BigInt b = biFromInt(-123);
+    BigInt c = biFromInt(-123);
+    biAdd(a, b); //(-121
+    biSub(a, c); // 2
+    cout << biCmp(b, c) << endl;
+    exit(0);
+}
+
+void testDiv() {
+    // check Div
+    string s, t;
+    s = "10000";
+    t = "1000000000000000000000000000000000000000000000";
+    BigInt a = biFromString(s.c_str());
+    BigInt b = biFromString(t.c_str());
+    BigInt c;
+    if (0) {
+        BigInt d = biDivRem(&c, NULL, a, b);
+        cerr << "----------\n";;
+        print(d);
+        detailPrint(d);
+    }
+    else {
+        biDivRem(&c, NULL, a, b);
+        print(c);
+        detailPrint(c);
+    }
+}
+
+void testSetBit() {
+    /// check set bit
+    BigInt a = biFromInt(0);
+    print(a); 
+    biSetBit(a, 40);
+    biSetBit(a, 63);
+    biSetBit(a, 2);
+    print(a); 
+    exit(0);
+}
+
+void testBigShl() {
+    // bigshl
+    string s = "-10000000000000000000000000000000000000000000000000000000000001";
+    BigInt a = biFromString(s.c_str());
+    biBigShl(a, 3);
+    detailPrint(a);
+    print(a);
+}
+
 int main() {
     //t1();
-    //t2();
+    //testCmp();
     //t3();
     //t4();
-    t5();
+    //t5();
+    //t6();
+    testDiv();
+    //testSetBit();
+    //testBigShl();
+    return 0;
     BigInt b = biFromInt(0);
     BigInt c = biCopy(b);
     p(c);

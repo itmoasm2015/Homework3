@@ -1,4 +1,3 @@
-
 extern calloc
 extern free
 
@@ -22,6 +21,8 @@ global biAddMy ;done
 global biSubMy ;done
 global biMulMy ;done
 global biMove  ;done
+global biSetBit ;done
+global biBigShl ;done
 
 %define POINTER 0
 %define SIZE 8
@@ -33,6 +34,17 @@ global biMove  ;done
 %define DEFAULT_VECTOR_SIZE 1
 %define BASE 10
 
+
+%macro call2 3
+    mov rdi, %2
+    mov rsi, %3
+    call %1 
+%endmacro
+
+%macro call1 2
+    mov rdi, %2
+    call %1
+%endmacro
 
         ;r14     pointer to BigInt
         ;r15     pointer to vector 
@@ -791,7 +803,7 @@ section .text
                         cmp r10, r11 
                         je .notInteresting
                             cmp r10, r11
-                            jl .lLess
+                            jb .lLess
                                 mov rax, 1 
                                 jmp .rLess
                             .lLess
@@ -1014,6 +1026,82 @@ section .text
             ret
 
 
+        ;void biSetBit(BigInt, int )
+        ; rdi = BigInt
+        ; rsi = pos 
+        ; set bit to One
+        biSetBit:
+            push r14          ;BigInt
+            push r15          ;vector
+            mov r14, rdi
+            mov r15, [r14 + POINTER]
+            mov rcx, rsi     
+            shr rcx, 6        ;position
+            and rsi, 63       ;shift
+            mov rax, 1
+
+
+            ;cl;shl 1, rsi
+            push rcx
+            xor rcx, rcx
+            mov rcx, rsi
+            shl rax, cl      ; 1 << shift
+            
+            pop rcx
+            or  [r15 + rcx * LONG_LONG_SIZE], rax
+
+
+
+            pop r15
+            pop r14
+            ret
+    
+
+;; void biBigShl(BigInt, int );
+    ;bigInt rdi
+    ;int    rsi
+        biBigShl:
+            push r12                
+            push r14               
+            push r15                
+            mov r14, rdi
+            mov r12, rsi    ;count multiplications
+            
+        ;;;;;;;;;;;;;;;;;;;;;; r14 = A ;  r12 = B
+            mov rdi, 1 
+            shl rdi, 32
+            call biFromInt         ; rax = 2^32
+            mov rdi, rax
+            mov rsi, rax
+            mov r15, rdi            ; r15 = 2^64
+            call biMul              ; rax = 2^64
+
+            ;mov rdi, 1
+            ;call biFromInt
+            
+             
+            .loopStart1
+                cmp r12, 0 
+                je .loopEnd1
+                ;{
+                    mov rdi, r14
+                    mov rsi, r15
+                    call biMul
+                ;}
+                dec r12
+                jmp .loopStart1
+            .loopEnd1 
+
+            mov rdi, r15
+            call biDelete             ; free r15 = 2^64
+            
+            pop r15
+            pop r14
+            pop r12
+            ret
+
+
+
 ;/** Compute quotient and remainder by divising numerator by denominator.
  ;*  quotient * denominator + remainder = numerator
  ;*
@@ -1021,83 +1109,120 @@ section .text
  ;*                                and (denominator, 0] if denominator < 0.
  ;*/
 ;void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
-    ; numerator = rdi
-    ; denominator = rsi
+    ; quotient = rdi
+    ; remainder = rsi
+    ; numerator = rdx     =    A
+    ; denominator = rcx   =    B
+    ; A / B
         biDivRem:
             push r12                ; bigInt l
             push r13                ; vector l 
             push r14                ; bigInt r
             push r15                ; vector r
 
+            push rdi                ; save quotient 
+            push rsi                ; save remainder
+            mov rdi, rdx
+            mov r15, rcx            ; tmp save
+           
+            mov r8, [rdx + SIGN]    ; numerator sign
+            mov r9, [rcx + SIGN]    ; denominator sign
+            imul r8, 2
+            add r8, r9
+            push r8                 ; save sign information on stack
+                                    ; with followig format num.sign * 2 + den.sing
+
             call biCopy
             mov r12, rax 
             
-            mov rdi, rsi
+            mov rdi, r15
             call biCopy
             mov r14, rax
-        
-            mov r13, [r12 + POINTER]
-            mov r15, [r14 + POINTER] 
+
 
             xor r10, r10                
             mov [r12 + SIGN], r10       ; set l.sign to 0
             mov [r14 + SIGN], r10       ; set r.sign to 0
-            
-            mov rdi, r12
-            mov rsi, r14
-            call biCmp                   
-            cmp rax, -1
-            je .quotientZero            ; jump if numerator < denominator
+ 
+            ;mov r13, [r12 + POINTER]
+            ;mov r15, [r14 + POINTER] 
 
-                mov rdi, 1 
-                shl rdi, 32
-                call biFromInt         ; rax = 2^32
-                mov rdi, rax
-                mov rsi, rax
-                call biMul              ; rax = 2^64
-                push rax               
 
+            mov rdi, [r12 + SIZE]
+            sub rdi, [r14 + SIZE]
+            inc rdi 
+            ;inc rdi                ; TODO maybe
+            cmp rdi, 1
+            jge .notSetOne
                 mov rdi, 1
-                call biFromInt
-                push rax                  ; rax = 1
+            .notSetOne
+            mov r13, rdi             ; r13  contains max answer size
 
+            ;mov rdi, r12
+            ;mov rsi, r14
+            ;call biCmp                   
+            ;cmp rax, -1
+            ;je .quotientZero            ; jump if numerator < denominator
+
+            call2 biBigShl, r14, r13
+
+
+            mov rdi, r13
+            call createBigInt         ; create bigInt for result
+            mov r15, rax              ; save in r8
+        
+
+            imul r13, 64 ; cnt Interation
+            ; r15 - result
+            ; r14 - subtractor
+            ; r13 - loop variable
+            ; r12 - numerator
+
+            .loopStart2
+                cmp r13, -1
+                je .loopEnd2
+                ;{
+                    call2 biCmp, r12, r14
+                    cmp rax, -1
+                    je .notOne
+                        call2 biSub, r12, r14
+                        call2 biSetBit, r15, r13
+                    .notOne
+                    call2 biDivShort, r14, 2
+                   
+
+                ;}
+                dec r13
+                jmp .loopStart2 
+            .loopEnd2 
+
+
+            call1 biDelete, r14
+
+            call1 normalize, r15 ; quotient c
+            call1 normalize, r14 ; remainder r
+
+            pop r13
+            cmp r13, 1
+            jne .not10
+                mov r10, [r15 + SIGN]  ; c.sing
+                xor r10, 1
+                mov [r15 + SIGN], r10 
                 
-                mov r8, [r12 + SIZE]
-                sub r8, [r14 + SIZE]
-                add r8, 2                 ; cntMultiply
-                 
-                .loopStart1
-                    cmp r8, 0 
-                    je .loopEnd1
-                    ;{
-                        pop rdi 
-                        pop rsi
-                        call biMul
-                        push rax
-                        ;push 
-                    ;}
-                    dec r8
-                    jmp .loopStart1
-                .loopEnd1 
+                call1 biFromInt, 1
+                mov r14, rax
+
+                call2 biSub, r15, r14
+                           
+            .not10
+           
 
 
 
-                mov rdi, [r12 + SIZE]
-                sub rdi, [r14 + SIZE]
-                inc rdi 
-                inc rdi
-                call createBigInt        ; create bigInt for result
-                mov r8, rax             ; save in r8
-                mov r9, [r8 + POINTER]  ; save result vector 
+            pop rsi
+            pop rdi
 
-
-
-            jmp .overQuotientZero
-            .quotientZero
-    
-
-
-            .overQuotientZero
+            mov [rdi], r15
 
             pop r15
             pop r14
