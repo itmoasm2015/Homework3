@@ -351,6 +351,9 @@ void testBiSub() {
 	a = biFromString("1");
 	b = biFromString("-2");
 	biSub(a, b);
+	biSub(a, b);
+	biSub(a, b);
+	biSub(a, b);
 	biToString(a, out, 100);
 	printf("%s\n", out);
 	biDelete(a);
