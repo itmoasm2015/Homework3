@@ -7,7 +7,17 @@
 #include <bigint.h>
 
 using namespace std;
+extern "C" {
+    unsigned long int* biDump(BigInt x);
+    size_t biSize(BigInt x);
+}
 
+void dump(BigInt a) {
+    unsigned long int* data = biDump(a);
+    for (int i = 0; i < biSize(a); i++) {
+        cout << data[i] << endl;
+    }
+}
 int main() {
     //for (int i = -50; i < 50; i++) {
     //    BigInt a = biFromInt(i);
@@ -18,9 +28,7 @@ int main() {
     //    biDelete(a);
     //}
     BigInt one = biFromInt(1);
-    cout << biSign(one) << endl;
-    biDelete(one);
     BigInt zero = biFromInt(0);
-    cout << biSign(zero) << endl;
-    biDelete(zero);
+    BigInt a = biFromInt(123123);
+    cout << biCmp(a, one) << endl;
 }
