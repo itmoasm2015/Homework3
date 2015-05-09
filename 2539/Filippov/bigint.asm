@@ -5,7 +5,6 @@ section .text
 extern malloc
 extern free
 extern strlen
-extern printf
 
 global biFromInt
 global biFromString
@@ -184,11 +183,11 @@ endstruc
 ; Создает длинное число с вместимостью по умолчанию (DEFAULT_CAPACITY)
 ; RAX -- результат
 %macro createBigInt 0
-	mpush rdi, rsi, r9
+	mpush rdx, rcx, rdi, rsi, r9
 	mov rdi, DEFAULT_CAPACITY		; Вызываем функцию создания вектора по вместимости с DEFAULT_CAPACITY
 	mov r9, rdi				; 
 	createBigIntWithCapacity r9		;
-	mpop rdi, rsi, r9
+	mpop rdx, rcx, rdi, rsi, r9
 %endmacro
 
 ; void ensureCapacity(size_t size, size_t capacity, BigInt number);
@@ -331,7 +330,7 @@ ensureCapacity:
 	pop %1
 %endmacro
 
-; удаляет нули из начала строки
+; Удаляет нули из начала строки
 ; %1 -- строка
 ; %2 -- ее длина
 %macro deleteZeroesFromString 2
@@ -363,7 +362,7 @@ ensureCapacity:
 	mpop r12, r13
 %endmacro
 
-; удаляет нули из начала длинного числа
+; Удаляет нули из начала длинного числа
 ; %1 -- длинное число
 %macro deleteZeroesFromBigInt 1
 	mpush rdi, rcx
@@ -391,10 +390,11 @@ ensureCapacity:
 	mpop rdi, rcx
 %endmacro
 
-; копирует длинное число
+; Копирует длинное число
 ; %1 -- длинное число, в которое надо скопировать
 ; %2 -- длинное число, которое надно скопировать
 %macro biCopy 2
+	mpush rcx, rdx
 	xor r8, r8
 	mov r8b, byte [%2 + BigInt.sign]	; Копируем знак
 	mov byte [%1 + BigInt.sign], r8b	; 
@@ -430,6 +430,7 @@ ensureCapacity:
 	jmp %%copy_digits
 %%finish:
 	pop rcx
+	mpop rcx, rdx
 %endmacro
 
 ; Унарный минус длинного числа
@@ -593,6 +594,8 @@ biFromString:
 ; bi -- RDI
 ; buffer -- RSI
 ; limit -- RDX
+; Выводит число в строку buffer в формате ^-?\d+$
+; Выводит не более limit символов (включая \0 в конце)
 biToString:
 	xor rcx, rcx
 	dec rdx						; Вычитаем из limit единицу -- в конце мы просто запишем \0
@@ -668,22 +671,22 @@ biToString:
 
 ; void biDelete(BigInt bi);
 ; bi -- RDI
-; удаляет ранее созданное длинное число
+; Удаляет ранее созданное длинное число
 biDelete:
-    callFree rdi
-    ret
+	callFree rdi
+	ret
 
 ; int biSign(BigInt bi);
 ; bi -- RDI
-; возвращает знак числа
+; Возвращает знак числа
 biSign:
-    xor rax, rax					; Если знак равен -1, то byte [rdi + BigInt.sign] = 255, нас это не устраивает
-    cmp byte [rdi + BigInt.sign], -1			; Если знак не равен -1, то пишем просто его
-    jne .write_non_negative
-    mov rax, -1						; Иначе записываем в rax -1
+	xor rax, rax					; Если знак равен -1, то byte [rdi + BigInt.sign] = 255, нас это не устраивает
+	cmp byte [rdi + BigInt.sign], -1		; Если знак не равен -1, то пишем просто его
+	jne .write_non_negative
+	mov rax, -1					; Иначе записываем в rax -1
 .write_non_negative:
-    mov al, byte [rdi + BigInt.sign]			; Число >= 0, записываем в RAX его знак
-    ret
+	mov al, byte [rdi + BigInt.sign]		; Число >= 0, записываем в RAX его знак
+	ret
 
 ; void biAdd(BigInt a, BigInt b);
 ; a += b
@@ -691,11 +694,11 @@ biSign:
 ; b -- RSI
 ; Результат в RDI
 biAdd:
+	mpush rcx, rdx
 	createBigInt					; Второе число не должно измениться, создадим новое и скопируем в него второе число
 	push rdi
 	mov rdi, rax
 	biCopy rdi, rsi					; Копируем второе число в RAX
-	mov rax, rdi
 	pop rdi
 
 	mzero r10, r11
@@ -810,21 +813,22 @@ biAdd:
 .finish:
 	mov rax, rdi
 	deleteZeroesFromBigInt rax
+	mpop rcx, rdx
 	ret
 
 ; void biSub(BigInt a, BigInt b);
 ; a -= b
 ; a -- RDI
 ; b -- RSI
-; result -- RDI
+; Результат в RDI
 biSub:
+	mpush rcx, rdx
 	push r15								
 	mov r15, 1					; R15 -- число, на которое надо домножить знак ответа (в некоторых случаях в конце знак ответа нам надо будет изменить)
  	createBigInt					; Второе число не должно измениться, поэтому создаем новое длинное число
 	push rdi					; И копируем в него второе число (RSI)
 	mov rdi, rax
 	biCopy rdi, rsi
-	mov rax, rdi
 	pop rdi
 
 	mzero r10, r11
@@ -870,34 +874,35 @@ biSub:
 	cmp rcx, -1								
 	jne .are_equal
 							; a < b
-	mpush rdi, rsi					; Поменяем a и b местами, а потом вычтем
+	mpush rdi, rsi, rax 			; Поменяем a и b местами, а потом вычтем
 	createBigInt
 	mov rsi, rdi
 	mov rdi, rax
 	biCopy rdi, rsi					; R11 -- a
 	mov r11, rdi
-	mpop rdi, rsi
+	mpop rdi, rsi, rax
 	
-	mpush rdi, rsi, r11
+	mpush rdi, rsi, r11, rax
+	mov rsi, rax
 	createBigInt
 	mov rdi, rax
 	biCopy rdi, rsi
 	mov r10, rdi					; R10 -- b
-	mpop rdi, rsi, r11
+	mpop rdi, rsi, r11, rax
 	
-	mpush rdi, rsi
+	mpush rdi, rsi, rax
 	mov rdi, r10
 	mov rsi, r11
 	mpush r10, r11					; Считаем R10 - R11 = b - a, это посчитается корректно (т.к. b > a)
 	call biSub
 	mpop r10, r11
-	mov r10, rdi
-	mpop rdi, rsi
+	mpop rdi, rsi, rax
 	
 	push rsi
 	mov rsi, r10
 	biCopy rdi, rsi					; Копируем результат в a, вызываем от него унарный минус (т.к. a - b = -(b - a)), выходим
 	pop rsi
+	
 	biNegate rdi
 	jmp .finish
 .are_equal:									
@@ -981,11 +986,16 @@ biSub:
 .finish:
 	xor r8, r8
 	mov r8b, byte [rdi + BigInt.sign]		; В конце умножаем знак ответа на R15 -- возможная несовместимость, которую мы запомнили
+	cmp r8, 255
+	jne .sign_ok
+	sub r8, 256
+.sign_ok:
 	imul r8, r15
 	mov byte [rdi + BigInt.sign], r8b
 	pop r15
 	mov rax, rdi
 	deleteZeroesFromBigInt rax
+	mpop rcx, rdx
 	ret 
 
 ; void biMul(BigInt a, BigInt b);
@@ -1004,6 +1014,7 @@ biSub:
 ;  deleteZeroesFromBigInt(c);
 ;
 biMul:
+	mpush rcx, rdx
 	mzero r8, r9
 	mov r8b, byte [rdi + BigInt.sign]		; R8 -- знак первого числа
 	mov r9b, byte [rsi + BigInt.sign]		; R9 -- знак второго числа
@@ -1108,9 +1119,298 @@ biMul:
 	pop rsi
 	mpop r12, r13, r14, r15
 .zero_finish:
+	mpop rcx, rdx
 	ret
 
+; void biDivInt(BigInt a, int x);
+; a /= x (нацело)
+; a -- RDI
+; x -- RSI
+; Делит нацело длинное число на короткое
+; Результат в RDI
+; Делим так:
+; int64_t carry = 0;
+; for (size_t i = a.size() - 1; i >= 0; i--) {
+;   int64_t current = a[i] + carry * BASE;
+;   a[i] = current / x;
+;   carry = current % x;
+; }
+biDivInt:
+	mpush rcx, rdx
+	mzero rcx, rdx
+	xor r8, r8
+	mov r8d, [rdi + BigInt.digits]			; R8 -- указатель на цифры длинного числа
+	xor r9, r9
+	mov r9d, [rdi + BigInt.size]			; R9 -- его размер
+	lea r8, [r8 + r9 * 4 - 4]			; Теперь R8 -- указатель на последнюю цифру
+.process_digits:
+	cmp r9, 0					; Если больше цифр нет, заканчиваем
+	je .finish
+	xor r10, r10
+	mov r10d, [r8]					; R10 = a[i]
+	mov r11, rcx					; R11 = carry
+	push r12
+	mov r12, BASE
+	imul r11, r12					; R11 = carry * base
+	add r10, r11					; R10 = a[i] + carry * base = current
+	pop r12
+	mpush rax, rdx
+	mov rax, r10
+	mov r11, rsi
+	xor rdx, rdx
+	div r11
+	mov [r8], eax					; a[i] = current / x (x в RSI)
+	mov rcx, rdx					; carry = current % x
+	mpop rax, rdx
+.next_iteration:
+	sub r8, 4					; Переходим к следующей цифре
+	dec r9
+	jmp .process_digits
+.finish:
+	mov rax, rdi
+	deleteZeroesFromBigInt rax			; И удаляем нули из начала числа, если они там появились
+	mpop rcx, rdx
+	ret
+
+; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+; *quotient = numerator / denominator
+; *remainder = numerator % denominator
+; Если denominator > 0, remainder в [0, denominator)
+; Если denominator < 0, remainder в (denominator, 0]
+; Если denominator = 0, quotient = remainder = NULL
+; quotient -- RDI
+; remainder -- RSI
+; numerator -- RDX
+; denominator -- RCX
+; Делим так: (случай, когда numerator, denominator > 0, остальные к нему сводятся)
+; Запускаем бинарный поиск по ответу (L, R -- границы текущего отрезка, M -- его середина)
+; Хотим найти такое наибольшее X, что X * denominator <= numerator, тогда X -- quotient
+; Внутри проверяем, что M * denominator <= numerator, если да, L = M, иначе -- R = M
+; Работает за O(log(numerator) * O(|denominator| * |numerator|)) = O(|numerator|^2 * |denominator|), это полином от количества цифр
 biDivRem:
+	mpush rbx, r12, r13, r14, r15
+	createBigInt
+	mov rbx, rax					; RBX -- BigInteger.ONE (длинная единица)
+	xor r8, r8
+	mov byte [rbx + BigInt.sign], 1
+	mov dword [rbx + BigInt.size], 1
+	mov r8d, [rbx + BigInt.digits]
+	mov dword [r8], 1
+
+	mzero r8, r9
+	mov r8b, byte [rdx + BigInt.sign]		; R8 -- знак numerator
+	mov r9b, byte [rcx + BigInt.sign]		; R9 -- знак denominator
+	cmp r9, 0	
+	jne .denominator_is_not_zero
+	jmp .fail					; denominator = 0 => ошибка -- делить на ноль нельзя
+.denominator_is_not_zero:
+	cmp r8, 0
+	jne .numerator_is_not_zero
+	createBigInt					; numerator = 0 => *quotient = *remainder = 0
+	mov dword [rax + BigInt.size], 1
+	mov [rdi], eax					; Записываем результат в указатели
+	createBigInt
+	mov dword [rax + BigInt.size], 1
+	mov [rsi], eax
+	jmp .finish
+.numerator_is_not_zero:					; Теперь numerator, denominator != 0
+	cmp r8, 255					; Исправляем знаки (сейчас у нас -1 = 255)
+	jne .first_sign_is_plus				; Исправляем знак numerator
+	sub r8, 256
+.first_sign_is_plus:
+	cmp r9, 255
+	jne .second_sign_is_plus			; И denominator
+	sub r9, 256
+.second_sign_is_plus:
+	cmp r8, 0
+	jg .numerator_is_positive
+	cmp r9, 0					; numerator < 0
+	jg .numerator_is_negative_denominator_is_positive
+	biNegate rdx					; numerator < 0, denominator < 0
+	biNegate rcx					; 
+	call biDivRem					; Находим представление -numerator = -denominator * quotient'  + remainder' (для положительных чисел у нас все работает корректно)
+	xor rax, rax
+	mov eax, [rsi]					; После этого надо только поменять знак у remainder': quotient = quotient', remainder = -remainder'
+	biNegate rax
+	mov [rsi], eax
+	biNegate rdx					; Возвращаем старые знаки, потому что numerator и denominator не должны измениться
+	biNegate rcx
+	jmp .finish
+.numerator_is_negative_denominator_is_positive:		; numerator < 0, denominator > 0
+	biNegate rdx					; 
+	call biDivRem					; Находим представление -numerator = denominator * quotient' + remainder', remainder' >= 0
+							; Перепишем его: numerator = denominator * (-quotient') + (-remainder') = denominator * (-quotient' - 1) + (-remainder' + denominator)
+	xor r8, r8
+	mov r8d, [rsi]
+	xor r9, r9					; Проверяем, что remainder' = 0. Если так, ничего не меняем
+	mov r9b, [r8 + BigInt.sign]
+	cmp r9, 0
+	je .no_plus
+	xor rax, rax					; Тут уже -remainder' + denominator >= 0 (Если remainder' = 0, denominator прибавлять не надо)
+	mov eax, [rdi]
+	biNegate rax					; RAX -- quotient, quotient = -quotient' - 1
+	mpush rdi, rsi
+	mov rdi, rax
+	mov rsi, rbx					; += RBX (RBX = 1), все сделали
+	call biSub
+	mpop rdi, rsi
+	mov [rdi], eax
+
+	xor rax, rax
+	mov eax, [rsi]					; RAX -- remainder, remainder = -remainder' + denominator
+	biNegate rax
+	mpush rdi, rsi
+	mov rdi, rax
+	mov rsi, rcx					; RCX -- denominator, добавляем его
+	call biAdd
+	mpop rdi, rsi
+	mov [rsi], eax
+	
+.no_plus:
+	biNegate rdx					; Возвращаем старый знак
+	jmp .finish
+.numerator_is_positive:					; numerator > 0
+	cmp r9, 0
+	jg .divide					; numerator > 0, denominator < 0
+	biNegate rcx					; Находим представление numerator = -denominator * quotient' + remainder', remainder' > 0
+	call biDivRem					; Перепишем его: numerator = denominator * (-quotient') + remainder' = denominator * (-quotient' - 1) + (remainder' + denominator)
+							; Теперь remainder + denominator < 0 (т.к. denominator < 0), все хорошо
+							; Но если remainder = 0, прибавлять denominator не надо
+	xor r8, r8
+	mov r8d, [rsi]
+	xor r9, r9					; Проверяем, что remainder' = 0. Если так, ничего не меняем
+	mov r9b, [r8 + BigInt.sign]
+	cmp r9, 0
+	je .no_minus
+	xor rax, rax
+	mov eax, [rdi]					; RAX -- quotient, quotient = -quotient' - 1
+	biNegate rax
+	mpush rdi, rsi
+	mov rdi, rax
+	mov rsi, rbx					; -= RBX (RBX = 1), все сделали
+	call biSub
+	mpop rdi, rsi
+	mov [rdi], eax
+
+	xor rax, rax					; RAX -- remainder, remainder = remainder' + denominator
+	mov eax, [rsi]
+	mpush rdi, rsi
+	mov rdi, rax
+	mov rsi, rcx
+	call biSub					; biSub, потому что мы сделали унарный минус к деноминатору, у нас он сейчас положительный
+	mpop rdi, rsi
+	mov [rsi], eax
+
+.no_minus:
+	biNegate rcx					; Возвращаем старый знак деноминатору
+	jmp .finish
+.divide:						; Основная часть -- деление двух положительный чисел, остальные случаи разобраны
+	createBigInt
+	mov r12, rax
+	mov dword [r12 + BigInt.size], 1		; R12 -- L (левая граница бин. поиска). Изначально R12 = 0
+
+	createBigInt					; R13 -- R (правая граница бин. поиска, не включается). Изначально R13 = numerator + 1 (т.к. ответ может быть до numerator включительно) 
+	mov r13, rax
+	mpush rdi, rsi
+	mov rdi, r13					
+	mov rsi, rdx
+	biCopy rdi, rsi					; R13 = numerator
+	
+	mov rdi, r13
+	mov rsi, rbx
+	call biAdd					; R13 = numerator + 1
+	mpop rdi, rsi
+							; Теперь у нас есть полуинтервал [L, R), на нем запускаем бинарный поиск максимального числа X, что X * denominator <= numerator
+	createBigInt
+	mov r14, rax					; R14, R15 -- вспомогательные длинные числа
+	
+	createBigInt
+	mov r15, rax
+.while:							; while (L + 1 < R)
+	mpush rdi, rsi
+	mov rdi, r12
+	mov rsi, rbx
+	call biAdd					; L++
+	
+	mov rdi, r12
+	mov rsi, r13
+	call biCmp					; cmp(L, R)
+	cmp rax, -1					; Если L >= R, бин. поиск закончен, в L ответ (quotient)
+	jg .finish_divide
+
+	mov rdi, r12					
+	mov rsi, rbx					; L--
+	call biSub
+
+	mov rdi, r14
+	mov rsi, r12					; R14 = L
+	biCopy rdi, rsi
+
+	mov rdi, r14
+	mov rsi, r13					; R14 = L + R
+	call biAdd
+
+	mov rdi, r14
+	mov rsi, 2					; R14 = (L + R) / 2 (нацело) (R14 -- середина полуинтервала [L, R), то есть число M )
+	call biDivInt
+
+	mov rdi, r15
+	mov rsi, r14					; R15 = R14
+	biCopy rdi, rsi
+
+	mov rdi, r15					; R15 *= denominator
+	mov rsi, rcx
+	call biMul
+
+	mov rdi, r15
+	mov rsi, rdx					; cmp(R15, numerator)
+	call biCmp					; R15 <= numerator => L = M, иначе R = M
+	cmp rax, 0
+	jg .setR					; R15 > numerator, значит R = M
+.setL:
+	mov rdi, r12					
+	mov rsi, r14					; L = R12 = R14 = M
+	biCopy rdi, rsi
+	jmp .next_iteration
+.setR:
+	mov rdi, r13					; R = R13 = R14 = M
+	mov rsi, r14
+	biCopy rdi, rsi
+.next_iteration:
+	mpop rdi, rsi					; while не закончился, идем на следующую итерацию
+	jmp .while
+.finish_divide:
+	mov rdi, r12					; while закончился, в L - 1 ответ (quotient) (В L - 1, потому что мы еще не вычли единицу после L++)
+	mov rsi, rbx					; Вычитаем единицу, пишем в *quotient R12, это посчитали
+	call biSub
+	mpop rdi, rsi
+	mov [rdi], r12d
+	
+	mpush rdi, rsi					; *remainder = numerator - (*quotient) * denominator
+	mov rdi, r14					; R14 = R12 = L
+	mov rsi, r12
+	biCopy rdi, rsi
+
+	mov rdi, r14					; R14 *= denominator
+	mov rsi, rcx
+	call biMul
+	
+	mov rdi, r15					; R15 = numerator
+	mov rsi, rdx
+	biCopy rdi, rsi
+
+	mov rdi, r15					; R15 -= R14, теперь в R15 лежит (*remainder)
+	mov rsi, r14
+	call biSub
+	mpop rdi, rsi
+	mov [rsi], r15d					; Записываем (*remainder), ура, посчитали все, что надо!
+	jmp .finish
+.fail:
+	xor r8, r8					; Если возникла ошибка (denominator = 0), то пишем NULL в оба указателя
+	mov [rdi], r8
+	mov [rsi], r8
+.finish:
+	mpop rbx, r12, r13, r14, r15
 	ret
 
 ; int biCmp(BigInt a, BigInt b);
@@ -1120,6 +1420,7 @@ biDivRem:
 ; Сравнивает два длинных числа
 ; Возвращает 0, если a = b, < 0, если a < b, > 0, если a > b
 biCmp:
+	mpush rcx, rdx
 	mzero r8, r9
 	mov rdx, 1					; RDX -- знак ответа (из-за того, что a < b, но -a > -b иногда ответ надо домножить на -1)
 	
@@ -1182,10 +1483,5 @@ biCmp:
 	jmp .finish
 .finish:
 	imul rax, rdx					; Домножаем ответ на RDX -- его знак, теперь ответ правильный
+	mpop rcx, rdx
 	ret
-
-section .data
-
-intFormat:	db '%d', 10, 0
-intFormat2:	db '!!! %d', 10, 0
-stringFormat:	db '%s', 10, 0
