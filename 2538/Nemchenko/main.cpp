@@ -250,6 +250,10 @@ void test_mul() {
     cerr << "---COMPLETE----" << endl;
 }
 
+void testBiToString() {
+
+}
+
 int main() {
     //2^1024 + (-(2^1024 - 1)) ≠ 1
     BigInt b = biFromInt(1LL << 32);
@@ -263,11 +267,15 @@ int main() {
     assert(biCmp(b, biFromInt(1)) == 0);
     cout << endl;
     d = biFromString("-179769313486231590123123");
-    for (int i = 0; i < 22; ++i) {
+    for (int i = 0; i < 24; ++i) {
         cout << div_short(d, 10);
     }
     printbBigNum(d);
-    //cout << endl;
+    cout << endl;
+    char buf[1000];
+    d = biFromString("179769313486231590123123");
+    biToString(d, buf, 1000);
+    cout << buf << endl;
 
     
 

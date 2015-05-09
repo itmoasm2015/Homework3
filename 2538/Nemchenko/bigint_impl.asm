@@ -80,6 +80,7 @@ SIZE_FIELD   equ 8
 SIGN_FIELD   equ 16
 DATA_FIELD   equ 24
 SIZEOF_FLD   equ 8
+INPUT_BASE   equ 10
 
 section .bss
    ;minus: resb 1 
@@ -172,18 +173,56 @@ biFromString:
 ;   rdx = limit
 biToString:
     push r12
+    push r13
+
     mov r12, rdx                                     ; r12 = limit
+    dec r12                                          ; limit--; for save 0 
+    cmp qword [rdi + SIGN_FIELD], 0
+    jge .next                                        ; if (bi < 0) {
+    mov byte [rsi], '-'                              ;   buffer[0] = '-'
+    inc rsi                                          ;   buffer++
+    dec r12                                          ;   limit--
+    .next:                                           ; }
     call_fun_2 createBigInt, [rdi + SIZE_FIELD], rsi ; rax = new BigInt();
-    call_fun_2 copy_BigInt, rax, rdi                 ; deep_copy: rax = rdi
-    xor rcx, rcx                                     ; rcx = 0
+    xchg rdi, rax
+    call_fun_2 copy_BigInt, rdi, rax                 ; deep_copy: rax = rdi
+    xor r13, r13                                     ; r13 = 0, count converted digits
     mov rdi, rax                                     ; rdi = deep copy of bi
     .loop:
-        inc rcx
-        cmp r12, rcx
-        jnz .loop
+        call_fun_2 div_short, rdi, INPUT_BASE        ; rax = bi % INPUT_BASE
+        add al, '0'                                  ; al = '0' + bi % INPUT_BASE
+        mov [rsi + r13], al                          ; buf[r13]  = bi % INPUT_BASE
+        inc r13                                      ; r13++
+        cmp qword [rdi + SIGN_FIELD], 0              ; if (bi == 0) break;
+        je .end_loop 
+        cmp r13, r12                                 ; if (r13 >= limit) break;
+        jl .loop
+    .end_loop
 
+    push rsi
+    call biDelete                                    ; delete copy of bi
+    pop rsi
+    mov byte [rsi + r13], 0                          ; buf[r13] = 0
 
-    call_fun_1 biDelete, rax
+    ; reverse buffer
+    dec r13
+    mov r12, r13
+    mov r13, rsi                                     ; r13 = buf[r13]; r13 point to last digit
+    add r13, r12
+    .while_reverse
+        mov bl, [rsi]                               ; ~swap(buf[i], buf[size - i - 1])
+        xchg bl, [r13]
+        mov [rsi], bl
+        inc rsi                                     ; if (fst_pointer == last_pointer || fst_pointer + 1 == last_pointer) break
+        cmp rsi, r13
+        je .end_while_reverse
+        dec r13
+        cmp rsi, r13
+        je .end_while_reverse
+        jmp .while_reverse
+    .end_while_reverse
+
+    pop r13
     pop r12
     ret
 
