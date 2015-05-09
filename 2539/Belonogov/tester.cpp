@@ -349,7 +349,11 @@ void smartTest() {
     //print(bi1);
     char ss[10];
     biToString(bi1, ss, 10);
-    //cerr << ss << endl;
+    s = "1-1";
+    bi1 = biFromString(s.c_str());
+    assert(bi1 == NULL);
+
+
 }
 
 int main() {

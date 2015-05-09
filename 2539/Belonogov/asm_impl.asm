@@ -319,8 +319,8 @@ section .text
                     mov dl, [r12 + r15 * CHAR_SIZE]  
                     cmp dl, '-'
                     jne .notMinus              ; s[i] == '-'
-                        cmp r13, 1
-                        je .fail ;             ; if there is at least two minuses
+                        cmp r15, 0
+                        jne .fail ;             ; if there is at least two minuses
                         inc r13                ; inc minuses count
                         jmp .endBody
                     .notMinus
