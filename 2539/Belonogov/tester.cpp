@@ -1,6 +1,4 @@
 #include <bits/stdc++.h>
-#include <gmp.h>
-#include <gmpxx.h>
 #include "bigint.h"
 
 
@@ -272,107 +270,6 @@ string getRandString() {
     return s;
 }
 
-pair < mpz_class, mpz_class > myDivRem(mpz_class a, mpz_class b) {  // r c
-    if (a % b == 0) {
-        return mp(a / b, mpz_class(0));
-    }
-    mpz_class c = abs(a) / abs(b);
-    mpz_class r = abs(a) % abs(b);
-    mpz_class C, R;
-    if (a >= 0 && b >= 0) {
-        C = c;
-        R = r;
-    } 
-    if (a < 0 && b >= 0) {
-        C = - c - 1;
-        R = abs(b) - r;
-        //return mp(-c - 1, b - r);
-    }
-    if (a >= 0 && b < 0) {
-        C = - c - 1; 
-        R = r - abs(b);
-        //return mp(-c - 1, r - b);
-    }
-    if (a < 0 && b < 0) {
-        C = c;
-        R = -r;
-    }
-    //cerr << C << " " << R << endl;
-    //return mp(c, -r);
-    //cerr << a << endl;
-    //cerr << b * C + R << endl;
-    assert(a == b * C + R);
-    return mp(C, R);
-}
-
-int sign(mpz_class a) {
-    if (a == 0) return 0;
-    if (a < 0) return -1;
-    return 1;
-}
-
-
-void bigTest() {
-    for (int ser = 0; ser < 200; ser++) {
-        BigInt a = biFromInt(0);
-        mpz_class b = 0;
-        for (int t = 0; t < 100; t++) {
-            //cerr << "================== " << t << endl;
-            int type = rand() % 6;
-            string ss = getRandString();
-            //db(s);
-            BigInt c = biFromString(ss.c_str());
-            mpz_class d(ss);
-            //db(type);
-            //cerr << "a: ";
-            //print(a);
-            //cerr << "c: ";
-            //print(c);
-            if (type == 0) {
-                biAdd(a, c);
-                b += d; 
-            }
-            if (type == 1) {
-                biSub(a, c);
-                b -= d;
-            }
-            if (type == 2) {
-                biMul(a, c);
-                b *= d;
-            }
-            if (type == 3) {
-                BigInt t1, t2;
-                biDivRem(&t1, &t2, a, c);
-                a = t1;
-                b = myDivRem(b, d).first;
-            }
-            if (type == 4) {
-                BigInt t1, t2;
-                biDivRem(&t1, &t2, a, c);
-                a = t2;
-                b = myDivRem(b, d).second;
-            }
-            //if (type == 5) {
-                //int x = biCmp(a, c);
-                //mpz_class r = (b - d);
-                //BigInt g = biSubMy(a, c);
-                //int y = biSign(g);
-                //assert(sign(r) == x && y == x);
-                ////db(x);
-            //}
-            char s[N]; 
-            biToString(a, s, N);     
-            string mpzS = b.get_str(); 
-            string tt(s);
-            //db(tt);
-            //db(mpzS);
-            assert(tt == mpzS);
-        }
-        //cerr << "OK\n";
-    }
-    cerr << "OK\n";
-}
-
 void tmpTest() {
     string s, t;
     s = "0";
@@ -388,12 +285,9 @@ void tmpTest() {
     print(t2); 
 
 
-    //mpz_class a(10);
-    //mpz_class b(-7); 
-    //myDivRem(a, b);
 }
 
-void testsFromGitHub() {
+void smartTest() {
     string s;
     s = "-";
     BigInt x = biFromString(s.c_str());
@@ -459,36 +353,8 @@ void testsFromGitHub() {
 }
 
 int main() {
-    //t1();
-    //testCmp();
-    //t3();
-    //t4();
-    //t5();
-    //testSum();
-    //testDiv();
-    //testSetBit();
-    //testBigShl();
-    bigTest();
-    //tmpTest();
-    testsFromGitHub();
+    smartTest();
     return 0;
-    BigInt b = biFromInt(0);
-    BigInt c = biCopy(b);
-    p(c);
-    p(c, 1);
-    p(c, 2);
-    p(c, 3);
-    //BigInt c = biCopy(b);
-    //cerr << "build\n";
-    //db(3);
-    db(biIsZero(b));
-    //cout << biDivShort(b, 10) << endl;
-    //cout << biDivShort(c, 10) << endl;
-    memset(s, 0, sizeof(0));
-    biToString(b, s, 100);
-    for (int i = 0; i < 3; i++)
-        cerr << (int)s[i] << " ";
-    cerr << endl << s << endl;
 }
 
 
