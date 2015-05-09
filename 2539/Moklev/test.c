@@ -116,6 +116,37 @@ void print_long(BigInt a, bool flag) {
 long long lalka(unsigned long long a);
 
 int main() {
+    {
+        BigInt a = biFromInt(900);
+        BigInt b = biFromInt(-30);
+        BigInt q, r;
+        biDivRem(&q, &r, a, b);
+        print_long(q, 1);
+        print_long(r, 1);
+        return 0;
+    }
+    flag = true;
+    for (int i = 3; i < 100;  i++) {
+        char s[i];
+        for (int j = 0; j < i; j++) {
+            s[j] = '1' + rand() % 9;
+        }
+        if (rand())
+            s[0] = '-';
+        s[i - 1] = '\0';
+        BigInt q, r;
+        BigInt a = biFromString(s);
+        biDivRem(&q, &r, a, a);
+        print_long(r, 1);
+        flag &= biSign(r) == 0;
+        if (!flag)
+            break;
+        biDelete(r);
+        biDelete(q);
+        biDelete(a);
+    }
+    report(flag, self_div_test);
+    // ?. Self sub test
     flag = true;
     for (int i = 0; i < 10; i++) {
         BigInt a = biFromString(huge_numbers[i]);
