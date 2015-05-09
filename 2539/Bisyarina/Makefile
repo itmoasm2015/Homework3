@@ -1,4 +1,4 @@
-CXXFLAGS=-g 
+CXXFLAGS=-g -Wall -Wextra
 
 YASM_FLAGS=-f elf64 -g dwarf2
 

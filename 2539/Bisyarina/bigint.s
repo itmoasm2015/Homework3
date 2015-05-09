@@ -2,6 +2,8 @@ section .text
 
 extern malloc
 extern calloc
+extern realloc
+extern memset
 extern free
 extern strlen
 
@@ -340,9 +342,225 @@ biSign:
         ret
 
 biCmp:
+        push rdi
+        push rsi
+        ;; Compare signs of bigint
+        mov rax, [rdi +16]
+        mov rdx, [rsi +16]
+        cmp rax, rdx
+        ;; If equal continue comparing
+        je .compare_size
+        ;; If sign of first is less than second
+        jl .set_less
+.set_greater:
+        ;; Return is greater
+        mov qword rax, 1
+        jmp .exit
+.set_less:
+        ;; Return is less
+        mov qword rax, -1
+        jmp .exit
+.compare_size:
+        ;; Save sign
+        mov r8, [rdi + 16]
+        mov rax, [rdi]
+        mov rdx, [rsi]
+        ;; Get length difference
+        sub rax, rdx
+        test rax, rax
+        ;; If equal proceed to comparing
+        jz .compare
+        xor rdx, rdx
+        ;; If length diff < 0 and sign < 0 than greater
+        ;; If length diff < 0 and sign > 0 than less
+        ;; If length diff > 0 and sign > 0 than greater
+        ;; If length diff > 0 and sign < 0 than less
+        ;; So, length diff * sign = answer
+        mul r8
+        jmp .exit
+.compare:
+        ;; Set loop counter
+        mov rcx, [rdi]
+        push rcx
+        mov rcx, [rdi + 8]
+        mov rdi, rcx
+        mov rcx, [rsi + 8]
+        mov rsi, rcx
+        pop rcx
+.loop:
+        ;; Check if finished
+        test rcx, rcx
+        jz .exit_zero
+        
+        ;; Get current int64
+        dec rcx
+        mov rax, [rdi + rcx * 8]
+        mov rdx, [rsi + rcx * 8]
+        cmp rax, rdx
+        ;; If equal continue
+        je .loop
+        jg .greater
+        ;; If less return -sign
+        mov rax, r8
+        neg rax
+        jmp .exit
+.greater:
+        ;; If greater return sign
+        mov rax, r8
+        jmp .exit
+.exit_zero:
+        xor rax, rax
+.exit:
+        pop rsi
+        pop rdi
         ret
 
-biAdd:  
+
+;;; rdi - bigint
+;;; rsi - new size must be bigger than bigint in rdi size
+recalloc:        
+        push r13
+        push rsi
+        push rdi
+        alignStack16
+        ;; Calculate new size in bytes
+        mov rax, rsi
+        xor rdx, rdx
+        mov qword rcx, 8
+        mul rcx
+        mov rsi, rax
+        ;; Set pointer to data in rdi
+        mov rdi, [rdi + 8]
+        call realloc
+        remAlignStack16
+        pop rdi 
+        pop rsi
+        
+        ;; Test allocation successfull
+        test rax, rax
+        jz .exit
+        ;; Set pointer to new data in bigint
+        mov [rdi + 8], rax
+
+        push rdi
+        ;; Calculating uninitialzed memory pointer after the bigint old data
+        alignStack16
+        mov rax, [rdi]
+        mov rcx, [rdi]
+        xor rdx, rdx
+        push rcx
+        mov qword rcx, 8
+        mul rcx
+        pop rcx
+        mov rdi, [rdi + 8]
+        add rdi, rax
+        
+        ;; Calculate additional memory size(after reallocation)
+        mov rax, rsi
+        sub rax, rcx
+        xor rdx, rdx
+        mov qword rcx, 8
+        mul rcx
+        mov rsi, rax
+        xor rdx, rdx
+        call memset
+        remAlignStack16
+        pop rdi
+.exit:
+        pop r13
+        ret
+
+
+
+biAdd:
+        ;; Check if rdi and rsi are pointers to same bigint
+        cmp rdi, rsi
+        jne .sum
+        ;; Set size of buffer to size + 1
+        push rsi
+        mov rax, [rdi]
+        inc rax
+        mov rsi, rax
+        call recalloc
+        pop rsi
+        ;; Mul by 2
+        push rsi
+        mov qword rsi, 2
+        call mulInt
+        pop rsi
+        jmp .exit
+.sum:
+        ;; Check if signs are equal
+        mov rax, [rdi + 16]
+        mov rcx, [rsi + 16]
+        cmp rax, rcx
+        jne .diff_signs
+        ;; If signs are equal
+        ;; Get maximum of sizes
+        mov rcx, [rdi]
+        cmp rcx, [rsi]
+        cmovb rcx, [rsi]
+        push rcx
+        inc rcx
+        ;; Realloc rdi's data to max(sizes) + 1
+        push rsi
+        mov rsi, rcx
+        call recalloc
+        pop rsi
+        pop rcx
+        mov [rdi], rcx
+        ;; Set loop bound
+        mov r8, [rsi]
+        mov r11, rdi
+        ;; Set pointers to data
+        mov rdi, [rdi + 8]
+        mov rsi, [rsi + 8]
+
+        clc
+        xor r9, r9
+        xor r10, r10
+        xor rcx, rcx
+.loop:
+        ;; Checl length
+        cmp rcx, r8
+        jl .looploop
+        ;; Check carry flag
+        test r9, r9
+        jz .exit
+        inc qword [r11]
+        mov rax, [rdi + rcx * 8]
+        mov qword rdx, 1
+        add rax, rdx
+        ;; Save carry flag
+        adc r10, 0
+        ;; Add previous carry
+        add rax, r9
+        ;; Save carry flag
+        adc r10, 0
+        mov r9, r10
+        xor r10, r10
+        mov [rdi + rcx * 8], rax
+        inc rcx
+        test r9, r9
+        jnz .loop
+        jmp .exit
+.looploop:
+        mov rax, [rdi + rcx * 8]
+        mov rdx, [rsi + rcx * 8]
+        add rax, rdx
+        ;; Save carry flag
+        adc r10, 0
+        ;; Add previous carry
+        add rax, r9
+        ;; Save carry flag
+        adc r10, 0
+        mov r9, r10
+        xor r10, r10
+        mov [rdi + rcx * 8], rax
+        inc rcx
+        jmp .loop
+.diff_signs:
+.exit:
         ret
 
 biSub:  
