@@ -211,3 +211,24 @@ TEST(bigint, mul2) {
 	biDelete(b);
 }
 
+TEST(bigint, add_positive) {
+	std::vector<long long> test_long_longs { 0LL, 11LL, 34567431LL, 5634654235754LL, 234567654345678LL, 5297682377823095LL, 6523792561283132LL };
+	for (auto i : test_long_longs) {
+		for (auto j : test_long_longs) {
+
+			BigInt a = biFromInt(i);
+			BigInt b = biFromInt(j);
+			BigInt c = biFromInt(i + j);
+
+			biAdd(a, b);
+			int cmp = biCmp(a, c);
+
+			ASSERT_EQ(cmp, 0);
+
+			biDelete(a);
+			biDelete(b);
+			biDelete(c);
+		}
+	}
+}
+

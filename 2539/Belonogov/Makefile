@@ -1,13 +1,13 @@
 GCC = gcc
 CPP = g++
 ASM = yasm
-CPP_FLAGS = -Wall -g -L. -std=c++11 -lgmp
+CPP_FLAGS = -Wall -g -L. -std=c++11 -fsanitize=address
 ASM_FLAGS = -g dwarf2 -f elf64 
 
 all: tester
 
 tester: libhw.a tester.o
-	$(CPP) tester.o -o tester $(CPP_FLAGS) -lhwwrapped  bigint.h
+	$(CPP) tester.o -o tester $(CPP_FLAGS)  bigint.h libhw.o 
 
 tester.o: tester.cpp
 	$(CPP) tester.cpp -c -o tester.o $(CPP_FLAGS) 

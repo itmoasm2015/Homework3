@@ -120,7 +120,6 @@
 	mov	%1, %2
 %endmacro
 
-
 %macro bigint_new 1
 	mov	rdi, %1
 	call	_biNew
@@ -129,6 +128,12 @@
 %macro bigint_delete 1
 	mov	rdi, %1
 	call	biDelete
+%endmacro
+
+%macro bigint_add_digits 2
+	mov	rdi, %1
+	mov	rsi, %2
+	call _biAddDigits
 %endmacro
 
 

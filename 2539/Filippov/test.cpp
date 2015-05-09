@@ -1,6 +1,5 @@
 #include <bits/stdc++.h>
 #include "bigint.h"
-#include <gmpxx.h>
 
 const size_t MAX_SIZE = 100000;
 const size_t INF = 1e9; 
@@ -351,6 +350,9 @@ void testBiSub() {
 	
 	a = biFromString("1");
 	b = biFromString("-2");
+	biSub(a, b);
+	biSub(a, b);
+	biSub(a, b);
 	biSub(a, b);
 	biToString(a, out, 100);
 	printf("%s\n", out);

@@ -12,6 +12,7 @@ extern back
 extern deleteVector
 extern copyVector
 
+global biDivRem
 global biFromInt
 global biFromString
 global biDelete
@@ -783,9 +784,13 @@ biToString:
         mov byte [rsi], '0'
         inc rbx
     .done_biToString
-    mov byte [rsi + rbx], 0;Записуем терминальный символ
+    mov byte [rsi + rbx], 0 ;Записываем терминальный символ
     pop rbx;Восстанавливаем rbx
     add rsp, 24;Выкидываем из стека элементы
+    ret
+
+;Заглушка для деления
+biDivRem:
     ret
 
 section .bss
