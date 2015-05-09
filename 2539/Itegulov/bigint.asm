@@ -92,3 +92,62 @@ biFromInt:
 	leave 
 	ret
 
+;;; void biDelete(bigint* big)
+;;; Deletes allocated bigint, freeing all memory, used by it.
+biDelete:
+	enter 0, 0
+	push rdi
+	mov rdi, [rdi + bigint.vector]
+	call vecFree
+	pop rdi
+	call free
+	leave
+	ret
+
+;;; void biUAddShort(bitint* big, uint64 val)
+;;; Adds val to big. Assumes, that val is unsigned.
+biUAddShort:
+	enter 0, 0
+	
+	test rsi, rsi
+	jz .ret	
+
+	mov rdi, [rdi + bigint.vector]
+	mov rcx, [rdi + vector.size]
+
+	test rcx, rcx
+	jnz .add       ; if bigint is empty, than just push value to it
+
+	call vecPush
+	jmp .ret
+
+.add
+	mov r8, [rdi + vector.data]
+	mov rdx, [r8]
+
+	add rdx, rsi
+	mov [r8], rdx  ; added val to lowest part and set cf
+
+	jnc .ret       ; if cf == 0, then just return
+
+	dec rcx
+	jrcxz .done    ; if bigint has not enough space, than let's create new digit
+.loop
+	add r8, 8
+	mov rdx, [r8]  ; get current digit
+	add rdx, 1     ; inc doesn't set cf, so let's add 1
+	mov [r8], rdx  ; write result
+
+	jnc .ret       ; if cf == 0, then just return
+
+	loop .loop
+	; FIXME: IT'S BUGGY, NO?!
+.done
+	mov rsi, 1     ; if we have cf == 1, then let's push it to the end
+	call vecPush 
+
+.ret
+	leave
+	ret
+
+

@@ -171,3 +171,34 @@ vecCapacity:
 	mov rax, [rdi + vector.capacity]
 	leave
 	ret
+
+;;; void vecExtend(vector* vec, uint64 size)
+;;; Ensures, that vec has at least size elements (adds zeros if neccessary).
+vecExtend:
+	enter 0, 0
+
+	push rdi
+	push rsi
+	call vecEnsure
+	pop rsi
+	pop rdi
+
+	mov rcx, [rdi + vector.size]
+	mov rdx, rcx
+
+	cmp rcx, rsi
+	jae .ret      ; if there was enough space, than just return
+
+	sub rsi, rcx
+	xchg rsi, rcx
+
+	xor rax, rax
+	mov rdi, [rdi + vector.data]
+	lea rdi, [rdi + rdx * 8]
+	cld
+	rep stosq     ; zeroing added elements
+.ret
+	leave
+	ret
+
+
