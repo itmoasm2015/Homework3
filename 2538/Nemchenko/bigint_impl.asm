@@ -166,12 +166,17 @@ biFromString:
     mov rax, rdi
     ret
 
-;TODO
 ; void biToString(BigInt bi, char *buffer, size_t limit);
 ;   rdi = bi
 ;   rsi = buffer
 ;   rdx = limit
 biToString:
+    cmp rdx, 1                                       ; if (limit == 1) {
+    jne .limit_greater_1                             ;   buffer[0] = 0;
+    mov byte [rsi], 0                                ;   return;
+    ret                                              ; }
+
+    .limit_greater_1
     push r12
     push r13
 
@@ -205,15 +210,16 @@ biToString:
     mov byte [rsi + r13], 0                          ; buf[r13] = 0
 
     ; reverse buffer
-    dec r13
+    sub r13, 1                                       ; if count converted digits == 0 do nothing
+    jz .end_while_reverse
     mov r12, r13
     mov r13, rsi                                     ; r13 = buf[r13]; r13 point to last digit
     add r13, r12
     .while_reverse
-        mov bl, [rsi]                               ; ~swap(buf[i], buf[size - i - 1])
-        xchg bl, [r13]
+        mov bl, [rsi]                                ; ~swap(buf[i], buf[size - i - 1])
+        xchg bl, [r13] 
         mov [rsi], bl
-        inc rsi                                     ; if (fst_pointer == last_pointer || fst_pointer + 1 == last_pointer) break
+        inc rsi                                      ; if (fst_pointer == last_pointer || fst_pointer + 1 == last_pointer) break
         cmp rsi, r13
         je .end_while_reverse
         dec r13
@@ -568,7 +574,7 @@ copy_BigInt:
 ;   rdi = destination pointer to BigInt
 ;   rsi = source pointer to BigInt
 copy_data:
-    mov rcx, [rsi + SIZE_FIELD]  ; rcx = src->size
+    mov rcx, [rsi + SIZE_FIELD] ; rcx = src->size
 
     mov rdi, [rdi + DATA_FIELD] ; rdi = dest->data
     mov rsi, [rsi + DATA_FIELD] ; rsi = src->data
@@ -730,14 +736,6 @@ add_short:
     call_fun_2 push_back, rdi, rsi
 
     .end
-    ;cmp qword [rdi + SIGN_FIELD], 0   ; if (src->sign == 0) {
-    ;jne .end_add                      ;    
-    ;mov r10, [rdi + DATA_FIELD]       ;   r10 = src->data
-    ;cmp qword [r10], 0                ;   if (src->data[0] != 0) {
-    ;je .end_add                       ;      src->sign = 1;
-    ;mov qword [rdi + SIGN_FIELD], 1   ;   }
-                                      ;; }
-    .end_add
     ret
 
 ; void ensure_first_greater(BigInt fst, BigInt scd)
