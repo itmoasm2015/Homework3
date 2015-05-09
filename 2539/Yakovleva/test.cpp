@@ -9,10 +9,10 @@ const int LEN_BUF = 100;
 char out[LEN_BUF];
 
 void testSum() {
-	int i = 1;
-	int j = 1;
-	while (i < MAX_INT) {
-		while (j < MAX_INT) {
+	for (int i = 1; i < MAX_INT; i++) {
+		for (int j = 1; j < MAX_INT; j++) {
+			i = 2;
+			j = 689;
 			printf("TEST %d %d\n", i, j);	
 			BigInt aa = biFromInt((int64_t)i);
 			BigInt bb = biFromInt((int64_t)j);
@@ -36,20 +36,85 @@ void testSum() {
 
 			}
 //			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
-//			biDelete(bb);
+			biDelete(bb);
 //			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);	
-//			biDelete(aa);
-			i++;
-			j++;
+			biDelete(aa);
 		}		
 	}
 }
 
+void testSub() {
+	for (int i = 1; i < MAX_INT; i++) {
+		for (int j = 1; j < MAX_INT; j++) {
+			printf("TEST %d %d\n", i, j);	
+			BigInt aa = biFromInt((int64_t)i);
+			BigInt bb = biFromInt((int64_t)j);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			biSub(aa, bb);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			BigInt result  = biFromInt((int64_t)(i - j));
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			int cmp = biCmp(aa, result);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			if (cmp != 0) {	
+				printf("FAIL\n");
+				printf("a = %d, b = %d\n", i, j);
+				biToString(aa, out, LEN_BUF);
+				printf("result = %d, but not %s\n", i - j, out);
+				return;
+			} else {
+				printf("OK ");
+				biToString(aa, out, LEN_BUF);
+				printf("%d - %d = %s\n", i, j, out);
+
+			}
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			biDelete(bb);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);	
+			biDelete(aa);
+		}		
+	}
+}
+
+void testMul() {
+	for (int i = 1; i < MAX_INT; i++) {
+		for (int j = 1; j < MAX_INT; j++) {
+			printf("TEST %d %d\n", i, j);	
+			BigInt aa = biFromInt((int64_t)i);
+			BigInt bb = biFromInt((int64_t)j);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			biMul(aa, bb);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			BigInt result  = biFromInt((int64_t)(i * j));
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			int cmp = biCmp(aa, result);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			if (cmp != 0) {	
+				printf("FAIL\n");
+				printf("a = %d, b = %d\n", i, j);
+				biToString(aa, out, LEN_BUF);
+				printf("result = %d, but not %s\n", i * j, out);
+				return;
+			} else {
+				printf("OK ");
+				biToString(aa, out, LEN_BUF);
+				printf("%d * %d = %s\n", i, j, out);
+
+			}
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);
+			biDelete(bb);
+//			printf("b = %d, a = %d\n", (int*)bb, (int*)aa);	
+			biDelete(aa);
+		}		
+	}
+}
 
 int main() {
 	srand(time(NULL));
 	printf("START TEST\n");
 	testSum();
+	testSub();
+	testMul();
 /*	char ss[100];
 	int i = 1;
 	while (i < 10) {
