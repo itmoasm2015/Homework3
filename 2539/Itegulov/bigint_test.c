@@ -6,5 +6,6 @@
 int main() {
 	BigInt big = biFromInt(100LL);
 	assert(big != NULL);
+	biDelete(big);
 	return 0;
 }

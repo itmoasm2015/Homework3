@@ -34,7 +34,7 @@ global biDivRem
 ;;; bigint biAlloc(uint64 length)
 ;;; Allocates new bigint with specified length (in qwords).
 biAlloc:
-	enter 0, 0
+	enter 8, 0
 	
 	push rdi
 	mov rdi, bigint_size
@@ -66,7 +66,7 @@ biAlloc:
 ;;; bigint biFromInt(uint64 value)
 ;;; Creates simple bigint, representing value.
 biFromInt:
-	enter 0, 0
+	enter 8, 0
 	push rdi
 	mov rdi, 1
 	call biAlloc
@@ -95,7 +95,7 @@ biFromInt:
 ;;; void biDelete(bigint* big)
 ;;; Deletes allocated bigint, freeing all memory, used by it.
 biDelete:
-	enter 0, 0
+	enter 8, 0
 	push rdi
 	mov rdi, [rdi + bigint.vector]
 	call vecFree
