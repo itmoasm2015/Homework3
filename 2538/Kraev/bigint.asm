@@ -910,7 +910,227 @@ biToString:
     x86_64_calle_pop
     ret
 
-;Do nothing...
+;biDivRemHelpers
+; [[]]
+%macro mov_in_ptr 3 
+    push rax
+    mov rax, %1
+    mov %3 [rax], %2
+    pop rax
+%endmacro
+;Binary Search for the answer
+;
 biDivRem:
+    x86_64_calle_push
+    enter 0, 0
+    mpush rdi, rsi, rdx, rcx
+    %define quotient_ptr [rbp - 8]
+    %define reminder_ptr [rbp - 2*8]
+    %define numerator [rbp - 3*8]
+    %define denominator [rbp - 4*8]
+    %define left [rbp - 5*8]
+    ; left bound of binary search
+    %define right [rbp - 6*8]
+    ; right bound of it, it is not included
+    %define tmp [rbp - 7*8]
+    ; tmp = (l + r) / 2
+    %define diff [rbp - 8*8]
+    ; diff = abs(numerator) - abs(denominator)*tmp
+    %define tmp_mul_y [rbp - 9*8]
+    ;ans in [left, right)
+    ;tmp variable for abs(denominaotr)*tmp
+    sub rsp, 40 ;allocate some space for local variables
+    mov rdi, denominator; if denominator is zero - return (null, null)
+    call is_zero
+    if rax, ne, 0 ; If denominator == 0 mov NULL to rem and q
+        mov_in_ptr quotient_ptr, 0, qword     
+        mov_in_ptr reminder_ptr, 0, qword
+        jmp .end
+    endif
+
+    mov rdi, numerator
+    call bi_clone
+    mov r12, rax    ;abs copy of numerator in r12
+    mov rax, [r12 + big_int.sign]
+    if rax, ne, 0
+        mov qword [r12 + big_int.sign], 0
+    endif
+
+    mov rdi, denominator 
+    call bi_clone
+    mov r13, rax; abs copy of denominator in r13 
+    mov rax, [r13 + big_int.sign]
+    if rax, ne, 0
+        mov qword [r13 + big_int.sign], 0
+    endif
+    ;Binary search for answer in [0, nominator + 1)
+    mov rdi, r12 ;clone nominator to right and do + 1
+    call bi_clone
+    mov right, rax  ;mov numerator + 1 to right
+    
+    mov rdi, right
+    mov rsi, 1
+    call add_long_short
+    
+    mov rdi, 8
+    call biCreate; mov zero to left
+    mov left, rax
+    
+     
+     
+    .loop:;binary serach while(true): answer always exists
+    mov rdi, left ;preparing for calc tmp
+    call bi_clone
+    mov tmp, rax
+    
+    mov rdi, rax
+    mov rsi, right
+    call unsigned_add_long_long   
+    
+    mov rdi, tmp
+    mov rsi, 2
+    call div_long_short ;tmp = (left + right) / 2
+
+    mov rdi, r12 ;preparing for calc diff
+    call bi_clone
+    mov diff, rax
+
+    mov rdi, tmp
+    call bi_clone
+    mov tmp_mul_y, rax
+    
+    mov rdi, rax
+    mov rsi, r13
+    call biMul; calc tmp_mul_y = abs(denominator)*tmp
+    
+    mov rdi, diff
+    mov rsi, tmp_mul_y
+    call biSub; calc diff = abs(nominator) - tmp_mul_y
+    
+    mov rdi, tmp_mul_y ;clear some space
+    call biDelete
+    
+    mov rdi, diff
+    call biSign
+    if rax, ge, 0 ;if diff >= 0
+        mov rdi, diff
+        mov rsi, r13
+        call biCmp
+        if rax, l, 0 ;and diff < denominator
+            mov rdi, left
+            call biDelete
+            mov rdi, right
+            call biDelete
+            jmp .ans_found     ;it is an answer for abs division
+        else ; if diff >= denominaotr then left = tmp + 1
+            mov rdi, left
+            call biDelete
+            mov rdi, tmp
+            mov left, rdi
+            mov rsi, 1
+            call add_long_short
+       endif    
+    else ; right = tmp
+        mov rdi, right
+        call biDelete
+
+        mov rdi, tmp
+        mov right, rdi
+    endif
+    
+    mov rdi, diff
+    call biDelete
+     
+    jmp .loop
+
+    .ans_found: ;ans in tmp, reminder in diff
+    mov rdi, numerator 
+    call biSign
+    mov r14, rax
+    
+    mov rdi, denominator
+    call biSign
+    mov r15, rax
+     ;set proper signs and reminder value
+    if r15, l, 0 ;if denominator was less, then zero
+       if r14, g, 0; and numerator was greater then zero
+          mov rdi, tmp
+          mov qword [rdi + big_int.sign], 1
+          ;quotent should be negative
+         
+          mov rdi, diff
+          call is_zero
+          
+          ;and if division was not exact  
+          if rax, ne, 1
+             mov rsi, 1
+             mov rdi, tmp
+             call add_long_short
+             ;add 1 to quotient
+             ;and make reminder = diff - denominator
+             mov rdi, diff
+             mov rsi, r13
+             call biSub
+          endif
+       else 
+          mov rdi, diff
+          mov qword [rdi + big_int.sign], 1 
+       endif 
+    else
+        if r14, l, 0; numerator < 0
+            mov rdi, tmp
+            mov qword [rdi + big_int.sign], 1
+            ;tmp = -tmp
+            mov rdi, diff
+            call is_zero
+            ;if division was not exact
+            ;
+            if rax, ne, 1
+                mov rdi, tmp
+                mov rsi, 1
+                call add_long_short; abs(tmp) + 1: tmp - 1
+                mov rdi, diff
+                mov rsi, r13
+                call biSub; diff = -(diff - r13)
+                mov rdi, diff
+                mov rax, [rdi + big_int.sign]
+                xor rax, 1
+                mov qword [rdi + big_int.sign], rax
+            endif
+        endif
+        ;if numerator and den are not less, than 0, ans is already
+        ; in tmp and diff
+    endif 
+   
+    ;some +-0 
+    mov rdi, diff
+    call normalize
+
+    mov rdi, tmp
+    call normalize
+    
+    mov rdi, tmp; mov quotient to it right place
+    mov_in_ptr quotient_ptr, rdi, qword
+    
+    mov rdi, diff; mov reminder to it right place
+    mov_in_ptr reminder_ptr, rdi, qword
+    ;clear memory
+    mov rdi, r13
+    call biDelete
+    mov rdi, r12
+    call biDelete 
+    .end:
+    leave
+    x86_64_calle_pop
     ret
 
+    ;undef all local vars
+    %undef quotient_ptr 
+    %undef reminder_ptr
+    %undef numerator
+    %undef denominator
+    %undef left
+    %undef right
+    %undef tmp
+    %undef diff
+    %undef tmp_mul_y

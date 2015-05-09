@@ -12,15 +12,15 @@
     %endrep
 %endmacro
 
-%macro zero_sign_flush 1 ; check if number is 0 and set "+" sign
+%macro zero_sign_flush 1-2 ; check if number is 0 and set "+" sign
     push rdx                            ; save temp register
     cmp qword [%1 + BigInt.size], 1     ; if number.size > 1 => not zero
-    jg .skip            
+    jg .skip%2            
     mov rdx, [%1 + BigInt.data]         
     cmp qword [rdx], 0                  ; if number.data[0] != 0 => not zero
-    jne .skip
+    jne .skip%2
     mov qword [%1 + BigInt.sign], 0     ; flush sign to "+"
-.skip:
+.skip%2:
     pop rdx                             ; restore temp register
 %endmacro
 
@@ -1452,6 +1452,7 @@ biDivRem:
     cmp qword [r13 + BigInt.size], 1    ; compare R with 0
     jg .non_zero_remainder              
     mov r10, [r13 + BigInt.data]
+    mov r10, [r10]
     test r10, r10
     jnz .non_zero_remainder
 
@@ -1494,6 +1495,9 @@ biDivRem:
 
     mov rdi, r15                        ; deallocate copied B
     call biDelete
+
+    zero_sign_flush r12, 1
+    zero_sign_flush r13, 2
 
     mpop rbx, r12, r13, r14, r15
     
