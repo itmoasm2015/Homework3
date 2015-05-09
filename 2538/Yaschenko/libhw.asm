@@ -636,27 +636,23 @@ _biTrimZeros:
 biAdd:
 	mov		rdx, [rsi + Bigint.sign]
 	mov		rax, [rdi + Bigint.sign]
-;; Save signs.
-	mpush		rax, rdx
-
 	cmp		rdx, SIGN_ZERO
 	je		.done
+
+;; Save signs.
+	mpush		rax, rdx
 
 	cmp		rax, SIGN_ZERO
 	jne		.non_zero
 
 .copy_dst_to_src:
-	push		rsi
-
-	push		rdi
+	mpush		rdi, rsi
 	vector_delete	[rdi + Bigint.vector]
-	pop		rdi
+	mpop		rdi, rsi
 
-	push		rdi
-	vector_copy	[rdi + Bigint.vector]
-	pop		rdi
-
-	pop		rsi
+	mpush		rdi, rsi
+	vector_copy	[rsi + Bigint.vector]
+	mpop		rdi, rsi
 
 	mov		[rdi + Bigint.vector], rax
 
