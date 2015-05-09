@@ -10,19 +10,22 @@ extern malloc
 extern free
 
 global vectorNew
+global vectorNewRaw
 global vectorDelete
 global vectorSize
 global vectorResize
+global vectorAppend
 global vectorGet
 global vectorSet
 
 ;; @cdecl64
-;; Vector vectorNew(unsigned int initialCapacity);
+;; Vector vectorNew(unsigned int initialCapacity, int64_t fillVal);
 ;;
 ;; Allocates a new vector with provided initial capacity
-;; and fill it with zeroes
+;; and fill it with given value
 ;;
 ;; @param  RDI initialCapacity
+;; @param  RSI fillVal -- an int64_t which will be stored in every vector cell
 ;; @return RAX Pointer on the vector struct
 vectorNew:
               push  rdi
@@ -33,7 +36,7 @@ vectorNew:
 
               cld                   ; Clear dir flag just in case
               push  rax
-              xor   rax, rax        ; Zero it out
+              mov   rax, rsi        ; Fill values
               rep   stosq
               pop   rax
               ret
@@ -52,9 +55,9 @@ vectorNewRaw:
               lea   rdi, [rdi*8 + vector_size]
               call  malloc
 
-              pop   rdi             ; Set 0 size and given capacity
-              xor   r10, r10        ; That is for operand sizes match
-              mov   [rax + vector.size], r10
+              pop   rdi             ; Set 0 size, 0 sign and given capacity
+              mov   qword [rax + vector.size], 0
+              mov   qword [rax + vector.sign], 0
               mov   [rax + vector.capacity], rdi
 
               ret
@@ -106,12 +109,13 @@ vectorSet:
               ret
 
 ;; @cdecl64
-;; Vector vectorResize(Vector vec, unsigned int newSize);
+;; Vector vectorResize(Vector vec, unsigned int newSize, int64_t tailFill);
 ;;
 ;; Resizes a vector, reallocating if necessary
 ;;
 ;; @param  RDI vec     -- vector to resize
 ;; @param  RSI newSize -- new size
+;; @param  RDX tailFill -- an int64_t to fill the rest of resized vector
 ;; @return RAX Address of resized vector
 vectorResize:
               CDECL_ENTER 0, 0
@@ -121,7 +125,7 @@ vectorResize:
               cmp   rsi, r13        ; Check if new size exceeds capacity
               jle   .assign_size    ; and reallocate vector, if so
 
-              mpush rsi, rdi
+              mpush rdx, rsi, rdi
               lea   rdi, [rsi*2]
               call  vectorNewRaw    ; Allocate a bigger vector
 
@@ -135,28 +139,43 @@ vectorResize:
               cld                   ; Copy data
               rep   movsq
 
-              push  rax
               pop   rdi             ; Clear old vector
+              push  rax
               call  vectorDelete
 
               pop   rax
               mov   rdi, rax        ; Point RDI to new vector and restore passed size in RSI
-              pop   rsi
+              mpop  rdx, rsi
 .assign_size:
               mov   [rdi + vector.size], rsi
-              cmp   rsi, r12        ; If new size is bigger than old, zero out the tail
+              cmp   rsi, r12        ; If new size is bigger than old, then fill the tail
               jle   .return
 
-              push  rdi             ; Prepare pointers for tail zeroing
-              add   rdi, vector_size
-              add   rdi, r12
+              push  rdi             ; Prepare pointers for tail filling
+              lea   rdi, [rdi + r12*8 + vector.data]
               mov   rcx, rsi
               sub   rcx, r12
 
-              xor   rax, rax        ; Zero it out
+              mov   rax, rdx        ; Fill the tail with given value
               cld
-              rep   stosb
+              rep   stosq
               pop   rdi
 .return:
               mov   rax, rdi        ; Return vector address in RAX
               CDECL_RET
+
+
+;; @cdecl64
+;; Vector vectorAppend(Vector vec, uint64_t val);
+;;
+;; Append a value to vector, incrementing its size
+;;
+;; @param  RDI vec  -- vector to append to
+;; @param  RSI val  -- value to append
+;; @return RAX Address of altered vector
+vectorAppend:
+              mov   rdx, [rdi + vector.size]
+              inc   rdx
+              xchg  rdx, rsi
+              call  vectorResize
+              ret
