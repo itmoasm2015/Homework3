@@ -5,11 +5,11 @@
 
 BOOST_AUTO_TEST_CASE (VectorCommon)
 {
-    Vector v = vectorNew(8);
+    Vector v = vectorNew(8, 0);
 
     BOOST_CHECK_EQUAL(vectorSize(v), 0);
 
-    v = vectorResize(v, 5);
+    v = vectorResize(v, 5, 0);
     BOOST_CHECK_EQUAL(vectorSize(v), 5);
 
     for (int i = 0; i < 5; i++) {
@@ -19,8 +19,17 @@ BOOST_AUTO_TEST_CASE (VectorCommon)
     vectorSet(v, 3, 1e17);
     BOOST_CHECK_EQUAL(vectorGet(v, 3), 1e17);
 
-    v = vectorResize(v, 10);
+    v = vectorAppend(v, 30);
+    v = vectorAppend(v, 40);
+    v = vectorAppend(v, 60);
+    BOOST_CHECK_EQUAL(vectorSize(v), 8);
+    BOOST_CHECK_EQUAL(vectorGet(v, 5), 30);
+    BOOST_CHECK_EQUAL(vectorGet(v, 6), 40);
+    BOOST_CHECK_EQUAL(vectorGet(v, 7), 60);
+
+    v = vectorResize(v, 10, -1);
     BOOST_CHECK_EQUAL(vectorSize(v), 10);
+    BOOST_CHECK_EQUAL(vectorGet(v, 8), 0xFFFFFFFFFFFFFFFF);
 
     vectorDelete(v);
 }

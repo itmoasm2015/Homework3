@@ -319,8 +319,8 @@ section .text
                     mov dl, [r12 + r15 * CHAR_SIZE]  
                     cmp dl, '-'
                     jne .notMinus              ; s[i] == '-'
-                        cmp r13, 1
-                        je .fail ;             ; if there is at least two minuses
+                        cmp r15, 0
+                        jne .fail ;             ; if there is at least two minuses
                         inc r13                ; inc minuses count
                         jmp .endBody
                     .notMinus
@@ -586,11 +586,13 @@ section .text
             
             call2 reverse, r12, r15           ; reverse string
 
-            xor r8, r8                        ; r8 = 0
-            mov [r12 + r15 * CHAR_SIZE], r8   ; add terminate character
+            xor rax, rax                      ; rax = 0
+            mov [r12 + r15 * CHAR_SIZE], al   ; add terminate character
 
             cmp r15, 0
             jne .notZero                      ; if len == 0 then BigInt == 0 => s = "0"
+            cmp r15, r13
+            je .notZero
                 mov al, '0'
                 mov [r12 + r15 * CHAR_SIZE], al  ; s[0] = '0'
                 inc r15
