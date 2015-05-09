@@ -586,8 +586,8 @@ section .text
             
             call2 reverse, r12, r15           ; reverse string
 
-            xor r8, r8                        ; r8 = 0
-            mov [r12 + r15 * CHAR_SIZE], r8   ; add terminate character
+            xor rax, rax                      ; rax = 0
+            mov [r12 + r15 * CHAR_SIZE], al   ; add terminate character
 
             cmp r15, 0
             jne .notZero                      ; if len == 0 then BigInt == 0 => s = "0"
