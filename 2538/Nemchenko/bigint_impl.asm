@@ -165,9 +165,26 @@ biFromString:
     mov rax, rdi
     ret
 
+;TODO
 ; void biToString(BigInt bi, char *buffer, size_t limit);
+;   rdi = bi
+;   rsi = buffer
+;   rdx = limit
 biToString:
-     
+    push r12
+    mov r12, rdx                                     ; r12 = limit
+    call_fun_2 createBigInt, [rdi + SIZE_FIELD], rsi ; rax = new BigInt();
+    call_fun_2 copy_BigInt, rax, rdi                 ; deep_copy: rax = rdi
+    xor rcx, rcx                                     ; rcx = 0
+    mov rdi, rax                                     ; rdi = deep copy of bi
+    .loop:
+        inc rcx
+        cmp r12, rcx
+        jnz .loop
+
+
+    call_fun_1 biDelete, rax
+    pop r12
     ret
 
 ; void biDelete(BigInt bi);
@@ -714,7 +731,7 @@ ensure_first_greater:
                                                      ; rax->capacity = scd->size 
     call_fun_2 copy_BigInt, rax, rsi                 ; deep_copy: rax = rsi
     mov rsi, rdi                                     ; scd = fst
-    mov rdi, rax                                     ; fst = rax
+    mov rdi, rax                                     ; fst = new_bigInt, copy of scd
     pop rax                                          ; rax = previous scd->size
     call_fun_2 realloc_data, rsi, rax                ; ensure that second number
                                                      ; have at least rax capacity
@@ -751,9 +768,27 @@ clear_leader_zero:
     ret
 
 ; unsigned long long div_short(BigInt numerator, int64_t denominator);
+;   rdi = numerator
+;   rsi = denominator
+; result
 ;   numerator /= denominator
 ;   return remainder after numerator / denominator
 ; 
 div_short:
-    
+    xor rdx, rdx
+    mov rax, 0                            ; rax = carry = 0 
+    mov r11, [rdi + SIZE_FIELD]           
+    dec r11                               ; r11 = numerator->size - 1
+    .loop:
+        add rax, [rdi + r11 * SIZEOF_FLD] ; rax = carry + numerator->data[r11]
+        adc rdx, 0                        ; if carry happened
+        div rdi
+        mov [rdi + r11 * SIZEOF_FLD], rax ; numerator->data[r11] = (carry + n->data[r11]) / denominator
+        mov rax, rdx                      ; rax = (carry + n->data[r11]) % denominator
+        sub r11, 1                        ; r11--
+        jnz .loop
+    .end_ 
+    push rax                              ; result already saved in rax
+    call_fun_1 clear_leader_zero, rdi
+    pop  rax
     ret
