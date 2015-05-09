@@ -1,22 +1,25 @@
-CC=g++
-TARGET=test
-OBJECTS=libhw.o test.o
-#CXXFLAGS=-Wall -Wextra -lgmpxx -lgmp -g -std=c++1y 
-CXXFLAGS=-Wall -Wextra -g -std=c++1y 
-#DEPS=../../include/bigint.h
+GCC = gcc
+CPP = g++
+ASM = yasm
+CPP_FLAGS = -Wall -g -L. -std=c++11
+ASM_FLAGS = -g dwarf2 -f elf64 
 
-$(TARGET): $(OBJECTS)
-	$(CC) $(CXXFLAGS) $^ -o $@ -lgmpxx -lgmp -fsanitize=address
+all: tester
 
-libhw.o: libhw.asm
-	rm -f $(TARGET)
-	yasm -f elf64 -g dwarf2 $^ -o $@ 
+tester: libhw.a tester.o
+	$(CPP) tester.o -o tester $(CPP_FLAGS)  bigint.h libhw.o 
 
-#test.o: test.cpp  $(DEPS)
-test.o: test.cpp
-	rm -f $(TARGET)
-	$(CC) $(CXXFLAGS) -c $< -o $@ 
+tester.o: tester.cpp
+	$(CPP) tester.cpp -c -o tester.o $(CPP_FLAGS) 
+
+libhw.a: libhw.o
+	ar rcs libhw.a libhw.o
+
+libhw.o: asm_impl.asm
+	$(ASM) -o libhw.o $(ASM_FLAGS) asm_impl.asm
 
 clean:
-	rm -f $(TARGET)
-	rm -f *.o
+	rm -f libhw.a
+	rm -f libhw.o
+	rm -f tester.o
+	rm -f tester
