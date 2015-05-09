@@ -775,20 +775,22 @@ clear_leader_zero:
 ;   return remainder after numerator / denominator
 ; 
 div_short:
+    push rdi
     xor rdx, rdx
-    mov rax, 0                            ; rax = carry = 0 
     mov r11, [rdi + SIZE_FIELD]           
     dec r11                               ; r11 = numerator->size - 1
+    mov rdi, [rdi + DATA_FIELD]
     .loop:
-        add rax, [rdi + r11 * SIZEOF_FLD] ; rax = carry + numerator->data[r11]
-        adc rdx, 0                        ; if carry happened
-        div rdi
+        mov rax, [rdi + r11 * SIZEOF_FLD] ; rax = carry + numerator->data[r11]
+        div rsi
         mov [rdi + r11 * SIZEOF_FLD], rax ; numerator->data[r11] = (carry + n->data[r11]) / denominator
-        mov rax, rdx                      ; rax = (carry + n->data[r11]) % denominator
+        ; rdx = (carry + n->data[r11]) % denominator
+        ; so how rdx:rax / rdi, therefore carry automatically * base
         sub r11, 1                        ; r11--
-        jnz .loop
+        jge .loop
     .end_ 
-    push rax                              ; result already saved in rax
+    pop rdi
+    push rdx                              ; result already saved in rax
     call_fun_1 clear_leader_zero, rdi
     pop  rax
     ret
