@@ -591,6 +591,8 @@ section .text
 
             cmp r15, 0
             jne .notZero                      ; if len == 0 then BigInt == 0 => s = "0"
+            cmp r15, r13
+            je .notZero
                 mov al, '0'
                 mov [r12 + r15 * CHAR_SIZE], al  ; s[0] = '0'
                 inc r15
