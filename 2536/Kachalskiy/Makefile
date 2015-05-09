@@ -3,7 +3,7 @@ CXXFLAGS=-g -O0
 YASM_FLAGS=-f elf64 -g dwarf2
 
 all: biginteger.o
-	ar rcs biginteger.a biginteger.o
+	ar rcs libhw.a biginteger.o
 
 test: test.o all
 	g++ $(CXXFLAGS) -o test test.o biginteger.o -lgmp
