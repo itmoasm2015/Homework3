@@ -82,6 +82,7 @@ biCutTrailingZeroes:
         mov     [r8+bigint.data], r10
         jmp     .return
         .free
+        mov     dword[r8+bigint.sign], 0
         mov     rdi, r9
         call    free
         .return
@@ -100,12 +101,13 @@ biFromInt:
         mov     r9, rax
 
         ;; set proper sign
-        bt      r8, 0
+        mov     dword[r9+bigint.sign], 0
+        bt      r8, 63
         jnc     .nonneg
         mov     dword[r9+bigint.sign], 0xffffffff
         .nonneg
 
-        ;; set length
+        ;; set size
         mov     dword[r9+bigint.size], 1
 
         ;; allocate memory for array
@@ -123,15 +125,41 @@ biFromInt:
         mov     rax, r9
         push    rax
         mov     rdi, r9
+
+        ;; Remove trailing zeroes if present
         call    biCutTrailingZeroes
         pop     rax
         ret
 
+
+;;; NEEDS MUL AND ADD
 ;;; BigInt biFromString(char const *s)
 ;;; Create a BigInt from a decimal string representation.
 ;;; Returns NULL on incorrect string.
 biFromString:
+        mov     r8, rdi
 
+        ;; allocate place for new structure
+        push    r8
+        mov     rdi, bigint_size
+        call    malloc
+        pop     r8
+        mov     r9, rax
+
+        cmp     byte[r8], '-'
+        jne     .nonneg
+        mov     dword[r9+bigint.sign], 0xffffffff
+        inc     r8
+        .nonneg
+
+        .loop
+
+        mov     rax, r9
+        jmp .return
+        .fail
+        mov     rax, 0
+        .return
+        ret
 
 ;;; void biToString(BigInt bi, char *buffer, size_t limit)
 ;;; Generate a decimal string representation from a BigInt.
@@ -142,11 +170,30 @@ biToString:
 ;;; void biDelete(BigInt bi);
 ;;; Destroy a BigInt.
 biDelete:
+        cmp     dword[rdi+bigint.size], 0 ; if size is 0, inner array was deleted
+        je      .outer
+        ;; inner part
+        push    rdi
+        mov     rdi, [rdi+bigint.data]
+        call    free
+        pop     rdi
+        .outer
+        call    free
+        ret
 
 ;;; int biSign(BigInt bi);
 ;;; Get sign of given BigInt.
 ;;; return 0 if bi is 0, positive if bi is positive, negative if bi is negative.
 biSign:
+        mov     r8, rdi
+        mov     eax, dword[r8+bigint.sign]
+        cmp     dword[r8+bigint.size], 0
+        je      .return
+        cmp     eax, 0xffffffff
+        je      .return
+        inc     eax
+        .return
+        ret
 
 ;;; int biAdd(BigInt dst, BigInt src);
 ;;; dst += src
