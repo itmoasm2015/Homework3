@@ -6,6 +6,7 @@
 .data   resq 1
         endstruc
 %define bigint_size 16
+%define trailing_removed_after 0
 
 extern malloc
 extern free
@@ -23,36 +24,67 @@ global biCmp
 
 ;;; void biCutTrailingZeroes(BigInt int)
 ;;; removes trailing zeroes, if the whole bigint is zero, frees .data
+;;; reallocates .data section of bigint if more than trailing_removed_after
+;;; trailing zeroes were removed
 biCutTrailingZeroes:
         mov     r8, rdi
 
         ;; return if it's 0
 
-        ;; number of trailing zeroes removed
+        ;; ecx -- number of trailing zeroes removed
         xor     ecx, ecx
         xor     rdi, rdi
 
         ;; loop for removing trailing zeroes
-        mov     r9, [r8+bigint.data]  ; data
+        mov     r9, [r8+bigint.data]       ; data
         .loop
         mov     eax, dword[r8+bigint.size] ; current size
         cmp     eax, 0
-        je      .return            ; return if size is 0
+        je      .free                      ; return if size is 0
 
         mov     edi, eax
-        dec     edi                ; indexing from 0
-        cmp     qword[r9+8*rdi], 0 ; return if last portion of data non-null
-        jne     .return
+        dec     edi                        ; indexing from 0
+        cmp     qword[r9+8*rdi], 0         ; return if last portion of data non-null
+        jne     .reallocate
         dec     dword[r8+bigint.size]
+        inc     ecx
         jmp     .loop
 
-        .return
-        ;; reallocate memory for data -- currently not implemented
-        cmp     dword[r8+bigint.size], 0
-        jne     .really_return
+        .reallocate
+        cmp     ecx, trailing_removed_after
+        jle     .return
+
+        ;; allocate array of new size
+        push    r8
+        push    r9
+        mov     edi, dword[r8+bigint.size]
+        call    malloc
+        pop     r9
+        pop     r8
+        mov     r10, rax
+
+        ;; copy old data to new array
+        xor     ecx, ecx
+        .loop_copy
+        mov     rdi, [r9+8*rcx]
+        mov     [r10+8*rcx], rdi
+        inc     ecx
+        cmp     ecx, dword[r8+bigint.size]
+        jl      .loop_copy
+
+        ;; free current array, mov new array address into structure
+        push    r8
+        push    r10
+        mov     rdi, [r8+bigint.data]
+        call    free
+        pop     r10
+        pop     r8
+        mov     [r8+bigint.data], r10
+        jmp     .return
+        .free
         mov     rdi, r9
         call    free
-        .really_return
+        .return
         ret
 
 ;;; BigInt biFromInt(int64_t x)
@@ -68,8 +100,8 @@ biFromInt:
         mov     r9, rax
 
         ;; set proper sign
-        bt      r8, 64
-        jc      .nonneg
+        bt      r8, 0
+        jnc     .nonneg
         mov     dword[r9+bigint.sign], 0xffffffff
         .nonneg
 

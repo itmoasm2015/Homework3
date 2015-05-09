@@ -8,6 +8,7 @@ using namespace std;
 extern "C" {
     void add_short(BigInt src, int64_t num);
     void mul_short(BigInt src, int64_t num);
+    int64_t div_short(BigInt, int64_t);
 }
 
 void printbBigNum(BigInt x) {
@@ -260,6 +261,14 @@ int main() {
 
     biAdd(b, d);
     assert(biCmp(b, biFromInt(1)) == 0);
+    cout << endl;
+    d = biFromString("-179769313486231590123123");
+    for (int i = 0; i < 22; ++i) {
+        cout << div_short(d, 10);
+    }
+    printbBigNum(d);
+    //cout << endl;
+
     
 
     //test_constructors();

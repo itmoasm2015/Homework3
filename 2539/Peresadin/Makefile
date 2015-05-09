@@ -1,6 +1,6 @@
 ASM_FLAGS = -f elf64 -g dwarf2
-#CFLAGS = -fsanitize=address -g -L. -I../../include
-CFLAGS = -O2 -L. -I../../include -I.
+CFLAGS = -fsanitize=address -g -L. -I../../include
+#CFLAGS = -O2 -L. -I../../include -I.
 
 all: tests
 

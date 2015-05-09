@@ -7,10 +7,10 @@ AR=ar rcs
 
 all: test lib
 
-test: test.o vector.o
+test: test.o vector.o bigint.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-lib: vector.o
+lib: vector.o bigint.o
 	$(AR) libhw.a $^
 
 %.o: %.asm

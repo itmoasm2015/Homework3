@@ -9,6 +9,6 @@
 using namespace std;
 
 int main() {
-    BigInt a = biFromInt(124124);
+    BigInt a = biFromInt(-2);
     cout << a << endl;
 }
