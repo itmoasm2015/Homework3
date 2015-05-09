@@ -21,8 +21,13 @@ global biSub
 global biMul
 global biDivRem
 global biCmp
+
 global biDump
 global biSize
+global biExpand
+global biMulShort
+global biDivShort
+
 
 ;;; void biCutTrailingZeroes(BigInt int)
 ;;; removes trailing zeroes, if the whole bigint is zero, frees .data
@@ -245,8 +250,66 @@ biCmp:
         .return
         ret
 
-;;; void biExpand(BigInt a, int new_size);
+;;; void biExpand(BigInt a, size_t new_size);
+;;; copies all data to bigger array, filling higher integers with zeroes
 biExpand:
+        mov     r8, rdi
+        mov     r9, rsi
+        cmp     r9d, dword[r8+bigint.size] ; fail if new size ≤ old size
+        jle     .fail
+
+        ;; allocate memory for new array
+        push    r8
+        push    r9
+        mov     rdi, r9
+        call    malloc
+        pop     r9
+        pop     r8
+        mov     r10, rax
+
+        ;; save new array position
+        push    r10
+
+        ;; copy old array
+        mov     r11, [r8+bigint.data] ; r11 holds old array
+        xor     rcx, rcx
+        .loop1
+        mov     rax, [r11+rcx*8]
+        mov     [r10], rax
+        add     r10, 8
+        inc     ecx
+        cmp     ecx, dword[r8+bigint.size]
+        jl      .loop1
+
+        ;; fill residual with zeroes
+        sub     r9d, dword[r8+bigint.size]
+        xor     rcx, rcx
+        .loop2
+        mov     qword[r10], 0
+        add     r10, 8
+        inc     ecx
+        cmp     ecx, r9d
+        jl      .loop2
+
+        ;; restore new array position
+        pop     r10
+
+        ;; free old array
+        push    r8
+        push    r10
+        mov     rdi, [r8+bigint.data]
+        call    free
+        pop     r10
+        pop     r8
+
+        ;; replace .data section with expanded array
+        mov     [r8+bigint.data], r10
+
+        jmp     .return
+        .fail
+        mov     rax, [0]
+        .return
+        ret
 
 ;;; int biAdd(BigInt dst, BigInt src);
 ;;; dst += src
@@ -258,9 +321,14 @@ biAdd:
 ;;; dst -= src
 biSub:
 
+;;; void biMulShort(BigInt dst, unsigned long int src);
+biMulShort:
+
 ;;; void biMul(BigInt dst, BigInt src);
 ;;; dst *= src
 biMul:
+
+biDivShort:
 
 ;;; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 ;;; Compute quotient and remainder by divising numerator by denominator.
