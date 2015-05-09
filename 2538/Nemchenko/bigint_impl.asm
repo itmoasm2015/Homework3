@@ -1,10 +1,11 @@
-; calee-save RBX, RBP, R12-R15
+; calee-save RBX, RBP, R12-R15, DF = 0
 ; rdi , rsi ,
 ; rdx , rcx , r8 ,
 ; r9 , zmm0 - 7 default rel
 
 global mul_short
 global add_short
+global div_short
 ;
 
 global biFromInt
@@ -99,6 +100,7 @@ section .text
 ; BigInt biFromInt(int64_t x);
 biFromInt:
     call_fun_1 createBigInt, DEFAULT_SIZE
+    ;ret
 
     cmp  rdi, 0
     je  .end                             ; x == 0 -> sign = 0
@@ -136,7 +138,6 @@ biFromString:
     .next:
     cmp byte [rsi], 0
     jle .error
-    cld                                    ; DF = false
     xor rax, rax
     .loop:
         lodsb                              ; ax = *(rsi++)
@@ -164,15 +165,36 @@ biFromString:
     mov rax, rdi
     ret
 
+;TODO
 ; void biToString(BigInt bi, char *buffer, size_t limit);
+;   rdi = bi
+;   rsi = buffer
+;   rdx = limit
 biToString:
-     
+    push r12
+    mov r12, rdx                                     ; r12 = limit
+    call_fun_2 createBigInt, [rdi + SIZE_FIELD], rsi ; rax = new BigInt();
+    call_fun_2 copy_BigInt, rax, rdi                 ; deep_copy: rax = rdi
+    xor rcx, rcx                                     ; rcx = 0
+    mov rdi, rax                                     ; rdi = deep copy of bi
+    .loop:
+        inc rcx
+        cmp r12, rcx
+        jnz .loop
+
+
+    call_fun_1 biDelete, rax
+    pop r12
     ret
 
 ; void biDelete(BigInt bi);
 ; pointer to bi saved in rdi, free will be called with this pointer
 biDelete:
-    call_fun_1 free, [rdi + DATA_FIELD] ; free(bi->data)
+    push rdi
+    mov rdi, [rdi + DATA_FIELD]
+    call free
+    pop rdi
+    ;call_fun_1 free, [rdi + DATA_FIELD] ; free(bi->data)
     call free                           ; free(bi)
     ret
 
@@ -181,11 +203,13 @@ biSign:
     mov rax, [rdi + SIZE_FIELD]    
     ret
 
-; void biAdd(BigInt* dst, BigInt* src);
+; void biAdd(BigInt dst, BigInt src);
 ;   dst += src
 ;   rdi = dst
 ;   rsi = src
 biAdd:
+    ;call biDelete
+    ;ret
     push r12
     push r13
 
@@ -194,9 +218,11 @@ biAdd:
     xor  rdx, r12                       ; if one bigInt < 0 and another > 0 {
     cmp rdx, -2                         ;    dst->sign = abs(dst->sign)
     jne .just_add                       ;    src->sign = abs(src->sign)
+    push qword [rsi + SIGN_FIELD]
     abs [rdi + SIGN_FIELD], 1           ;    dst -= src 
     abs [rsi + SIGN_FIELD], 2           ;    dst->sign *= r12; // dst was > 0, dst - src
     call_fun_2 biSub, rdi, rsi          ;    // if dst was < 0, -(dst - src) -> change sign
+    pop qword [rsi + SIGN_FIELD]
     mov  rdx, [rdi + SIGN_FIELD]        ;
     imul rdx, r12                       ; 
     mov  [rdi + SIGN_FIELD], rdx        ; }
@@ -272,6 +298,7 @@ biSub:
     jne .just_sub                      ;    src->sign = -src->sign
     neg qword [rsi + SIGN_FIELD]       ;    dst += src
     call_fun_2 biAdd, rdi, rsi         ;    return; 
+    neg qword [rsi + SIGN_FIELD]       ;    
     jmp .before_ret                    ; }
 
     .just_sub:
@@ -307,10 +334,11 @@ biSub:
 
     cmp rax, 1                         ; if (abs(dst) was < abs(src)) {
     jne .before_ret                    ;   dst->sign = -src->sign;
-    mov r12, [rsi + SIGN_FIELD]        ;   delete old instance of BigInt 
+    xchg rsi, rdi
+    call_fun_2 move_bigInt, rdi, rsi   ; 
+    mov r12, [rdi + SIGN_FIELD]        ;   delete old instance of BigInt 
     neg r12                            ;   which hold in rsi
-    mov [rdi + SIGN_FIELD], r12        ; 
-    call_fun_1 biDelete, rsi           ; }
+    mov [rdi + SIGN_FIELD], r12        ; } 
 
     .before_ret:
     call_fun_1 clear_leader_zero, rdi
@@ -319,7 +347,67 @@ biSub:
     ret
 
 ; void biMul(BigInt dst, BigInt src);
+;   rdi = dst
+;   rsi = src
 biMul:
+    push r12
+
+    mov  r12, [rdi + SIZE_FIELD]
+    add  r12, [rsi + SIZE_FIELD]       ; r12 = src->size + dst->size
+    
+    ; allocate new bigInt, capacity = dst->size + src->size
+    call_fun_2 createBigInt, r12, rsi  ; rax = new BigInt
+
+    mov  rdx, [rdi + SIGN_FIELD]       
+    mov  r10, [rsi + SIGN_FIELD]
+    imul r10, rdx                      ; r10 = src->sign * dst->sign
+
+    mov  [rax + SIGN_FIELD], r10       ; new_BI->sign = src->sign * dst->sign
+    mov  [rax + SIZE_FIELD], r12       ; new_BI->size = src->size + dst->size
+
+    mov r12, rax                       ; r12 = rax
+    push r12
+    push rdi
+    mov rcx, [rdi + SIZE_FIELD]        ; rcx = dst->size
+    mov r10, [rsi + SIZE_FIELD]        ; r10 = src->size
+
+    mov rdi, [rdi + DATA_FIELD]        ; rdi = src->data
+    mov rsi, [rsi + DATA_FIELD]        ; rsi = dst->data
+    mov r12, [r12 + DATA_FIELD]        ; r12 = new_BI->data
+    xor r8, r8
+    .while_r8                          ; while (r8 < dst->size)
+        xor r11, r11
+        xor r9, r9
+        .while_r9                      ; while (r9 < src->size || carry)
+            mov  rax, [rdi + r8 * SIZE_FIELD]       ; rax = dst->data[r8]
+            xor  rdx, rdx              ; rdx = 0
+            cmp  r9,  r10              ; if (r9 < src->size) {
+            jge .next                  ;   rdx = src->data[r9]
+            mov  rdx, [rsi + r9 * SIZE_FIELD]       ; }
+
+            .next:
+            mul  rdx                    ; dst->data[r8] * src->data[r9] = rdx * BASE + rax
+            xchg r11, rdx               ; r11 = new carry
+            add  rax, rdx               ; rax += previous carry
+            adc  r11, 0                 ; r11 += carry after addition
+            mov  rdx, r9
+            add  rdx, r8                ; rdx = r8 + r9
+            add  [r12 + rdx * SIZE_FIELD], rax       ; newBI->data[r8 + r9] += rax 
+            adc  r11, 0                 ; r11 += carry after addition
+            inc  r9                     ; r9++
+            cmp  r9, r10                ; if (r9 < src->size
+            jl .while_r9                ;   or r11(new carry) != 0) continue
+            cmp  r11, 0
+            jne .while_r9
+        inc r8                          ; r8++
+        cmp r8, rcx                     ; if (r8 < dst.size) continue
+        jl .while_r8
+    pop rdi
+    pop r12
+    call_fun_2 move_bigInt, rdi, r12    ; deep move: rdi = r12
+    call clear_leader_zero 
+    
+    pop r12 
     ret
 
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
@@ -379,7 +467,7 @@ biCmp:
     ret
 
 ; **reallocate memory for data with apropriate size
-; void realloc_data(BigInt* src, long long new_capacity)
+; void realloc_data(BigInt src, long long new_capacity)
 realloc_data:
     call_fun_2 calloc, rsi, SIZEOF_FLD  ; calloc(new_capacity, 8)
 
@@ -403,7 +491,7 @@ realloc_data:
     ret
 
 ; realloc data, if needed, to src->size * 2
-; void ensure_capacity(BigInt* src)
+; void ensure_capacity(BigInt src)
 ; rdi = src
 ensure_capacity:
     mov  rcx, [rdi + SIZE_FIELD]   ; rcx = src->size
@@ -417,7 +505,7 @@ ensure_capacity:
     .end_ensure:
     ret
 
-; void copy_BigInt(BigInt* dest, BigInt* src)
+; void copy_BigInt(BigInt dest, BigInt src)
 ;   rdi = destination pointer to BigInt
 ;   rsi = source pointer to BigInt
 copy_BigInt:
@@ -428,7 +516,6 @@ copy_BigInt:
     add rdi, SIZEOF_FLD      ; rdi = &dest->size
     add rsi, SIZEOF_FLD      ; rsi = &src->size
     mov rcx, 2               ; count of copy fields
-    cld                      ; DF = 0
     repnz movsq              ; copy fields size and sign
 
     pop rdi
@@ -438,7 +525,7 @@ copy_BigInt:
     ret
 
 ; deep copy data from src to dest
-; void copy_data(BigInt* dest, BigInt* src)
+; void copy_data(BigInt dest, BigInt src)
 ;   rdi = destination pointer to BigInt
 ;   rsi = source pointer to BigInt
 copy_data:
@@ -447,7 +534,6 @@ copy_data:
     mov rdi, [rdi + DATA_FIELD] ; rdi = dest->data
     mov rsi, [rsi + DATA_FIELD] ; rsi = src->data
 
-    cld
     repnz movsq                 ; copy src->size of src->data to dest->data
     ret
 
@@ -456,7 +542,7 @@ copy_data:
 ; else
 ;   push_back(src, new_value)
 ;
-; void set_or_push_back(BigInt* src, long long new_value, long long position)
+; void set_or_push_back(BigInt src, long long new_value, long long position)
 ; rdi = src
 ; rsi = new_value
 ; rdx = position 
@@ -477,7 +563,7 @@ set_or_push_back:
     ret
 
 ; allocate BigInt and allocate BigInt->data, which contain "cnt" qwords. 
-; BigInt* createBigInt(long long num_dig)
+; BigInt createBigInt(long long num_dig)
 ;   rdi - number of data
 ; return value:
 ;   rax = pointer to allocated BigInt
@@ -485,41 +571,37 @@ createBigInt:
     ; allocate memory for: capacity, size, sign, data
     call_fun_2 calloc, 4, SIZEOF_FLD
 
+    mov  [rax], rdi                     ; set capacity
     push rax
-    mov  [rax], rdi       ; set capacity
-    mov  rsi, rdi         ; rsi = capacity of data
-    mov  rdi, rax         ; rdi = pointer to BigInt
-    call realloc_data     ; allocate memory for data, and set rax->data 
-    pop  rax
+    call_fun_2 calloc, rdi, SIZEOF_FLD
+    mov rdi, rax                        ; rdi = new allocated data
+    pop rax
+    mov [rax + DATA_FIELD], rdi
+
 
     ret
 
-; void move_bigNum(BigInt* dest, BigInt* src)
+; void move_bigInt(BigInt dest, BigInt src)
 ;   rdi = destination pointer to BigInt
 ;   rsi = source pointer to BigInt
-move_bigNum:
+move_bigInt:
     ;copy size, sign from src to dest
     push rsi
     push rdi
 
-    add rdi, SIZEOF_FLD  ; rdi = &dest->size
-    add rsi, SIZEOF_FLD  ; rsi = &src->size
-    mov rcx, 2           ; count of copy fields
-    cld                  ; DF = 0
+    mov rcx, 3           ; count of copy fields
     repnz movsq          ; copy fields size and sign
+
+    mov rdi, [rdi]       ; now rdi == dest->data
+    call free            
 
     pop rdi
     pop rsi
-
-    mov rcx, [rsi + SIZE_FIELD]  ; rcx = src->size
-
-    mov rdi, [rdi + DATA_FIELD]  ; rdi = dest->data
-    mov rsi, [rsi + DATA_FIELD]  ; rsi = src->data
-
-    repnz movsq                  ; copy src->size of src->data to dest->data
+    mov rcx, [rsi + DATA_FIELD]
+    mov [rdi + DATA_FIELD], rcx
     ret
 
-; void push_back(BigInt* src, long long arg);
+; void push_back(BigInt src, long long arg);
 ;
 ;   rdi - pointer to the structure BigInt
 ;   rsi - arg::(unsigned long long)  which will be pushed into the "data"
@@ -536,7 +618,7 @@ push_back:
 
     ret
 
-; long long get_max_size(BigInt* first, BigInt* second)
+; long long get_max_size(BigInt first, BigInt second)
 ;   rdi = first
 ;   rsi = second
 ;
@@ -552,7 +634,7 @@ get_max_size:
     .end_max_size:
     ret
 
-; void mul_short(BigInt* src, unsigned long long num)
+; void mul_short(BigInt src, unsigned long long num)
 ;   rdi = src
 ;   rsi = num
 ; result:
@@ -587,7 +669,7 @@ mul_short:
     ret
 
 ; src > 0, num > 0 
-; void add_short(BigInt* src, int64_t num)
+; void add_short(BigInt src, int64_t num)
 ;   rdi = src
 ;   rsi = num
 ; result:
@@ -619,7 +701,7 @@ add_short:
     .end_add
     ret
 
-; void ensure_first_greater(BigInt* fst, BigInt* scd)
+; void ensure_first_greater(BigInt fst, BigInt scd)
 ;   rdi = fst
 ;   rsi = scd
 ; result:
@@ -638,18 +720,23 @@ ensure_first_greater:
 
     abs [rdi + SIGN_FIELD], 1                        ; fst = abs(fst)
     abs [rsi + SIGN_FIELD], 2                        ; scd = abs(scd)
-    call_fun_2 biCmp, rdi, rsi                        ; save rdi, rsi
+    call_fun_2 biCmp, rdi, rsi                       ; save rdi, rsi
     cmp rax, 0                                       ; if ( abs(fst) > abs(scd) ) return
     jge .end_ensure                                  ; else {
     pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     pop qword [rsi + SIGN_FIELD]
 
-    call_fun_2 createBigInt, [rsi + SIZE_FIELD], rsi ;   rax = new BigInt();
-                                                     ;   rax->capacity = scd->size 
-    call_fun_2 copy_BigInt, rax, rsi                 ;   deep_copy: rax = rsi
-    mov rsi, rdi                                     ;   scd = fst
-    mov rdi, rax                                     ;   fst = rax
+    push qword [rsi + SIZE_FIELD]
+    call_fun_2 createBigInt, [rsi + SIZE_FIELD], rsi ; rax = new BigInt();
+                                                     ; rax->capacity = scd->size 
+    call_fun_2 copy_BigInt, rax, rsi                 ; deep_copy: rax = rsi
+    mov rsi, rdi                                     ; scd = fst
+    mov rdi, rax                                     ; fst = new_bigInt, copy of scd
+    pop rax                                          ; rax = previous scd->size
+    call_fun_2 realloc_data, rsi, rax                ; ensure that second number
+                                                     ; have at least rax capacity
     mov rax, 1
+    
     ret                                              ;
                                                      ; }
 
@@ -659,7 +746,7 @@ ensure_first_greater:
     mov rax, 0
     ret
 
-; void clear_leader_zero(BigInt* src)
+; void clear_leader_zero(BigInt src)
 ;   rdi = src
 ; result:
 ;   clear leader zero in src, and set sign appropriately
@@ -680,3 +767,30 @@ clear_leader_zero:
     .before_ret
     ret
 
+; unsigned long long div_short(BigInt numerator, int64_t denominator);
+;   rdi = numerator
+;   rsi = denominator
+; result
+;   numerator /= denominator
+;   return remainder after numerator / denominator
+; 
+div_short:
+    push rdi
+    xor rdx, rdx
+    mov r11, [rdi + SIZE_FIELD]           
+    dec r11                               ; r11 = numerator->size - 1
+    mov rdi, [rdi + DATA_FIELD]
+    .loop:
+        mov rax, [rdi + r11 * SIZEOF_FLD] ; rax = carry + numerator->data[r11]
+        div rsi
+        mov [rdi + r11 * SIZEOF_FLD], rax ; numerator->data[r11] = (carry + n->data[r11]) / denominator
+        ; rdx = (carry + n->data[r11]) % denominator
+        ; so how rdx:rax / rdi, therefore carry automatically * base
+        sub r11, 1                        ; r11--
+        jge .loop
+    .end_ 
+    pop rdi
+    push rdx                              ; result already saved in rax
+    call_fun_1 clear_leader_zero, rdi
+    pop  rax
+    ret

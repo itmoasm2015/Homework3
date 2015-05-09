@@ -21,12 +21,12 @@ stack: wrap stack_test
 run: test
 	./test
 
-memtest: all
+memtest: all test
 	valgrind --vgdb=full --leak-check=full ./test
 
 clean:
-	rm test
-	rm stack_test
-	rm bigint.o
-	rm libhw.a
-	rm libhwwrapped.a
+	rm -f test
+	rm -f stack_test
+	rm -f bigint.o
+	rm -f libhw.a
+	rm -f libhwwrapped.a

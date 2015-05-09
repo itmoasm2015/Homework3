@@ -16,6 +16,7 @@ extern vectorGet
 extern vectorSet
 extern vectorEmpty
 extern vectorPopBack
+extern vectorCopy
 
 global biFromInt
 global biFromString
@@ -28,12 +29,14 @@ global biMul
 global biDivRem
 global biCmp
 
+global biGetVector
+
 
 section .text
 
 ;; Bigint stores digits with 1e9 base.
-%assign	BASE		1000000000
-%assign	BASE_LEN	9
+%assign	BASE		1000000000000000000
+%assign	BASE_LEN	18
 %assign	SIGN_PLUS	1
 %assign	SIGN_MINUS	-1
 %assign	SIGN_ZERO	0
@@ -66,6 +69,11 @@ _biNew:
 	mov	[rax + Bigint.vector], rdx
 	mov	qword [rax + Bigint.sign], SIGN_ZERO
 
+	ret
+
+
+biGetVector:
+	mov		rax, [rdi + Bigint.vector]
 	ret
 
 
@@ -227,13 +235,20 @@ biToString:
 
 	mov	rbx, BASE / 10
 
+;; Flag if digits started.
+	xor		r8, r8
+
 .first_digit_loop:
 	xor	rdx, rdx
 	div	rbx
 
+	cmp		r8, 0
+	jne		.write_digit
 	cmp	rax, 0
 	je	.skip_write
 
+.write_digit:
+	mov		r8, 1
 	add	rax, 48
 
 	;write_byte rsi, rcx, rax
@@ -431,36 +446,6 @@ biCmpAbs:
 	ret
 
 
-
-;; void biMul(BigInt dst, BigInt src);
-;;
-;; Multiplies DST by SRC inplace.
-;; Takes:
-;;	* RDI: pointer to DST.
-;;	* RSI: pointer to SRC.
-__biMul:
-	mpush		r12, r13, r14, r15
-
-	mpush		rdi, rsi
-	vector_size	[rsi + Bigint.vector]
-	mov		r9, rax
-	mpop		rdi, rsi
-
-	mpush		rdi, rsi, r9
-	vector_size	[rdi + Bigint.vector]
-	mov		r8, rax
-	mpop		rdi, rsi, r9
-
-	mov		rcx, r8
-	add		rcx, r9
-
-	mpush		rdi, rsi, r8, r9
-	bigint_new	rcx
-	mpop		rdi, rsi, r8, r9
-
-	push		rax
-;; stack: *C | ...
-
 ;; void biMul(BigInt dst, BigInt src);
 ;;
 ;; Multiplies DST by SRC inplace.
@@ -563,18 +548,18 @@ biMul:
 ;; RDX = RAX / BASE
 	mpush		rbx
 	mov		rbx, BASE
-	div10		rbx
+	idiv		rbx
 	mpop		rbx
 
 ;; Update CARRY with new value.
-	mov		r12, rdx
+	mov		r12, rax
 
 	mpush		rdi, rsi
 	;mov		rdi, [r15 + Bigint.vector]
 	;mov		rsi, [rsp + 16]
 	;mov		rdx, rax
 	;call	vectorSet
-	vector_set	[r15 + Bigint.vector], [rsp + 16], rax
+	vector_set	[r15 + Bigint.vector], [rsp + 16], rdx
 	mpop		rdi, rsi
 	add		rsp, 8
 
@@ -604,8 +589,8 @@ biMul:
 	mov		rdx, [r15 + Bigint.vector]
 	mov		[rdi + Bigint.vector], rdx
 
-	mov		rdx, [r15 + Bigint.sign]
-	mov		[rdi + Bigint.sign], rdx
+	;mov		rdx, [r15 + Bigint.sign]
+	;mov		[rdi + Bigint.sign], rdx
 
 	mov		rdi, r15
 	call		free
@@ -639,4 +624,99 @@ _biTrimZeros:
 	jmp		.loop
 
 .done:
+	ret
+
+
+;; void biAdd(BigInt dst, BigInt src);
+;;
+;; Adds Bigint SRC to Bigint DST.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+biAdd:
+	mov		rdx, [rsi + Bigint.sign]
+	mov		rax, [rdi + Bigint.sign]
+;; Save signs.
+	mpush		rax, rdx
+
+	cmp		rdx, SIGN_ZERO
+	je		.done
+
+	cmp		rax, SIGN_ZERO
+	jne		.non_zero
+
+.copy_dst_to_src:
+	push		rsi
+
+	push		rdi
+	vector_delete	[rdi + Bigint.vector]
+	pop		rdi
+
+	push		rdi
+	vector_copy	[rdi + Bigint.vector]
+	pop		rdi
+
+	pop		rsi
+
+	mov		[rdi + Bigint.vector], rax
+
+	mov		rcx, [rsi + Bigint.sign]
+	mov		[rdi + Bigint.sign], rcx
+
+;; Forget signs.
+	add		rsp, 16
+
+	jmp		.done
+
+.non_zero:
+	mpop		rax, rdx
+
+	cmp		rax, rdx
+	jne		.signs_diff
+
+.signs_equal:
+
+.signs_diff:
+
+.done:
+	ret
+
+
+;; void _biAddDigits(Bigint dst, Bigint src);
+;;
+;; Adds one Bigint's digits to another's.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+_biAddDigits:
+	
+
+
+
+
+;; Makes a copy of Bigint.
+;; Takes:
+;;	* RDI: pointer to Bigint.
+;; Returns:
+;;	* RAX: pointer to a newly created copy.
+biCopy:
+	push		rdi
+;; Allocates memory for BigInt struct.
+	mov		rdi, 1
+	mov		rsi, Bigint_size
+	call		calloc
+	pop		rdi
+	push		rax
+;; Make a copy of vector.
+	push		rdi
+	call		vectorCopy
+	pop		rdi
+
+	pop		rdx
+	mov		rcx, [rdi + Bigint.sign]
+	mov		[rdx + Bigint.sign], rcx
+	mov		[rdx + Bigint.vector], rax
+
+	mov		rax, rdx
+
 	ret

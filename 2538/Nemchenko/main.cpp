@@ -8,6 +8,7 @@ using namespace std;
 extern "C" {
     void add_short(BigInt src, int64_t num);
     void mul_short(BigInt src, int64_t num);
+    int64_t div_short(BigInt, int64_t);
 }
 
 void printbBigNum(BigInt x) {
@@ -43,7 +44,7 @@ void test_constructors() {
     n2 = biFromInt(1LL << 63);
     n1 = biFromString("-9223372036854775808");
     assert(biCmp(n1, n2) == 0);
-    cerr << "---END_BI_CONSTRUCT----" << endl;
+    cerr << "---COMPLETE----" << endl;
 }
 void test_add() {
     cerr << "---TEST_BI_ADD_CMP----" << endl;
@@ -142,6 +143,7 @@ void test_add() {
 }
 
 void test_sub() {
+    cerr << "---TEST_BI_SUB_CMP----" << endl;
     BigInt n5 = biFromString("1");
     BigInt n6 = biFromString("100000000000000000000000000000000000000000000000000000000000000000000000");
 
@@ -152,7 +154,6 @@ void test_sub() {
 
     biSub(n5, n6);
 
-    cerr << "---TEST_BI_SUB_CMP----" << endl;
     BigInt n1 = biFromString("-1");
     BigInt n2 = biFromString("100000000000000000000000000000000000000000000000000000000000000000000000");
 
@@ -174,7 +175,6 @@ void test_sub() {
     assert(biCmp(n1, n2) == 1);
     assert(biCmp(n2, biFromInt(0)) == 0);
     assert(biCmp(n2, biFromString("-00000000000000000000000")) == 0);
-    cerr << "---COMPLETE---" << endl;
 
 
     n1 = biFromString("12341234981273409182570918237409128347");
@@ -204,12 +204,76 @@ void test_sub() {
     assert(biCmp(n1, n3) == 0);
     assert(biCmp(n1, n2) == 1);
     assert(biCmp(n2, n1) == -1);
+
+    BigInt bi1 = biFromInt(2ll);
+    BigInt bi2 = biFromInt(-123ll);
+    BigInt bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    biSub(bi1, bi2);
+    assert(biCmp(bi2, bi3) == 0);
+    assert(biCmp(bi1, biFromString("2")) == 0);
+
+    n1 = biFromString("-00000000000");
+    n2 = biFromString("-1293847102398471029384710293487102394871327409128374");
+    biSub(n1, n2);
+    biMul(n2, biFromString("-00000000000001"));
+    assert(biCmp(n1, n2) == 0);
     cerr << "---COMPLETE---" << endl;
 }
 
+void test_mul() {
+    cerr << "---TEST_BI_MUL----" << endl;
+    BigInt n1 = biFromString("99");
+    BigInt n2 = biFromString("99");
+    BigInt n3 = biFromString("99999999999999999999999999999999999980000000000000000000000000000000000001");
+    BigInt n4 = biFromInt(99 * 99);
+    biMul(n1, n2);
+    assert(biCmp(n1, n4) == 0);
+
+    n1 = biFromString("9999999999999999999999999999999999999");
+    n2 = biFromString("9999999999999999999999999999999999999");
+    biMul(n1, n2);
+    assert(biCmp(n1, n3) == 0);
+
+    n1 = biFromString("-9999999999999999999999999999999999999");
+    n2 = biFromString("9999999999999999999999999999999999999");
+    biMul(n1, n2);
+    biMul(n3, biFromInt(-1));
+    assert(biCmp(n1, n3) == 0);
+
+    n1 = biFromString("-9999999999999999999999999999999999999");
+    n2 = biFromString("9999999999999999999999999999999999999");
+    biMul(n1, n2);
+    biMul(n3, biFromInt(-1));
+    biMul(n1, biFromInt(-1));
+    assert(biCmp(n1, n3) == 0);
+    cerr << "---COMPLETE----" << endl;
+}
+
 int main() {
-    test_constructors();
-    test_add();
-    test_sub();
+    //2^1024 + (-(2^1024 - 1)) ≠ 1
+    BigInt b = biFromInt(1LL << 32);
+    BigInt c = biFromInt(1LL << 32);
+    for (int i = 0; i < 31; ++i) {
+        biMul(b, c);
+    }
+    BigInt d = biFromString("-179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215");
+
+    biAdd(b, d);
+    assert(biCmp(b, biFromInt(1)) == 0);
+    cout << endl;
+    d = biFromString("-179769313486231590123123");
+    for (int i = 0; i < 22; ++i) {
+        cout << div_short(d, 10);
+    }
+    printbBigNum(d);
+    //cout << endl;
+
+    
+
+    //test_constructors();
+    //test_add();
+    //test_sub();
+    //test_mul();
     return 0;
 }

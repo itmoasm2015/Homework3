@@ -116,6 +116,18 @@ void print_long(BigInt a, bool flag) {
 long long lalka(unsigned long long a);
 
 int main() {
+    flag = true;
+    for (int i = 0; i < 10; i++) {
+        BigInt a = biFromString(huge_numbers[i]);
+        BigInt b = biFromInt(0);
+        biSub(a, a);
+        flag &= biCmp(a, b) == 0;
+        if (!flag)
+            break;
+        biDelete(a);
+        biDelete(b);
+    }
+    report(flag, self_sub_test);
     // ?. Simple biDivRem test
     flag = true;
     for (int k = 0; k < 10000; k++) {
@@ -142,8 +154,8 @@ int main() {
         biMul(a, b);
         biAdd(a, d);
 
-        BigInt q = biFromInt(0);
-        BigInt r = biFromInt(0);
+        BigInt q;
+        BigInt r;
         biDivRem(&q, &r, a, b);
         if (biCmp(c, q) != 0 || biCmp(r, d) != 0) {
             print_long(a, 1);
@@ -192,8 +204,8 @@ int main() {
 
         BigInt a = biFromString(sa);
         BigInt b = biFromString(sb);
-        BigInt q = biFromInt(0);
-        BigInt r = biFromInt(0);
+        BigInt q;
+        BigInt r;
         biDivRem(&q, &r, a, b);
        
         flag &= biSign(r) == 0 || biSign(r) == biSign(b);
@@ -216,12 +228,12 @@ int main() {
         #undef N
     }
     report(flag, sign_div_test);
-    // ?. Huge biMul && biDelete test
+    // ?. Huge biMul && biDivRem test
     {
         BigInt a = biFromInt(1);
         BigInt b = biFromInt(1);
         BigInt c = biFromInt(1);
-        BigInt r = biFromInt(0);
+        BigInt r;
         BigInt z = biFromInt(0);
         for (int i = 0; i < 1000; i++) {
             biMul(a, b);
@@ -229,8 +241,11 @@ int main() {
         }
         for (int i = 0; i < 1000; i++) {
             biSub(b, c);
+            BigInt old_a = a;
             biDivRem(&a, &r, a, b);
+            biDelete(old_a);
             flag = (biCmp(r, z) == 0);
+            biDelete(r);
             if (!flag)
                 break;
         }
