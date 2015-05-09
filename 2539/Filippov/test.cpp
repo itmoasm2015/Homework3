@@ -1,6 +1,5 @@
 #include <bits/stdc++.h>
 #include "bigint.h"
-#include <gmpxx.h>
 
 const size_t MAX_SIZE = 100000;
 const size_t INF = 1e9; 
