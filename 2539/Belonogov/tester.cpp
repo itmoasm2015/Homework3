@@ -353,9 +353,21 @@ void smartTest() {
     bi1 = biFromString(s.c_str());
     assert(bi1 == NULL);
 
+    
+    s = "14238974982374982374982374982374982374982374982374982374982374823040293480923450";
+    bi1 = biFromString(s.c_str());
+    char buffer[1];
+    biToString(bi1, buffer, 1);
+    string tmp(buffer);
+    db(tmp);
 
+    bi1 = biFromString(s.c_str());
+    char buffer2[2];
+    biToString(bi1, buffer2, 2);
+    tmp = string(buffer2);
+    db(tmp);
 }
-
+ 
 int main() {
     smartTest();
     return 0;
