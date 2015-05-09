@@ -928,11 +928,17 @@ biDivRem:
     %define reminder_ptr [rbp - 2*8]
     %define numerator [rbp - 3*8]
     %define denominator [rbp - 4*8]
-    %define left [rbp - 5*8]; left bound of binary search
-    %define right [rbp - 6*8]; right bound of it, it is not included
-    %define tmp [rbp - 7*8]; tmp = (l + r) / 2
-    %define diff [rbp - 8*8]; diff = abs(numerator) - abs(denominator)*tmp
-    %define tmp_mul_y [rbp - 9*8] ;tmp variable for abs(denominaotr)*tmp
+    %define left [rbp - 5*8]
+    ; left bound of binary search
+    %define right [rbp - 6*8]
+    ; right bound of it, it is not included
+    %define tmp [rbp - 7*8]
+    ; tmp = (l + r) / 2
+    %define diff [rbp - 8*8]
+    ; diff = abs(numerator) - abs(denominator)*tmp
+    %define tmp_mul_y [rbp - 9*8]
+    ;ans in [left, right)
+    ;tmp variable for abs(denominaotr)*tmp
     sub rsp, 40 ;allocate some space for local variables
     mov rdi, denominator; if denominator is zero - return (null, null)
     call is_zero
