@@ -1,20 +1,32 @@
-all: test
+all: libhw.a
 
-test: test.c bigint.o lalka.o
-	gcc -g test.c bigint.o lalka.o -std=c11 -o test
+libhw.a: bigint.o
+	ar rcs libhw.a bigint.o 
+
+test: test.c libhw.a
+	gcc -g test.c libhw.a -std=c11 -o test
+
+stack_test: test.c libhwwrapped.a
+	gcc -g test.c libhwwrapped.a -std=c11 -o stack_test
 
 bigint.o: bigint.asm
 	yasm bigint.asm -felf64 -gdwarf2 -o bigint.o
 
-lalka.o: lalka.asm
-	yasm lalka.asm -felf64 -gdwarf2 -o lalka.o
+wrap:
+	./wrap.sh
 
-run: all
+stack: wrap stack_test
+	./stack_test
+
+run: test
 	./test
 
-memtest: all
+memtest: all test
 	valgrind --vgdb=full --leak-check=full ./test
 
 clean:
-	rm test
-	rm bigint.o
+	rm -f test
+	rm -f stack_test
+	rm -f bigint.o
+	rm -f libhw.a
+	rm -f libhwwrapped.a

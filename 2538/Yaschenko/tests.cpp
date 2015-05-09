@@ -181,7 +181,7 @@ TEST(bigint, sign) {
 
 TEST(bigint, mul) {
 	BigInt a = biFromInt(2000000005LL);
-	BigInt b = biFromInt(3000000009LL);
+	BigInt b = biFromInt(-3000000009LL);
 
 	biMul(a, b);
 
@@ -189,7 +189,23 @@ TEST(bigint, mul) {
 	char buf[BUF_SIZE];
 	biToString(a, buf, BUF_SIZE);
 
-	ASSERT_STREQ(buf, "6000000033000000045");
+	ASSERT_STREQ(buf, "-6000000033000000045");
+
+	biDelete(a);
+	biDelete(b);
+}
+
+TEST(bigint, mul2) {
+	BigInt a = biFromInt(1152921504606846976LL);
+	BigInt b = biFromInt(1152921504606846976LL);
+
+	biMul(a, b);
+
+	const size_t BUF_SIZE = 256;
+	char buf[BUF_SIZE];
+	biToString(a, buf, BUF_SIZE);
+
+	ASSERT_STREQ(buf, "1329227995784915872903807060280344576");
 
 	biDelete(a);
 	biDelete(b);
