@@ -1240,16 +1240,19 @@ biDivRem:
 	biNegate rdx					; 
 	call biDivRem					; Находим представление -numerator = denominator * quotient' + remainder', remainder' >= 0
 							; Перепишем его: numerator = denominator * (-quotient') + (-remainder') = denominator * (-quotient' - 1) + (-remainder' + denominator)
+	xor rax, rax
+	mov eax, [rdi]
+	biNegate rax
+	mov [rdi], eax					; Проверяем, что remainder' = 0. Если так, ничего не делаем
 	xor r8, r8
 	mov r8d, [rsi]
-	xor r9, r9					; Проверяем, что remainder' = 0. Если так, ничего не меняем
+	xor r9, r9
 	mov r9b, [r8 + BigInt.sign]
 	cmp r9, 0
 	je .no_plus
 	xor rax, rax					; Тут уже -remainder' + denominator >= 0 (Если remainder' = 0, denominator прибавлять не надо)
 	mov eax, [rdi]
-	biNegate rax					; RAX -- quotient, quotient = -quotient' - 1
-	mpush rdi, rsi
+	mpush rdi, rsi					; RAX -- quotient, quotient = -quotient' - 1 
 	mov rdi, rax
 	mov rsi, rbx					; += RBX (RBX = 1), все сделали
 	call biSub
@@ -1276,15 +1279,18 @@ biDivRem:
 	call biDivRem					; Перепишем его: numerator = denominator * (-quotient') + remainder' = denominator * (-quotient' - 1) + (remainder' + denominator)
 							; Теперь remainder + denominator < 0 (т.к. denominator < 0), все хорошо
 							; Но если remainder = 0, прибавлять denominator не надо
+	xor rax, rax
+	mov eax, [rdi]
+	biNegate rax
+	mov [rdi], eax
 	xor r8, r8
-	mov r8d, [rsi]
-	xor r9, r9					; Проверяем, что remainder' = 0. Если так, ничего не меняем
+	mov r8d, [rsi]					; Проверяем, что remainder' = 0. Если так, ничего не делаем
+	xor r9, r9
 	mov r9b, [r8 + BigInt.sign]
 	cmp r9, 0
 	je .no_minus
 	xor rax, rax
 	mov eax, [rdi]					; RAX -- quotient, quotient = -quotient' - 1
-	biNegate rax
 	mpush rdi, rsi
 	mov rdi, rax
 	mov rsi, rbx					; -= RBX (RBX = 1), все сделали
