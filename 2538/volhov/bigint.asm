@@ -21,6 +21,8 @@ global biSub
 global biMul
 global biDivRem
 global biCmp
+global biDump
+global biSize
 
 ;;; void biCutTrailingZeroes(BigInt int)
 ;;; removes trailing zeroes, if the whole bigint is zero, frees .data
@@ -181,6 +183,15 @@ biDelete:
         call    free
         ret
 
+;;; unsigned long int* biDump(BigInt x);
+biDump:
+        mov     rax, [rdi+bigint.data]
+        ret
+;;; size_t biSize(BigInt x);
+biSize:
+        mov     eax, dword[rdi+bigint.size]
+        ret
+
 ;;; int biSign(BigInt bi);
 ;;; Get sign of given BigInt.
 ;;; return 0 if bi is 0, positive if bi is positive, negative if bi is negative.
@@ -195,9 +206,53 @@ biSign:
         .return
         ret
 
+;;; int biCmp(BigInt a, BigInt b);
+;;; Compare two BitInts.
+;;; returns sign(a - b)
+biCmp:
+        ;; compare by length first
+        mov     eax, dword[rdi+bigint.size]
+        cmp     eax, dword[rsi+bigint.size]
+        jg      .gt
+        jl      .lt
+
+        ;; compare by-digit
+        xor     rcx, rcx
+        mov     r8, [rdi+bigint.data]
+        mov     r9, [rsi+bigint.data]
+        .loop
+        mov     rax, [r8+rcx*8]
+        cmp     rax, [r9+rcx*8]
+        jg      .gt
+        jl      .lt
+        inc     ecx
+        cmp     ecx, dword[rsi+bigint.size]
+        jl      .loop
+
+        jmp     .eq
+
+        .gt
+        mov     rax, 1
+        jmp     .return
+
+        .lt
+        mov     rax, -1
+        jmp     .return
+
+        .eq
+        mov     rax, 0
+
+        .return
+        ret
+
+;;; void biExpand(BigInt a, int new_size);
+biExpand:
+
 ;;; int biAdd(BigInt dst, BigInt src);
 ;;; dst += src
 biAdd:
+        mov     r8, rdi
+        mov     r9, rsi
 
 ;;; void biSub(BigInt dst, BigInt src);
 ;;; dst -= src
@@ -213,8 +268,3 @@ biMul:
 ;;; \param remainder must be in range [0, denominator) if denominator > 0
 ;;; and (denominator, 0] if denominator < 0.
 biDivRem:
-
-;;; int biCmp(BigInt a, BigInt b);
-;;; Compare two BitInts.
-;;; returns sign(a - b)
-biCmp:
