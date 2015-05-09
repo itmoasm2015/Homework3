@@ -1,3 +1,5 @@
+CXX_FLAGS = -std=c11 -g -L. -I.
+
 all: libhw.a
 
 libhw.a: bigint.o
@@ -23,6 +25,9 @@ run: test
 
 memtest: all test
 	valgrind --vgdb=full --leak-check=full ./test
+
+lite: wrap testlite.c
+	gcc -o lite $(CXX_FLAGS) testlite.c -lhwwrapped
 
 clean:
 	rm -f test
