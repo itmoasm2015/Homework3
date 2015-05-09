@@ -39,7 +39,7 @@ int sign(int x) {
 }
 
 void equal(BigInt a, string s) {
-    char t[N];
+   char t[N];
     biToString(a, t, N); 
     string tt(t);
     if (tt != s) {
@@ -160,25 +160,25 @@ void t3() {
         print(a);
         print(b);
         //cerr << "before\n";
-        BigInt c = biSubMy(b, a);
-        print(c);
-        detailPrint(c);
+        //BigInt c = biSubMy(b, a);
+        //print(c);
+        //detailPrint(c);
     }
     exit(0);
 
 }
 
-void t4() {
-    string s, t;
-    s = "-10000000000000000000000000000000000000000000000000000000000001";
-    //t = "20000000000000000000000000000000000000000001";
-    t = "-0";
-    BigInt a = biFromString(s.c_str());
-    BigInt b = biFromString(t.c_str());
-    BigInt c = biMulMy(a, b);
-    print(c); 
-    exit(0);
-}
+//void t4() {
+    //string s, t;
+    //s = "-10000000000000000000000000000000000000000000000000000000000001";
+    ////t = "20000000000000000000000000000000000000000001";
+    //t = "-0";
+    //BigInt a = biFromString(s.c_str());
+    //BigInt b = biFromString(t.c_str());
+    //BigInt c = biMulMy(a, b);
+    //print(c); 
+    //exit(0);
+//}
 
 void t5() {
     string s, t;
@@ -240,25 +240,25 @@ void testDiv() {
     exit(0);
 }
 
-void testSetBit() {
-    /// check set bit
-    BigInt a = biFromInt(0);
-    print(a); 
-    biSetBit(a, 40);
-    biSetBit(a, 63);
-    biSetBit(a, 2);
-    print(a); 
-    exit(0);
-}
+//void testSetBit() {
+    ///// check set bit
+    //BigInt a = biFromInt(0);
+    //print(a); 
+    //biSetBit(a, 40);
+    //biSetBit(a, 63);
+    //biSetBit(a, 2);
+    //print(a); 
+    //exit(0);
+//}
 
-void testBigShl() {
-    // bigshl
-    string s = "-10000000000000000000000000000000000000000000000000000000000001";
-    BigInt a = biFromString(s.c_str());
-    biBigShl(a, 3);
-    detailPrint(a);
-    print(a);
-}
+//void testBigShl() {
+    //// bigshl
+    //string s = "-10000000000000000000000000000000000000000000000000000000000001";
+    //BigInt a = biFromString(s.c_str());
+    //biBigShl(a, 3);
+    //detailPrint(a);
+    //print(a);
+//}
 
 string getRandString() {
     int n = 100;
@@ -352,14 +352,14 @@ void bigTest() {
                 a = t2;
                 b = myDivRem(b, d).second;
             }
-            if (type == 5) {
-                int x = biCmp(a, c);
-                mpz_class r = (b - d);
-                BigInt g = biSubMy(a, c);
-                int y = biSign(g);
-                assert(sign(r) == x && y == x);
-                //db(x);
-            }
+            //if (type == 5) {
+                //int x = biCmp(a, c);
+                //mpz_class r = (b - d);
+                //BigInt g = biSubMy(a, c);
+                //int y = biSign(g);
+                //assert(sign(r) == x && y == x);
+                ////db(x);
+            //}
             char s[N]; 
             biToString(a, s, N);     
             string mpzS = b.get_str(); 
@@ -387,12 +387,13 @@ void tmpTest() {
     print(t1); 
     print(t2); 
 
+
     //mpz_class a(10);
     //mpz_class b(-7); 
     //myDivRem(a, b);
 }
 
-void smartTest() {
+void testsFromGitHub() {
     string s;
     s = "-";
     BigInt x = biFromString(s.c_str());
@@ -440,6 +441,7 @@ void smartTest() {
     biAdd(bi2, bi1);
     biAdd(bi2, bi1);
     assert(biCmp(bi2, biFromInt(1)) == 0);
+    cerr << "git test OK\n";
 
     bi1 = biFromInt(1);
     bi2 = biFromInt(0);
@@ -454,7 +456,6 @@ void smartTest() {
     char ss[10];
     biToString(bi1, ss, 10);
     //cerr << ss << endl;
-    cerr << "smartTest OK\n";
 }
 
 int main() {
@@ -468,7 +469,8 @@ int main() {
     //testSetBit();
     //testBigShl();
     bigTest();
-    smartTest();
+    //tmpTest();
+    testsFromGitHub();
     return 0;
     BigInt b = biFromInt(0);
     BigInt c = biCopy(b);
