@@ -693,9 +693,7 @@ biAdd:
 	mpush		rdi, rsi
 	bigint_add_digits	[rdi + Bigint.vector], [rsi + Bigint.vector]
 	mpop		rdi, rsi
-
-	call		_biTrimZeros
-	jmp		.done
+	jmp		.trim_zeros
 
 .signs_diff:
 	mpush		rdi, rsi, rax, rdx
@@ -715,8 +713,30 @@ biAdd:
 	imul		rdx, [rdi + Bigint.sign]
 	mov		[rdi + Bigint.sign], rdx
 
+.trim_zeros:
+	call		_biTrimZeros
+
 .done:
 	mpop		r14, r15
+	ret
+
+;; void biSub(BigInt dst, BigInt src);
+;;
+;; Subtracts Bigint SRC from Bigint DST.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+biSub:
+	mov		rax, [rsi + Bigint.sign]
+	cmp		rax, SIGN_ZERO
+	je		.done
+.do_sub:
+	neg		qword [rdi + Bigint.sign]
+	mpush		rdi, rsi
+	call		biAdd
+	mpop		rdi, rsi
+	neg		qword [rdi + Bigint.sign]
+.done:
 	ret
 
 
