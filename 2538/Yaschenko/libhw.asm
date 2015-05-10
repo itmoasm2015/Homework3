@@ -6,6 +6,7 @@ default rel
 
 extern calloc
 extern free
+extern strlen
 
 extern vectorNew
 extern vectorPushBack
@@ -127,6 +128,79 @@ biFromInt:
 
 .done:
 	pop	rax
+	ret
+
+;; BigInt biFromString(char const *s);
+;;
+;; Creates a Bigint from string.
+;; Takes:
+;;	* RDI: pointer to string.
+;; Returns:
+;;	* RAX: pointer to a newly created Bigint.
+biFromString:
+	mpush		rdi
+	call		biNew
+	mpop		rdi
+
+	push		rax
+
+	cmp		byte [rdi], '-'
+	jne		.process_digits
+	mov		qword [rax + Bigint.sign], SIGN_MINUS
+	inc		rdi
+
+.process_digits:
+	mpush		rdi
+	call		strlen
+	mpop		rdi
+
+	mov		rcx, rax
+
+.digits_loop:
+	xor		r8, r8
+	mov		rax, rcx
+	sub		rax, BASE_LEN
+	cmp		rax, 0
+	jge		.one_digit
+	xor		rax, rax
+; R8: current digit.
+.one_digit:
+	xor		rdx, rdx
+	mov		dl, [rdi + rax]
+	cmp		dl, '0'
+	jl		.bad_string
+	cmp		dl, '9'
+	jg		.bad_string
+	sub		dl, '0'
+
+	imul		r8, 10
+	add		r8, rdx
+
+	inc		rax
+	cmp		rax, rcx
+	jl		.one_digit
+
+	mov		rdx, [rsp]
+	mpush		rdi, rcx, rdx, r8
+	vector_push_back	[rdx + Bigint.vector], r8
+	mpop		rdi, rcx, rdx, r8
+
+	sub		rcx, BASE_LEN
+	cmp		rcx, 0
+	jg		.digits_loop
+
+.digits_done:
+	mov		rdi, [rsp]
+	call		_biTrimZeros
+	pop		rax
+	jmp		.done
+
+.bad_string:
+	pop		rdi
+	call		biDelete
+	xor		rax, rax
+
+.done:
 	ret
 
 ;; void biDelete(BigInt bi);
