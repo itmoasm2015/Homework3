@@ -15,6 +15,10 @@ bigint_impl.o: bigint_impl.asm
 	rm -f $(TARGET)
 	yasm -f elf64 -g dwarf2 $^ -o $@
 
+wrap: test.cpp
+	$(CC) $(CXXFLAGS) $^ $(LDFLAGS) -L. -lhwwrapped -o $@
+
+
 clean:
 	rm -f $(TARGET)
 	rm -f *.o
