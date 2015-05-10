@@ -346,25 +346,39 @@ void testBiDivRem() {
     denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
     biDivRem(quotient, remainder, numerator, denominator);
 
-    printbBigNum(*quotient);
-    printbBigNum(*remainder);
     biToString(*quotient, buf, 1000);
     assert(strcmp(buf, "100000000000000000000000000000000000000000000000000000000000000022158977457514457461106527797179625052226443748212692472818") == 0);
     biToString(*remainder, buf, 1000);
     assert(strcmp(buf, "538293099788998710480841943349964917718564816630015869216076018") == 0);
 
+
     numerator =   biFromString("1234123412323231119711829734698123764");
     denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
     biDivRem(quotient, remainder, numerator, denominator);
 
-    printbBigNum(*quotient);
-    printbBigNum(*remainder);
     biToString(*quotient, buf, 1000);
     assert(strcmp(buf, "0") == 0);
     biToString(*remainder, buf, 1000);
     assert(strcmp(buf, "1234123412323231119711829734698123764") == 0);
 
 
+    numerator =   biFromString("0");
+    denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+
+    numerator =   biFromInt(-10);
+    denominator = biFromInt(3);
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "-4") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "2") == 0);
 }
 
 void test_cmp() {

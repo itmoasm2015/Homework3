@@ -481,6 +481,14 @@ biDivRem:
     push r14 
     push r15 
 
+    push qword [rdx + SIGN_FIELD]        ; save signs of numerator and denomirator
+    push qword [rcx + SIGN_FIELD]        ; numerator = abs(numerator)
+    push rcx
+    push rdx
+
+    abs [rdx + SIGN_FIELD], 1            ; denominator = abs(denominator)
+    abs [rcx + SIGN_FIELD], 2
+
     mov r14, [rdx + SIZE_FIELD]          ; r14 = numerator->size
     mov r15, rcx                         ; r15 = denominator
 
@@ -534,10 +542,10 @@ biDivRem:
             push r9
             push rdx
 
-            call_fun_2 biCmp, r13, r15   ; cmp(remainder, denominator)
+            call_fun_2 biCmp, r13, r15            ; cmp(remainder, denominator)
             cmp rax, 0
-            jl .continue_pop_loop_cl      ; if (remainder >= denominator) {
-            call_fun_2 biSub, r13, r15   ;   remainder -= denominator;
+            jl .continue_pop_loop_cl              ; if (remainder >= denominator) {
+            call_fun_2 biSub, r13, r15            ;   remainder -= denominator;
 
             pop rdx
             pop r9
@@ -546,9 +554,9 @@ biDivRem:
             ; set bit; 
             mov r8, 1
             shl r8, cl
-            or r8, [r12 + r14 * SIZEOF_FLD]           ;   r8 = quotient->data[r14] | (1 << cl)
-            mov [r12 + r14 * SIZEOF_FLD], r8          ;   quotient->data[r14] = r8
-            jmp .continue_loop_cl        ; }
+            or r8, [r12 + r14 * SIZEOF_FLD]       ;   r8 = quotient->data[r14] | (1 << cl)
+            mov [r12 + r14 * SIZEOF_FLD], r8      ;   quotient->data[r14] = r8
+            jmp .continue_loop_cl                 ; }
 
             .continue_pop_loop_cl
             pop rdx
@@ -566,18 +574,58 @@ biDivRem:
         call_fun_2 clear_leader_zero, rdi, rsi
         call_fun_2 clear_leader_zero, rsi, rdi
         
+        pop rdx                             ; rdx = numerator
+        pop rcx                             ; rcx = denominator
+        pop qword [rcx + SIGN_FIELD]        ; restore signs
+        pop qword [rdx + SIGN_FIELD]
+
+        ; d - denominator; n - numerator; q - quotient; r - remainder
+        ; analysis of the sign:
+        ; currently i suppose that d > 0 and n > 0, and get this equality: n = q * d + r 
+        ; next cases are very easy:
+        ; n > 0, d < 0: n = (-(q + 1)) * d + (r + d)
+        ; n < 0, d > 0: n = (-(q + 1)) * d + (d - r)
+        ; n < 0, d < 0: n = q * d + (-r)
+        ; 
+        cmp qword [rdx + SIGN_FIELD], 0
+        jg .numerator_greater_0
+        jl .numerator_less_0
+        je .end
+
+        ; numerator < 0
+        .numerator_less_0:
+            cmp qword [rcx + SIGN_FIELD], 0
+            jg .l_denominator_greater_0
+            ; numerator < 0, denominator < 0
+            neg qword [rsi + SIGN_FIELD]
+            jmp .end
+
+        ; numerator < 0, denominator > 0
+        .l_denominator_greater_0:
+            push rcx
+            call_fun_2 add_short, rdi, 1
+            pop  rcx
+            neg qword [rdi + SIGN_FIELD]
+            call_fun_2 biSub, rsi, rcx
+            neg qword [rsi + SIGN_FIELD]
+            jmp .end
+
+        ; numerator > 0 
+        .numerator_greater_0:
+            cmp qword [rcx + SIGN_FIELD], 0
+            jg .end                             ; if (n > 0 && d > 0) return
+            ; numerator > 0, denominator < 0
+            push rcx
+            call_fun_2 add_short, rdi, 1
+            pop  rcx
+            neg qword [rdi + SIGN_FIELD]
+            call_fun_2 biAdd, rsi, rcx
+        
+        .end
         pop r15 
         pop r14 
         pop r13 
         pop r12 
-    ret
-
-; void left_shift(BigInt num)
-;   rdi = num
-; result:
-;   num <<= 1
-left_shift:
-
     ret
 
 ; int biCmp(BigInt a, BigInt b);
@@ -881,8 +929,8 @@ ensure_first_greater:
     call_fun_2 biCmp, rdi, rsi                       ; save rdi, rsi
     cmp rax, 0                                       ; if ( abs(fst) > abs(scd) ) return
     jge .end_ensure                                  ; else {
-    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     pop qword [rsi + SIGN_FIELD]
+    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
 
     push qword [rsi + SIZE_FIELD]
     call_fun_2 createBigInt, [rsi + SIZE_FIELD], rsi ; rax = new BigInt();
@@ -899,8 +947,8 @@ ensure_first_greater:
                                                      ; }
 
     .end_ensure
-    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     pop qword [rsi + SIGN_FIELD]
+    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     mov rax, 0
     ret
 
