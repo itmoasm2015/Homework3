@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <bigint.h>
 #include <cassert>
+#include <string.h>
+#include <sys/mman.h>
 
 using namespace std;
 
@@ -46,7 +48,18 @@ void test_constructors() {
     assert(biCmp(n1, n2) == 0);
     cerr << "---COMPLETE----" << endl;
 }
+
 void test_add() {
+    //2^1024 + (-(2^1024 - 1)) ≠ 1
+    BigInt b = biFromInt(1LL << 32);
+    BigInt c = biFromInt(1LL << 32);
+    for (int i = 0; i < 31; ++i) {
+        biMul(b, c);
+    }
+    BigInt d = biFromString("-179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215");
+
+    biAdd(b, d);
+    assert(biCmp(b, biFromInt(1)) == 0);
     cerr << "---TEST_BI_ADD_CMP----" << endl;
     BigInt n1 = biFromString("1");
     BigInt n2 = biFromString("100000000000000000000000000000000000000000000000000000000000000000000000");
@@ -248,32 +261,176 @@ void test_mul() {
     biMul(n1, biFromInt(-1));
     assert(biCmp(n1, n3) == 0);
     cerr << "---COMPLETE----" << endl;
+
+    n1 = biFromString("-9999999999999999999999999999999999999");
+    n2 = biFromString("0");
+    biMul(n1, n2);
+    biMul(n2, biFromInt(-1));
+    biMul(n1, biFromInt(-1));
+    n3 = biFromInt(0);
+    assert(biCmp(n1, n3) == 0);
+    cerr << "---COMPLETE----" << endl;
+}
+
+void testBiToString() {
+    cerr << "---TEST_BI_TOSTRING----" << endl;
+    char buf[1000];
+    const char* expected = "-179769313486231590123123";
+    BigInt d = biFromString("-179769313486231590123123");
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("-0000000000000000000");
+    expected = "0";
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("-12");
+    expected = "-12";
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("12901283740192837410293847102938471203948712039487");
+    expected = "12901283740192837410293847102938471203948712039487";
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("817234098712309847120394871203984710239847012938471029384710293847102978356873425689732416981237409821374098273410872340912834709128347012938470127956281374612837462139847612983746218937460213847210384720193874892173658927136402173407281340129384709128374");
+    expected = "817234098712309847120394871203984710239847012938471029384710293847102978356873425689732416981237409821374098273410872340912834709128347012938470127956281374612837462139847612983746218937460213847210384720193874892173658927136402173407281340129384709128374";
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("-9");
+    expected = "-9";
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("-9");
+    expected = "-9";
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("-90000000000000");
+    expected = "-90000000000000";
+    biToString(d, buf, 1000);
+    assert(strcmp(buf, expected) == 0);
+
+    mprotect(buf, 3, PROT_NONE);
+    d = biFromString("-90000000000000");
+    expected = "-0";
+    biToString(d, buf, 3);
+    assert(strcmp(buf, expected) == 0);
+
+    d = biFromString("-90000000000000");
+    expected = "";
+    biToString(d, buf, 1);
+    assert(strcmp(buf, expected) == 0);
+    cerr << "---COMPLETE----" << endl;
+}
+
+void testBiDivRem() {
+    char buf[1000];
+
+    BigInt *quotient = new BigInt;
+    BigInt *remainder = new BigInt;
+    BigInt numerator =   biFromString("123412341232323111971182973469812376491287346912837469182734698127346912873461298376491237469123746129374612983476129834761298347612983476129348761982374619238476192384761928374612938476");
+    BigInt denominator = biFromString("123412341232323111971182973469812376491287346912837469182734698127346912873461298376491237469123746129374612983476129834761298347612983476129348761982374619238476192384761928374612938476");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "1") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+
+    numerator =   biFromString("123412341232323111971182973469812376491287346912837469182734698127346912873461298376491237469123746129374612983476129834761298347612983476129348761982374619238476192384761928374612938476");
+    denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "100000000000000000000000000000000000000000000000000000000000000022158977457514457461106527797179625052226443748212692472818") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "538293099788998710480841943349964917718564816630015869216076018") == 0);
+
+
+    numerator =   biFromString("1234123412323231119711829734698123764");
+    denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "1234123412323231119711829734698123764") == 0);
+
+
+    numerator =   biFromString("0");
+    denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+
+    numerator =   biFromInt(-10);
+    denominator = biFromInt(3);
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "-4") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "2") == 0);
+
+
+    BigInt b3 = biFromString("-12431928736491827346912873469128734612983764129837461237401283471298347012938741029384");
+    BigInt b2 = biFromString("-9126387126900001234098127039809869847234761293874");
+    BigInt b4 = biFromString("123786128394761298374123908789726394871263489712634987612934");
+    biMul(b3, b2);                          // b3 = b1 * b2
+    biAdd(b3, b4);                          // b3 = b1 * b2 + b4
+    biDivRem(quotient, remainder, b3, b2);  // b3 = quotient * b2 + remainder
+    biMul(*quotient, b2);                   // quotient *= b2
+    biAdd(*quotient, *remainder);
+    assert(biCmp(*quotient, b3) == 0);
+
+    b3 = biFromString("-12431928736491827346912873469128734612983764129837461237401283471298347012938741029384");
+    b2 = biFromString("0");
+    b4 = biFromString("123908789726394871263489712634987612934");
+    biMul(b3, b2);                          // b3 = b1 * b2
+    biAdd(b3, b4);                          // b3 = b1 * b2 + b4
+    biDivRem(quotient, remainder, b3, b2);  // b3 = quotient * b2 + remainder
+    assert((*quotient == NULL) && (*remainder == NULL));
+
+    b3 = biFromString("0");
+    b2 = biFromString("-98123741892764");
+    biMul(b3, b2);                          // b3 = b1 * b2
+    biDivRem(quotient, remainder, b3, b2);  // b3 = quotient * b2 + remainder
+    assert(biCmp(*quotient, biFromInt(0)) == 0);
+    assert(biCmp(*remainder, biFromInt(0)) == 0);
+
+    b3 = biFromString("987");
+    b2 = biFromString("1024");
+    b4 = biFromString("89");
+    biMul(b3, b2);                          // b3 = b1 * b2
+    biAdd(b3, b4);                          // b3 = b1 * b2 + b4
+    biDivRem(quotient, remainder, b3, b2);  // b3 = quotient * b2 + remainder
+    assert(biCmp(*quotient, biFromInt(987)) == 0);
+    assert(biCmp(*remainder, biFromInt(89)) == 0);
+}
+
+void test_cmp() {
+    BigInt a =   biFromString("12341234123232311191");
+    BigInt b =   biFromInt(1);
+    assert(biCmp(b, a) == -1);
 }
 
 int main() {
-    //2^1024 + (-(2^1024 - 1)) ≠ 1
-    BigInt b = biFromInt(1LL << 32);
-    BigInt c = biFromInt(1LL << 32);
-    for (int i = 0; i < 31; ++i) {
-        biMul(b, c);
-    }
-    BigInt d = biFromString("-179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215");
+    testBiDivRem();
 
-    biAdd(b, d);
-    assert(biCmp(b, biFromInt(1)) == 0);
-    cout << endl;
-    d = biFromString("-179769313486231590123123");
-    for (int i = 0; i < 22; ++i) {
-        cout << div_short(d, 10);
-    }
-    printbBigNum(d);
-    //cout << endl;
+    test_cmp();
+    test_constructors();
+    test_add();
+    test_sub();
+    test_mul();
+    testBiToString();
 
-    
-
-    //test_constructors();
-    //test_add();
-    //test_sub();
-    //test_mul();
     return 0;
 }
