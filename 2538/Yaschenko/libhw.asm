@@ -467,7 +467,7 @@ biMul:
 	mov		rcx, rdx
 	xor		rdx, rdx
 	imul		rcx
-	mov		[rdi + Bigint.sign], rax
+	push		rax
 	jmp		.start_mul
 
 .zero:
@@ -486,13 +486,13 @@ biMul:
 .start_mul:
 	mpush		rdi, rsi
 	vector_size	[rsi + Bigint.vector]
-	mov		r8, rax
+	mov		r9, rax
 	mpop		rdi, rsi
 
-	mpush		rdi, rsi, r8
+	mpush		rdi, rsi, r9
 	vector_size	[rdi + Bigint.vector]
-	mov		r9, rax
-	mpop		rdi, rsi, r8
+	mov		r8, rax
+	mpop		rdi, rsi, r9
 
 	mov		rcx, r8
 	add		rcx, r9
@@ -502,6 +502,8 @@ biMul:
 	mpop		rdi, rsi, r8, r9
 
 	mov		r15, rax
+	pop		rax
+	mov		[r15 + Bigint.sign], rax
 
 ;; R10: i loop counter.
 	xor		r10, r10
@@ -588,9 +590,6 @@ biMul:
 
 	mov		rdx, [r15 + Bigint.vector]
 	mov		[rdi + Bigint.vector], rdx
-
-	;mov		rdx, [r15 + Bigint.sign]
-	;mov		[rdi + Bigint.sign], rdx
 
 	mov		rdi, r15
 	call		free
@@ -679,6 +678,8 @@ biAdd:
 	jmp		.done
 
 .signs_diff:
+
+
 
 .done:
 	ret
