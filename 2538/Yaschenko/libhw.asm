@@ -398,13 +398,28 @@ biCmp:
 ;; 	        0 if |a| = |b|
 ;;	        1 if |a| > |b|
 biCmpAbs:
+	mov		rdi, [rdi + Bigint.vector]
+	mov		rsi, [rsi + Bigint.vector]
+	call		_digsCmpAbs
+	ret
+
+;; Comapres two vectors as digits.
+;;
+;; Takes:
+;;	* RDI: pointer to first vector.
+;;	* RSI: pointer to second vector.
+;; Retutrs:
+;;	* RAX: -1 if |a| < |b|
+;; 	        0 if |a| = |b|
+;;	        1 if |a| > |b|
+_digsCmpAbs:
 	mpush		rdi, rsi
-	vector_size	[rsi + Bigint.vector]
+	vector_size	rsi
 	mov		rdx, rax
 	mpop		rdi, rsi
 
 	mpush		rdi, rsi
-	vector_size	[rdi + Bigint.vector]
+	vector_size	rdi
 	mpop		rdi, rsi
 
 	cmp		rax, rdx
@@ -415,12 +430,12 @@ biCmpAbs:
 	dec		rcx
 .digit_loop:
 	mpush		rdi, rsi, rcx
-	vector_get	[rsi + Bigint.vector], rcx
+	vector_get	rsi, rcx
 	mov		rdx, rax
 	mpop		rdi, rsi, rcx
 
 	mpush		rdi, rsi, rcx, rdx
-	vector_get	[rdi + Bigint.vector], rcx
+	vector_get	rdi, rcx
 	mpop		rdi, rsi, rcx, rdx
 
 	cmp		rax, rdx
@@ -444,6 +459,7 @@ biCmpAbs:
 
 .done:
 	ret
+
 
 
 ;; void biMul(BigInt dst, BigInt src);
@@ -591,6 +607,9 @@ biMul:
 	mov		rdx, [r15 + Bigint.vector]
 	mov		[rdi + Bigint.vector], rdx
 
+	mov		rdx, [r15 + Bigint.sign]
+	mov		[rdi + Bigint.sign], rdx
+
 	mov		rdi, r15
 	call		free
 
@@ -678,8 +697,9 @@ biAdd:
 	jmp		.done
 
 .signs_diff:
-
-
+	;call		_biSubDigits
+	;; RAX: new vector
+	;; RDX: sign
 
 .done:
 	ret
@@ -767,6 +787,18 @@ _biAddDigits:
 	ret
 
 
+;; void _biSubDigits(Vector src, Vector dst)
+;;
+;; Subtracts DST from SRC.
+;; Takes:
+;;	* RDI: pointer to SRC.
+;;	* RSI: pointer to DST.
+;; Returns:
+;;	* RAX: pointer to result
+;;	* RDX: -1 if SRC < DST
+;;	        1 otherwise
+_biSubDigits:
+	ret
 
 
 
