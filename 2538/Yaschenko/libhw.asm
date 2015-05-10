@@ -4,10 +4,6 @@ default rel
 %include "libhw.i"
 %include "libmyvec.i"
 
-extern calloc
-extern free
-extern strlen
-
 extern vectorNew
 extern vectorPushBack
 extern vectorDelete
@@ -64,7 +60,7 @@ _biNew:
 ;; Allocates memory for BigInt struct.
 	mov	rdi, 1
 	mov	rsi, Bigint_size
-	call	calloc
+	call	__calloc
 
 	pop	rdx
 	mov	[rax + Bigint.vector], rdx
@@ -153,7 +149,7 @@ biFromString:
 
 .process_digits:
 	mpush		rdi
-	call		strlen
+	call		__strlen
 	mpop		rdi
 
 	cmp		rax, 0
@@ -219,7 +215,7 @@ biDelete:
 	call	vectorDelete
 	pop	rdi
 
-	call	free
+	call	__free
 	ret
 
 ;; int biSign(BigInt bi);
@@ -690,7 +686,7 @@ biMul:
 	mov		[rdi + Bigint.sign], rdx
 
 	mov		rdi, r15
-	call		free
+	call		__free
 
 .done:
 	mpop		r12, r13, r14, r15
@@ -785,7 +781,7 @@ biAdd:
 
 	mpush		rdi, rsi, rax, rdx
 	mov		rdi, [rdi + Bigint.vector]
-	call		free
+	call		__free
 	mpop		rdi, rsi, rax, rdx
 	mov		[rdi + Bigint.vector], r14
 ;; sign
@@ -990,7 +986,7 @@ biCopy:
 ;; Allocates memory for BigInt struct.
 	mov		rdi, 1
 	mov		rsi, Bigint_size
-	call		calloc
+	call		__calloc
 	pop		rdi
 	push		rax
 ;; Make a copy of vector.

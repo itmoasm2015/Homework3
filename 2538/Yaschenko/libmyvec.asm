@@ -4,9 +4,6 @@ default rel
 %include "libhw.i"
 %include "libmyvec.i"
 
-extern calloc
-extern free
-extern memcpy
 
 global vectorNew
 global vectorDelete
@@ -20,6 +17,8 @@ global vectorCapacity
 global vectorPopBack
 global vectorEmpty
 global vectorCopy
+
+section .text
 
 %assign DEFAULT_CAPACITY 8
 %assign ELEM_SIZE        8
@@ -44,12 +43,12 @@ vectorNew:
 
 	push	rdi
 	mov	rsi, ELEM_SIZE
-	call	calloc
+	call	__calloc
 	push	rax
 
 	mov	rdi, 1
 	mov	rsi, Vector_size
-	call	calloc
+	call	__calloc
 
 	pop	rdx
 	mov	[rax + Vector.data], rdx
@@ -71,10 +70,10 @@ vectorDelete:
 	push	rdi
 ; Free array of elements.
 	mov	rdi, [rdi + Vector.data]
-	call	free
+	call	__free
 ; Free vector struct memory.
 	pop	rdi
-	call	free
+	call	__free
 	ret
 
 ;; Ensures that one extra element can be added.
@@ -94,7 +93,7 @@ vectorEnsureCapacity:
 	shl	rdi, 1
 	mov	rsi, ELEM_SIZE
 ; Allocate memory for new array.
-	call	calloc
+	call	__calloc
 ; Save pointer to memory.
 	push	rax
 ; stack: | *NEWDATA | *VECTOR | ...
@@ -109,12 +108,12 @@ vectorEnsureCapacity:
 	mov	rdx, [rax + Vector.capacity]
 	imul	rdx, ELEM_SIZE
 
-	call	memcpy
+	call	__memcpy
 
 	mov	rax, [rsp + 8]
 ; Delete old array.
 	mov	rdi, [rax + Vector.data]
-	call	free
+	call	__free
 
 ; Restore pointer to new array.
 	pop	rdx
@@ -290,7 +289,7 @@ vectorCopy:
 ;; Allocate memory for data.
 	mov		rdi, [rdi + Vector.capacity]
 	mov		rsi, ELEM_SIZE
-	call		calloc
+	call		__calloc
 	push		rax
 ;; Copy data with memcpy
 ; 1st parameter: dst
@@ -302,12 +301,12 @@ vectorCopy:
 	mov		rdx, [rax + Vector.capacity]
 	imul		rdx, ELEM_SIZE
 
-	call		memcpy
+	call		__memcpy
 
 ;; Allocate memory for Bigint struct.
 	mov		rdi, 1
 	mov		rsi, Vector_size
-	call		calloc
+	call		__calloc
 ; stack: *newData | *oldVector
 
 	pop		rdx
