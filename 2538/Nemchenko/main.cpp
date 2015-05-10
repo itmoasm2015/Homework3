@@ -328,11 +328,60 @@ void testBiToString() {
     cerr << "---COMPLETE----" << endl;
 }
 
+void testBiDivRem() {
+    char buf[1000];
+
+    BigInt *quotient = new BigInt;
+    BigInt *remainder = new BigInt;
+    BigInt numerator =   biFromString("123412341232323111971182973469812376491287346912837469182734698127346912873461298376491237469123746129374612983476129834761298347612983476129348761982374619238476192384761928374612938476");
+    BigInt denominator = biFromString("123412341232323111971182973469812376491287346912837469182734698127346912873461298376491237469123746129374612983476129834761298347612983476129348761982374619238476192384761928374612938476");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "1") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+
+    numerator =   biFromString("123412341232323111971182973469812376491287346912837469182734698127346912873461298376491237469123746129374612983476129834761298347612983476129348761982374619238476192384761928374612938476");
+    denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    printbBigNum(*quotient);
+    printbBigNum(*remainder);
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "100000000000000000000000000000000000000000000000000000000000000022158977457514457461106527797179625052226443748212692472818") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "538293099788998710480841943349964917718564816630015869216076018") == 0);
+
+    numerator =   biFromString("1234123412323231119711829734698123764");
+    denominator = biFromString("1234123412323231119711829734698123764912873469128374691827346981");
+    biDivRem(quotient, remainder, numerator, denominator);
+
+    printbBigNum(*quotient);
+    printbBigNum(*remainder);
+    biToString(*quotient, buf, 1000);
+    assert(strcmp(buf, "0") == 0);
+    biToString(*remainder, buf, 1000);
+    assert(strcmp(buf, "1234123412323231119711829734698123764") == 0);
+
+
+}
+
+void test_cmp() {
+    BigInt a =   biFromString("12341234123232311191");
+    BigInt b =   biFromInt(1);
+    assert(biCmp(b, a) == -1);
+}
+
 int main() {
+    testBiDivRem();
+
+    test_cmp();
     test_constructors();
     test_add();
     test_sub();
     test_mul();
     testBiToString();
+
     return 0;
 }

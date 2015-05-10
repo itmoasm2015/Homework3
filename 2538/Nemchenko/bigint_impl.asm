@@ -455,8 +455,129 @@ biMul:
     pop r12 
     ret
 
+; Compute quotient and remainder by divising numerator by denominator.
+; quotient * denominator + remainder = numerator
+;
+; param remainder must be in range [0, denominator) if denominator > 0
+;                               and (denominator, 0] if denominator < 0.
+;
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+;   rdi = pointer to quotient
+;   rsi = pointer to remainder
+;   rdx = numerator
+;   rcx = denominator
+; result:
+;   
 biDivRem:
+    cmp qword [rcx + SIGN_FIELD], 0      ; if (denomirator == 0) {
+    jne .next                            ;   *quotient = NULL
+    mov qword [rdi], 0                   ;   *remainder = NULL
+    mov qword [rsi], 0                   ;   return
+    ret                                  ; }
+
+    .next
+    push r12 
+    push r13 
+    push r14 
+    push r15 
+
+    mov r14, [rdx + SIZE_FIELD]          ; r14 = numerator->size
+    mov r15, rcx                         ; r15 = denominator
+
+    push rdx
+    call_fun_1 createBigInt, r14         ; rax = new bigInt with capacity == denominator->capacity
+
+    mov [rdi], rax                       ; *quotient = rax
+    mov qword [rax + SIZE_FIELD], r14    ; quotient = 0; quotient->size = numerator->size; fixing size at the end
+    mov qword [rax + SIGN_FIELD], 1      ; quotient->sign = 1; fixing sign at the end
+    mov r12, [rax + DATA_FIELD]          ; r12 = quotient->data
+
+    call_fun_1 createBigInt, r14         ; rax = new bigInt with capacity == denominator->capacity
+    mov r13, rax                         ; remainder: r13
+    mov [rsi], r13                       ; *remainder = r13
+    mov qword [r13 + SIZE_FIELD], 1      ; remainder = 0; remainder->size = 1
+
+    mov r9, [r13 + DATA_FIELD]           ; r9  = remainder->data
+    pop rdx
+    dec r14                              ; r14 = numerator->size - 1
+    mov rdx, [rdx + DATA_FIELD]          ; rdx = numerator->data
+
+    ; for (int I = count_bits - 1; I > = 0; --I)
+    ; equivalent to
+    ; for (int i = size - 1; i >= 0; --i) {
+    ;   for (int j = 63; j >= 0; --j) {
+    ;      numerator[i] & (1 << j) <--> numerator[I] 
+    .loop_r14:
+        mov cl, 63
+        ;mov cl, 4 
+        .loop_cl:
+            push rcx
+            push r9
+            push rdx
+            call_fun_2 mul_short, r13, 2 ; remainder <<= 1
+            pop rdx
+            pop r9
+            pop rcx
+
+            mov r8, 1
+            shl r8, cl
+            and r8, [rdx + r14 * SIZEOF_FLD]      ; r8 = numerator->data[r14] & (1 << cl)
+            jz .without_set_bit
+            or qword [r9], 1                      ; set first bit in remainder = 1
+            cmp qword [r13 + SIGN_FIELD], 0
+            jne .without_set_bit
+            mov qword [r13 + SIGN_FIELD], 1
+
+            .without_set_bit
+
+            push rcx
+            push r9
+            push rdx
+
+            call_fun_2 biCmp, r13, r15   ; cmp(remainder, denominator)
+            cmp rax, 0
+            jl .continue_pop_loop_cl      ; if (remainder >= denominator) {
+            call_fun_2 biSub, r13, r15   ;   remainder -= denominator;
+
+            pop rdx
+            pop r9
+            pop rcx
+
+            ; set bit; 
+            mov r8, 1
+            shl r8, cl
+            or r8, [r12 + r14 * SIZEOF_FLD]           ;   r8 = quotient->data[r14] | (1 << cl)
+            mov [r12 + r14 * SIZEOF_FLD], r8          ;   quotient->data[r14] = r8
+            jmp .continue_loop_cl        ; }
+
+            .continue_pop_loop_cl
+            pop rdx
+            pop r9
+            pop rcx
+            .continue_loop_cl
+            sub cl, 1
+            jge .loop_cl
+
+        sub r14, 1
+        jge .loop_r14
+
+        mov rdi, [rdi]                   ; rdi = *quotient
+        mov rsi, [rsi]                   ; rsi = *remainder
+        call_fun_2 clear_leader_zero, rdi, rsi
+        call_fun_2 clear_leader_zero, rsi, rdi
+        
+        pop r15 
+        pop r14 
+        pop r13 
+        pop r12 
+    ret
+
+; void left_shift(BigInt num)
+;   rdi = num
+; result:
+;   num <<= 1
+left_shift:
+
     ret
 
 ; int biCmp(BigInt a, BigInt b);
@@ -496,8 +617,8 @@ biCmp:
 
         repz cmpsq                  ; while (a->data[i] - b->data[i] == 0);
         je .ret_0                   ; a == b -> return 0
-        jg .end_biCmp               ; a > b -> return rax = a->sign
-        jl .ret_neg_sign            ; a < b -> return -rax
+        ja .end_biCmp               ; a > b -> return rax = a->sign
+        jmp .ret_neg_sign           ; a < b -> return -rax
 
     .ret_neg_sign:                  ; if (a->size < b.size) {
         neg rax                     ;   return -a->sign;
