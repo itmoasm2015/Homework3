@@ -144,6 +144,8 @@ biFromString:
 
 	push		rax
 
+	mov		qword [rax + Bigint.sign], SIGN_PLUS
+
 	cmp		byte [rdi], '-'
 	jne		.process_digits
 	mov		qword [rax + Bigint.sign], SIGN_MINUS
@@ -784,8 +786,8 @@ biAdd:
 	mpop		rdi, rsi, rax, rdx
 	mov		[rdi + Bigint.vector], r14
 ;; sign
-	imul		rdx, [rdi + Bigint.sign]
-	mov		[rdi + Bigint.sign], rdx
+	imul		r15, [rdi + Bigint.sign]
+	mov		[rdi + Bigint.sign], r15
 
 .trim_zeros:
 	call		_biTrimZeros
