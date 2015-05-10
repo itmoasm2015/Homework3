@@ -1,3 +1,4 @@
+#include "aux_bigint.hh"
 #include <bigint.h>
 
 #include <stdio.h>
@@ -5,12 +6,6 @@
 #include <random>
 
 #define DEBUG(...) fprintf(stderr, __VA_ARGS__);
-
-struct BigIntMask {
-  int64_t *data;
-  size_t size;
-  size_t capacity;
-};
 
 std::mt19937_64 rng;
 
@@ -38,9 +33,59 @@ void test_sign(const int iterations = 1, bool verbose = false) {
   }
 }
 
+void test_grow_capacity(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biGrowCapacity testing (%d iteratinos)\n", iterations);
+  for (int i = 0; i < iterations; ++i) {
+    int64_t val = (int64_t) rng();
+    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    biGrowCapacity(foo, size_t(42 + i));
+    assert (foo != nullptr);
+    assert (foo->size == 1);
+    assert (foo->capacity == size_t(42 + i));
+    assert (foo->data[0] == val);
+    biDelete(foo);
+  }
+}
+
+void test_mul_by_two(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biMulBy2 testing (%d iteratinos)\n", iterations);
+  
+  for (int i = 0; i < iterations; ++i) {
+    int64_t val = (int64_t) rng() / 2;
+    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    biMulBy2(foo);
+    assert (foo != nullptr);
+    assert (foo->size == 1);
+    assert (foo->capacity == 1);
+    assert (foo->data[0] == 2 * val);
+    biDelete(foo);
+  }
+}
+
+void test_mul_by_two_large(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biMulBy2 large testing (%d iteratinos)\n", iterations);
+  int64_t val = (1 << 13) - 1;
+  for (int it = 0; it < 2; ++it) {
+    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    for (int pow = 1; pow <= iterations; ++pow) {
+      size_t msb(pow + 12);
+      biMulBy2(foo);
+      assert (foo != nullptr);
+//      if (verbose) dupm(foo);
+      assert (foo->size == (2 + msb + 63) / 64);
+      /* TODO: check foo->data[foo->size - 1] and foo->data[foo->size - 2] */
+    }
+    biDelete(foo);
+    val = ~val;
+  }
+}
+
 int main() {
   test_constructor_and_destructor(100, true);
   test_sign(100, true);
+  test_grow_capacity(100, true);
+  test_mul_by_two(1000, true);
+  test_mul_by_two_large(1000, true);
   return 0;
 }
 

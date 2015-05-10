@@ -5,6 +5,13 @@ global calloc
 extern _free
 global free
 
+
+extern biAllocate
+global _biAllocate
+
+extern biGrowCapacity
+global _biGrowCapacity
+
 extern biFromInt
 global _biFromInt
 extern biFromString
@@ -13,6 +20,8 @@ global _biFromString
 extern biDelete
 global _biDelete
 
+extern biMulBy2
+global _biMulBy2
 extern biAdd
 global _biAdd
 extern biSub
@@ -33,9 +42,12 @@ malloc:         jmp _malloc
 calloc:         jmp _calloc
 free:           jmp _free
 
+_biAllocate:    jmp biAllocate
+_biGrowCapacity:jmp biGrowCapacity
 _biFromInt:     jmp biFromInt
 _biFromString:  jmp biFromString
 _biDelete:      jmp biDelete
+_biMulBy2:      jmp biMulBy2
 _biAdd:         jmp biAdd
 _biSub:         jmp biSub
 _biMul:         jmp biMul
