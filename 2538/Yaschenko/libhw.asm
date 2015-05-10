@@ -1006,3 +1006,19 @@ biCopy:
 	mov		rax, rdx
 
 	ret
+
+
+;; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+;;
+;; Compute QUOTIENT and REMAINDER by divising NUMBERATOR by DENOMINATOR.
+;; QUOTIENT * DENOMINATOR + REMAINDER = NUMBERATOR
+;;
+;; REMAINDER must be in range [0, DENOMINATOR) if DENOMINATOR > 0
+;;                        and (DENOMINATOR, 0] if DENOMINATOR < 0.
+;; Takes:
+;;	* RDI: pointer to QUOTIENT.
+;;	* RSI: pointer to REMAINDER.
+;;	* RDX: pointer to NUMBERATOR.
+;;	* RCX: pointer to DENOMINATOR.
+biDivRem:
+	ret
