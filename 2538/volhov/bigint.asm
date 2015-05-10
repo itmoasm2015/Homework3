@@ -27,9 +27,10 @@ global biSize
 global biExpand
 global biMulShort
 global biDivShort
+global biCutTrailingZeroes
+global biAddUnsigned
 
-
-;;; void biCutTrailingZeroes(BigInt int)
+;;; void biCutTrailingZeroes(BigInt a)
 ;;; removes trailing zeroes, if the whole bigint is zero, frees .data
 ;;; reallocates .data section of bigint if more than trailing_removed_after
 ;;; trailing zeroes were removed
@@ -65,6 +66,7 @@ biCutTrailingZeroes:
         push    r8
         push    r9
         mov     edi, dword[r8+bigint.size]
+        shl     edi, 3
         call    malloc
         pop     r9
         pop     r8
@@ -112,6 +114,7 @@ biFromInt:
         bt      r8, 63
         jnc     .nonneg
         mov     dword[r9+bigint.sign], 0xffffffff
+        neg     r8
         .nonneg
 
         ;; set size
@@ -120,7 +123,7 @@ biFromInt:
         ;; allocate memory for array
         push    r8
         push    r9
-        mov     rdi, 1
+        mov     rdi, 8
         call    malloc
         pop     r9
         pop     r8
@@ -262,6 +265,7 @@ biExpand:
         push    r8
         push    r9
         mov     rdi, r9
+        shl     rdi, 3
         call    malloc
         pop     r9
         pop     r8
@@ -274,36 +278,45 @@ biExpand:
         mov     r11, [r8+bigint.data] ; r11 holds old array
         xor     rcx, rcx
         .loop1
+        cmp     ecx, dword[r8+bigint.size]
+        jge     .loop1_end
         mov     rax, [r11+rcx*8]
         mov     [r10], rax
         add     r10, 8
         inc     ecx
-        cmp     ecx, dword[r8+bigint.size]
-        jl      .loop1
+        jmp     .loop1
+        .loop1_end
 
         ;; fill residual with zeroes
+        push    r9
         sub     r9d, dword[r8+bigint.size]
         xor     rcx, rcx
         .loop2
+        cmp     ecx, r9d
+        jge     .loop2_end
         mov     qword[r10], 0
         add     r10, 8
         inc     ecx
-        cmp     ecx, r9d
-        jl      .loop2
+        jmp     .loop2
+        .loop2_end
+        pop     r9
 
         ;; restore new array position
         pop     r10
 
         ;; free old array
         push    r8
+        push    r9
         push    r10
         mov     rdi, [r8+bigint.data]
         call    free
         pop     r10
+        pop     r9
         pop     r8
 
-        ;; replace .data section with expanded array
-        mov     [r8+bigint.data], r10
+        ;; replace .data, .size section with expanded array
+        mov     qword[r8+bigint.data], r10
+        mov     dword[r8+bigint.size], r9d
 
         jmp     .return
         .fail
@@ -311,11 +324,73 @@ biExpand:
         .return
         ret
 
+;;; int biAddUnsigned(BigInt dst, BigInt src);
+;;; ! dst ≠ src
+;;; dst = |dst| + |src|
+biAddUnsigned:
+        ;; expand destination or source to get equal size()
+        mov     eax, dword[rdi+bigint.size]
+        cmp     eax, dword[rsi+bigint.size]
+        jle      .expand_dst
+        jg      .expand_src
+        .expand_dst
+        push    rdi
+        push    rsi
+        mov     esi, dword[rsi+bigint.size]
+        inc     esi             ; we reserve one extra cell to save last carry
+        call    biExpand
+        pop     rsi
+        pop     rdi
+        jmp     .after_expand
+        .expand_src
+        push    rdi
+        push    rsi
+        mov     rax, rdi
+        mov     rdi, rsi
+        mov     esi, dword[rax+bigint.size]
+        inc     esi
+        call    biExpand
+        pop     rsi
+        pop     rdi
+
+        ;; save data pointers
+        .after_expand
+        mov     r8, [rdi+bigint.data]
+        mov     r9, [rsi+bigint.data]
+
+        ;; process adding
+        clc
+        xor     rcx, rcx
+        pushf
+        .loop
+        cmp     ecx, dword[rsi+bigint.size]
+        jge     .loop_end
+        popf
+        mov     rax, [r9+8*rcx]
+        adc     [r8+8*rcx], rax
+        pushf
+        inc     rcx
+        jmp     .loop
+        .loop_end
+        popf
+
+        ;; if there was carry on last addition, add it too
+        jnc     .no_last_bit
+        mov     qword[r8+8*rcx], 1
+        .no_last_bit
+
+        ;; removes redundant zeroes
+        push    rsi
+        call    biCutTrailingZeroes
+        pop     rsi
+        mov     rdi, rsi
+        call    biCutTrailingZeroes
+
+        ret
+
 ;;; int biAdd(BigInt dst, BigInt src);
 ;;; dst += src
 biAdd:
-        mov     r8, rdi
-        mov     r9, rsi
 
 ;;; void biSub(BigInt dst, BigInt src);
 ;;; dst -= src

@@ -11,10 +11,14 @@ extern "C" {
     unsigned long int* biDump(BigInt x);
     size_t biSize(BigInt x);
     void biExpand(BigInt x, size_t size);
+    void biCutTrailingZeroes(BigInt a);
+    void biAddUnsigned(BigInt a, BigInt b);
 }
 
 void dump(BigInt a) {
     unsigned long int* data = biDump(a);
+    if (biSign(a) < 0) cout << "-";
+    if (biSize(a) == 0) cout << "0";
     for (int i = 0; i < biSize(a); i++) {
         cout << data[i]  << " ";
     }
@@ -31,9 +35,9 @@ int main() {
     //}
     BigInt one = biFromInt(1);
     BigInt zero = biFromInt(0);
-    BigInt a = biFromInt(123123);
-    dump(a);
-    biExpand(a, 5);
-    dump(a);
-    cout << biCmp(a, one) << endl;
+    BigInt zero2 = biFromInt(0);
+    BigInt a = biFromInt(0xfffffffffffffff);
+    BigInt b = biFromInt(0xfffffffffffffff);
+    biAddUnsigned(zero, zero2);
+    dump(zero);
 }
