@@ -212,11 +212,11 @@ _add:               push rdi
                     mov rsi, [rsi + bigint.qwords]
                     push rsi
                     mov rsi, [rsi + vector.size]
+                    push rsi
                     cmp rsi, [rdi + vector.size]
                     cmovb rsi, [rdi + vector.size]
     ; make sure that even with carry
     ; the result will fit into `a`
-                    push rsi
                     inc rsi
                     call vecResize
                     pop rcx
@@ -354,7 +354,7 @@ _set_zero:          push rdi
 ;   RSI - bigint src
 
 biAdd:
-    ; rdi == rsi?
+    ; dst == src?
                     cmp rdi, rsi
                     je .clone_src
                     push 0
@@ -479,7 +479,7 @@ _mul:               push rdi
 ;   RSI - bigint b
 
 biMul:
-    ; rdi == rsi?
+    ; dst == src?
                     cmp rdi, rsi
                     je .clone_src
                     push 0
@@ -628,7 +628,7 @@ biSign:             xor rax, rax
 ;   RDI - bigint * quotient
 ;   RSI - bigint * remainder
 ;   RDX - bigint numerator
-;   RDX - bigint denominator
+;   RCX - bigint denominator
 
 biDivRem:           ret
 
