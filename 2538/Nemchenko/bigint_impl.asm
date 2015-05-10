@@ -1,13 +1,3 @@
-; calee-save RBX, RBP, R12-R15, DF = 0
-; rdi , rsi ,
-; rdx , rcx , r8 ,
-; r9 , zmm0 - 7 default rel
-
-global mul_short
-global add_short
-global div_short
-;
-
 global biFromInt
 global biFromString
 global biToString
@@ -18,9 +8,6 @@ global biSub
 global biMul
 global biDivRem
 global biCmp
-;global main
-;main:
-    ;ret
 
 ; call_fun_2(f::x->y->z, x, y)::z
 ; %1 - name of function
@@ -55,35 +42,15 @@ global biCmp
     .abs_end_%2
 %endmacro
 
-%macro check_bigInt_zero 1
-    push rsi
-    push rax
-
-    mov rax, [%1 + SIZE_FIELD]       ; rax = %1->size
-    cmp rax, 1                       ; if (%1->size == 1) {
-    jg .end_check_bigInt             ;   rsi = %1->data[0]
-    mov rsi, [%1 + DATA_FIELD]       ;   if (rsi == 0) {
-    cmp qword [rsi], 0               ;     %1->sign = 0
-    jne .end_check_bigInt            ;   }
-    mov qword [%1 + SIGN_FIELD], 0   ; }
-
-    .end_check_bigInt:
-    pop rax
-    pop rsi
-%endmacro
-extern calloc, free, strlen
+extern calloc, free
 
 BASE         equ 1 << 64
-MIN_LL       equ 1 << 63
 DEFAULT_SIZE equ 1
 SIZE_FIELD   equ 8
 SIGN_FIELD   equ 16
 DATA_FIELD   equ 24
 SIZEOF_FLD   equ 8
 INPUT_BASE   equ 10
-
-section .bss
-   ;minus: resb 1 
 
 ;
 ; stored bigNumber like this:
@@ -94,7 +61,7 @@ section .bss
 ;   unsigned long long *data   
 ; }
 ;  
-; forall i < capacity: data[i] < BASE
+; forall i < size: data[i] < BASE
 ; sign = 1 | 0 | -1 , more than 0, equal and less respectively
 
 section .text
@@ -162,7 +129,10 @@ biFromString:
         ret
 
     .end:
-    check_bigInt_zero rdi
+
+    push rax
+    call clear_leader_zero
+    pop rax
     mov rax, rdi
     ret
 
@@ -460,6 +430,7 @@ biMul:
 ;
 ; param remainder must be in range [0, denominator) if denominator > 0
 ;                               and (denominator, 0] if denominator < 0.
+; explanation: http://en.wikipedia.org/wiki/Division_algorithm#Integer_division_.28unsigned.29_with_remainder
 ;
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 ;   rdi = pointer to quotient
@@ -522,7 +493,7 @@ biDivRem:
             push rcx
             push r9
             push rdx
-            call_fun_2 mul_short, r13, 2 ; remainder <<= 1
+            call_fun_2 mul_short, r13, 2          ; remainder <<= 1
             pop rdx
             pop r9
             pop rcx
