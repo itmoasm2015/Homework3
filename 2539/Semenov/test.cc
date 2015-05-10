@@ -14,7 +14,7 @@ struct BigIntMask {
 
 std::mt19937_64 rng;
 
-void test_constructor_and_destructor(const int iterations, bool verbose = false) {
+void test_constructor_and_destructor(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("Constructor and destructor testing (%d iterations)\n", iterations); 
   for (int i = 0; i < iterations; ++i) {
     int64_t val = (int64_t) rng();
@@ -26,9 +26,21 @@ void test_constructor_and_destructor(const int iterations, bool verbose = false)
   }
 }
 
+void test_sign(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("Sign testing (%d iterations)\n", iterations);
+  for (int i = 0; i < iterations; ++i) {
+    int64_t val = (int64_t) rng();
+    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    int real_sign = val < 0 ? -1 : val > 0 ? 1 : 0;
+    int sign = biSign(foo);
+    assert (real_sign == sign);
+    biDelete(foo);
+  }
+}
 
 int main() {
   test_constructor_and_destructor(100, true);
+  test_sign(100, true);
   return 0;
 }
 

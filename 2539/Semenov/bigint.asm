@@ -11,7 +11,7 @@ global biAdd        ;; TODO
 global biSub        ;; TODO
 global biMul        ;; TODO
 global biCmp        ;; TODO
-global biSign       ;; TODO
+global biSign       ;; DONE
 global biDivRem     ;; TODO
 
 global biToString   ;; TODO
@@ -109,15 +109,36 @@ biFromString: ret
 biDelete:   
             push rdi
             mov rdi, [rdi + DATA]
-            callItWithAlignedStack free ; free BigInt->data
+            callItWithAlignedStack free ; free x->data
             pop rdi
-            callItWithAlignedStack free ; free BigInt
+            callItWithAlignedStack free ; free x
             ret
             
 biAdd:      ret
 biSub:      ret
 biMul:      ret
 biCmp:      ret
-biSign:     ret
+
+; int biSign(BigInt x);
+; x in RDI
+; result in RAX (-1 if x < 0, 1 if x > 0, 0 ohterwise)
+biSign:     
+            mov r8, [rdi + DATA] ; R8 = x->data
+            mov r9, [rdi + SIZE] ; R9 = x->size
+            mov r10, [r8 + r9 - 1] ; R9 = x->data[size - 1]
+            cmp r10, 0
+            jg .positive
+            jl .negative
+            xor rax, rax
+            ret
+        .positive:
+            mov rax, 1
+            ret
+        .negative:
+            mov rax, -1
+            ret
+            
+
 biDivRem:   ret
 biToString: ret
+
