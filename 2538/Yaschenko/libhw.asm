@@ -156,6 +156,9 @@ biFromString:
 	call		strlen
 	mpop		rdi
 
+	cmp		rax, 0
+	je		.bad_string
+
 	mov		rcx, rax
 
 .digits_loop:
