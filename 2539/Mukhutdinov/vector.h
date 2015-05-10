@@ -11,6 +11,7 @@ extern "C" {
 
 Vector vectorNew(unsigned int initialCapacity, int64_t fillVal);
 void vectorDelete(Vector vec);
+Vector vectorCopy(Vector vec);
 unsigned int vectorSize(Vector vec);
 Vector vectorResize(Vector vec, unsigned int newSize, int64_t tailFill);
 Vector vectorAppend(Vector vec, int64_t val);

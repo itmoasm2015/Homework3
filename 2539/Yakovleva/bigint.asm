@@ -281,17 +281,22 @@ biToString:
 
 ;Destroy a BigInt.
 biDelete:
+	saveRegisters
 	mov rbx, rdi
 	mov rdi, [rbx + bigInt.num]
 	call free	; free memory of number
 	mov rdi, rbx
 	call free	; free memory of bigInt structure
+	returnRegisters
 	ret
 
 ;Get sign of given BigInt. 
 ;return 0 if bi is 0, 1 if bi is positive, -1 if bi is negative.
 biSign:
+	saveRegisters
 	mov rax, [rdi + bigInt.sign]
+	returnRegisters
+	ret
 
 ;dst += src
 ;void biAdd(BigInt dst, BigInt src);
@@ -372,9 +377,9 @@ biAdd:
 	mov rcx, [r9 + bigInt.num]	; save r13 -- pointer to result
 	mov [r9 + bigInt.num], r13
 	mov rdi, rcx
-;	push r9
-;	call free	; delete previous number
-;	pop r9
+	push r9
+	call free	; delete previous number
+	pop r9
 	call cut_zeros	; delete forward zeros
 .endd:
 	returnRegisters
@@ -590,10 +595,14 @@ biMul:
 	ret
 
 biDivRem:
+	saveRegisters
+	returnRegisters
+	ret
 
-; Compare two BitInts. 
+; Compare two BigInts. 
 ; returns sign(a - b)
 biCmp:
+	saveRegisters
 	mov r9, [rdi + bigInt.sign]	; compare signs of numbers
 	mov r10, [rsi + bigInt.sign]	
 	mov rax, -1
@@ -658,6 +667,7 @@ biCmp:
 	jnz .end2
 	neg rax
 .end2:
+	returnRegisters
 	ret
 
 ; Cut zerous at te begin of the number	

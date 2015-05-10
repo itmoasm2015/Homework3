@@ -4,9 +4,6 @@ default rel
 %include "libhw.i"
 %include "libmyvec.i"
 
-extern calloc
-extern free
-
 extern vectorNew
 extern vectorPushBack
 extern vectorDelete
@@ -46,8 +43,8 @@ section .text
 ;; Returns:
 ;;	* RAX: pointer to newly created Bigint.
 biNew:
-	mov	rdi, 0
-	call	_biNew
+	mov		rdi, 0
+	call		_biNew
 	ret
 
 ;; Creates new Bigint with vector of size X.
@@ -57,17 +54,17 @@ biNew:
 ;;	* RAX: pointer to newly created Bigint.
 _biNew:
 ;; Create vector of size X to store digits of Bigint.
-	call	vectorNew
-	push	rax
+	call		vectorNew
+	push		rax
 
 ;; Allocates memory for BigInt struct.
-	mov	rdi, 1
-	mov	rsi, Bigint_size
-	call	calloc
+	mov		rdi, 1
+	mov		rsi, Bigint_size
+	call		__calloc
 
-	pop	rdx
-	mov	[rax + Bigint.vector], rdx
-	mov	qword [rax + Bigint.sign], SIGN_ZERO
+	pop		rdx
+	mov		[rax + Bigint.vector], rdx
+	mov		qword [rax + Bigint.sign], SIGN_ZERO
 
 	ret
 
@@ -85,40 +82,40 @@ biGetVector:
 ;; Returns:
 ;;	* RAX: pointer to a newly created BigInt.
 biFromInt:
-	push	rdi
+	push		rdi
 ;; Create empty Bigint.
-	call	biNew
-	pop	rdi
-	push	rax
-	mov	r8, rax
+	call		biNew
+	pop		rdi
+	push		rax
+	mov		r8, rax
 
 	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_PLUS
-	cmp	rdi, 0
-	jge	.zero_check
+	cmp		rdi, 0
+	jge		.zero_check
 
 .negative:
 	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_MINUS
-	neg	rdi
+	neg		rdi
 
 .zero_check:
-	cmp	rdi, 0
-	je	.zero
+	cmp		rdi, 0
+	je		.zero
 
 .div_loop:
-	xor	rdx, rdx
-	mov	rax, rdi
-	mov	rcx, BASE
-	div	rcx
+	xor		rdx, rdx
+	mov		rax, rdi
+	mov		rcx, BASE
+	div		rcx
 
-	mov	r8,	[rsp]
-	push	rax
+	mov		r8,	[rsp]
+	push		rax
 	vector_push_back	[r8 + Bigint.vector], rdx
-	pop	rax
-	mov	rdi, rax
+	pop		rax
+	mov		rdi, rax
 
-	cmp	rdi, 0
-	je	.done
-	jmp	.div_loop
+	cmp		rdi, 0
+	je		.done
+	jmp		.div_loop
 
 .zero:
 ;; TODO: don't push back 0 if bigint is zero.
@@ -126,7 +123,85 @@ biFromInt:
 	bigint_set_sign		qword [r8 + Bigint.sign], SIGN_ZERO
 
 .done:
-	pop	rax
+	pop		rax
+	ret
+
+;; BigInt biFromString(char const *s);
+;;
+;; Creates a Bigint from string.
+;; Takes:
+;;	* RDI: pointer to string.
+;; Returns:
+;;	* RAX: pointer to a newly created Bigint.
+biFromString:
+	mpush		rdi
+	call		biNew
+	mpop		rdi
+
+	push		rax
+
+	mov		qword [rax + Bigint.sign], SIGN_PLUS
+
+	cmp		byte [rdi], '-'
+	jne		.process_digits
+	mov		qword [rax + Bigint.sign], SIGN_MINUS
+	inc		rdi
+
+.process_digits:
+	mpush		rdi
+	call		__strlen
+	mpop		rdi
+
+	cmp		rax, 0
+	je		.bad_string
+
+	mov		rcx, rax
+
+.digits_loop:
+	xor		r8, r8
+	mov		rax, rcx
+	sub		rax, BASE_LEN
+	cmp		rax, 0
+	jge		.one_digit
+	xor		rax, rax
+; R8: current digit.
+.one_digit:
+	xor		rdx, rdx
+	mov		dl, [rdi + rax]
+	cmp		dl, '0'
+	jl		.bad_string
+	cmp		dl, '9'
+	jg		.bad_string
+	sub		dl, '0'
+
+	imul		r8, 10
+	add		r8, rdx
+
+	inc		rax
+	cmp		rax, rcx
+	jl		.one_digit
+
+	mov		rdx, [rsp]
+	mpush		rdi, rcx, rdx, r8
+	vector_push_back	[rdx + Bigint.vector], r8
+	mpop		rdi, rcx, rdx, r8
+
+	sub		rcx, BASE_LEN
+	cmp		rcx, 0
+	jg		.digits_loop
+
+.digits_done:
+	mov		rdi, [rsp]
+	call		_biTrimZeros
+	pop		rax
+	jmp		.done
+
+.bad_string:
+	pop		rdi
+	call		biDelete
+	xor		rax, rax
+
+.done:
 	ret
 
 ;; void biDelete(BigInt bi);
@@ -135,12 +210,12 @@ biFromInt:
 ;; Takes:
 ;;	* RDI: pointer to Bigint.
 biDelete:
-	push	rdi
-	mov	rdi, [rdi + Bigint.vector]
-	call	vectorDelete
-	pop	rdi
+	push		rdi
+	mov		rdi, [rdi + Bigint.vector]
+	call		vectorDelete
+	pop		rdi
 
-	call	free
+	call		__free
 	ret
 
 ;; int biSign(BigInt bi);
@@ -173,162 +248,140 @@ biToString:
 
 ;; Writes byte %3 to [%1 + %2].
 %macro write_byte 3
-	mov	byte [%1 + %2], %3
-	inc	%2
+	mov		byte [%1 + %2], %3
+	inc		%2
 %endmacro
 
 ;; Increments %1 and jumps to .done if %1 >= %2.
 %macro check_limits 2
-	cmp	%1, %2
-	jge	.done
+	cmp		%1, %2
+	jge		.done
 %endmacro
 
-%macro save_regs 0
-	push	rdi
-	push	rsi
-	push	rcx
-	push	rdx
-%endmacro
-
-%macro restore_regs 0
-	pop	rdx
-	pop	rcx
-	pop	rsi
-	pop	rdi
-%endmacro
-
-	push	rdi
-	push	rsi
-	push	rdx
+	mpush		rdi, rsi, rdx
 
 ;; RCX holds number of already written bytes.
 ;; Dec RDX to reserve space for terminator.
-	xor	rcx, rcx
-	dec	rdx
+	xor		rcx, rcx
+	dec		rdx
 
-	check_limits rcx, rdx
+	check_limits 	rcx, rdx
 
-	cmp	qword [rdi + Bigint.sign], SIGN_MINUS
-	jne	.first_digit
+	cmp		qword [rdi + Bigint.sign], SIGN_MINUS
+	jne		.first_digit
 
-	write_byte rsi, rcx, '-'
-	check_limits rcx, rdx
+	write_byte 	rsi, rcx, '-'
+	check_limits 	rcx, rdx
 
 ;; stack: | LIMIT | *BUFFER | *BIGINT | ...
 
 .first_digit:
-	save_regs
-	vector_back [rdi + Bigint.vector]
-	restore_regs
+	mpush		rdi, rsi, rcx, rdx
+	vector_back 	[rdi + Bigint.vector]
+	mpop		rdi, rsi, rcx, rdx
 
 .check_zero:
-	cmp	rax, 0
-	jne	.non_zero
+	cmp		rax, 0
+	jne		.non_zero
 
-	write_byte rsi, rcx, '0'
-	jmp	.done
+	write_byte 	rsi, rcx, '0'
+	jmp		.done
 
 .non_zero:
 
-	push	rbx
-	push	rdx
+	mpush		rbx, rdx
 
-	mov	rbx, BASE / 10
+	mov		rbx, BASE / 10
 
 ;; Flag if digits started.
 	xor		r8, r8
 
 .first_digit_loop:
-	xor	rdx, rdx
-	div	rbx
+	xor		rdx, rdx
+	div		rbx
 
 	cmp		r8, 0
 	jne		.write_digit
-	cmp	rax, 0
-	je	.skip_write
+	cmp		rax, 0
+	je		.skip_write
 
 .write_digit:
 	mov		r8, 1
-	add	rax, 48
+	add		rax, 48
 
 	;write_byte rsi, rcx, rax
-	mov	[rsi + rcx], al
-	inc	rcx
+	mov		[rsi + rcx], al
+	inc		rcx
 
 .skip_write:
-	div10	rbx
+	div10		rbx
 
-	mov	rax, rdx
+	mov		rax, rdx
 
-	mov	rdx, [rsp]
+	mov		rdx, [rsp]
 
 ; "Pop" regs for proper check_limits work
-	add	rsp, 16
-	check_limits rcx, rdx
-	sub	rsp, 16
+	add		rsp, 16
+	check_limits 	rcx, rdx
+	sub		rsp, 16
 
-	cmp	rbx, 0
-	jg	.first_digit_loop
+	cmp		rbx, 0
+	jg		.first_digit_loop
 
 .first_digit_done:
-	pop	rdx
-	pop	rbx
+	mpop		rbx, rdx
 
 .rest_digits:
-	save_regs
-	vector_size [rdi + Bigint.vector]
-	mov	r8, rax
-	restore_regs
+	mpush		rdi, rsi, rcx, rdx
+	vector_size 	[rdi + Bigint.vector]
+	mov		r8, rax
+	mpop		rdi, rsi, rcx, rdx
 
-	sub	r8, 2
-	cmp	r8, 0
-	jl	.done
+	sub		r8, 2
+	cmp		r8, 0
+	jl		.done
 .cur_digit:
-	save_regs
-	vector_get [rdi + Bigint.vector], r8
-	restore_regs
+	mpush		rdi, rsi, rcx, rdx
+	vector_get 	[rdi + Bigint.vector], r8
+	mpop		rdi, rsi, rcx, rdx
 
-	push	rbx
-	push	rdx
+	mpush		rbx, rdx
 
-	mov	rbx, BASE / 10
+	mov		rbx, BASE / 10
 
-	mov	r9, BASE_LEN
+	mov		r9, BASE_LEN
 .cur_digit_loop:
-	dec	r9
-	xor	rdx, rdx
-	div	rbx
+	dec		r9
+	xor		rdx, rdx
+	div		rbx
 
-	add	rax, 48
+	add		rax, 48
 
-	write_byte rsi, rcx, al
+	write_byte 	rsi, rcx, al
 
-	div10	rbx
+	div10		rbx
 
-	mov	rax, rdx
+	mov		rax, rdx
 
-	mov	rdx, [rsp]
+	mov		rdx, [rsp]
 ; "Pop" regs for proper check_limits work
-	add	rsp, 16
-	check_limits rcx, rdx
-	sub	rsp, 16
+	add		rsp, 16
+	check_limits 	rcx, rdx
+	sub		rsp, 16
 
-	cmp	r9, 0
-	jg	.cur_digit_loop
+	cmp		r9, 0
+	jg		.cur_digit_loop
 
 .cur_digit_done:
-	pop	rdx
-	pop	rbx
+	mpop		rbx, rdx
 
-	dec	r8
-	cmp	r8, 0
-	jge	.cur_digit
+	dec		r8
+	cmp		r8, 0
+	jge		.cur_digit
 
 .done:
-	write_byte rsi, rcx, 0
-	pop	rdx
-	pop	rsi
-	pop	rdi
+	write_byte 	rsi, rcx, 0
+	mpop		rdi, rsi, rdx
 
 	ret
 
@@ -398,13 +451,28 @@ biCmp:
 ;; 	        0 if |a| = |b|
 ;;	        1 if |a| > |b|
 biCmpAbs:
+	mov		rdi, [rdi + Bigint.vector]
+	mov		rsi, [rsi + Bigint.vector]
+	call		_digsCmpAbs
+	ret
+
+;; Comapres two vectors as digits.
+;;
+;; Takes:
+;;	* RDI: pointer to first vector.
+;;	* RSI: pointer to second vector.
+;; Retutrs:
+;;	* RAX: -1 if |a| < |b|
+;; 	        0 if |a| = |b|
+;;	        1 if |a| > |b|
+_digsCmpAbs:
 	mpush		rdi, rsi
-	vector_size	[rsi + Bigint.vector]
+	vector_size	rsi
 	mov		rdx, rax
 	mpop		rdi, rsi
 
 	mpush		rdi, rsi
-	vector_size	[rdi + Bigint.vector]
+	vector_size	rdi
 	mpop		rdi, rsi
 
 	cmp		rax, rdx
@@ -415,12 +483,12 @@ biCmpAbs:
 	dec		rcx
 .digit_loop:
 	mpush		rdi, rsi, rcx
-	vector_get	[rsi + Bigint.vector], rcx
+	vector_get	rsi, rcx
 	mov		rdx, rax
 	mpop		rdi, rsi, rcx
 
 	mpush		rdi, rsi, rcx, rdx
-	vector_get	[rdi + Bigint.vector], rcx
+	vector_get	rdi, rcx
 	mpop		rdi, rsi, rcx, rdx
 
 	cmp		rax, rdx
@@ -446,6 +514,7 @@ biCmpAbs:
 	ret
 
 
+
 ;; void biMul(BigInt dst, BigInt src);
 ;;
 ;; Multiplies DST by SRC inplace.
@@ -467,7 +536,7 @@ biMul:
 	mov		rcx, rdx
 	xor		rdx, rdx
 	imul		rcx
-	mov		[rdi + Bigint.sign], rax
+	push		rax
 	jmp		.start_mul
 
 .zero:
@@ -486,13 +555,13 @@ biMul:
 .start_mul:
 	mpush		rdi, rsi
 	vector_size	[rsi + Bigint.vector]
-	mov		r8, rax
+	mov		r9, rax
 	mpop		rdi, rsi
 
-	mpush		rdi, rsi, r8
+	mpush		rdi, rsi, r9
 	vector_size	[rdi + Bigint.vector]
-	mov		r9, rax
-	mpop		rdi, rsi, r8
+	mov		r8, rax
+	mpop		rdi, rsi, r9
 
 	mov		rcx, r8
 	add		rcx, r9
@@ -502,6 +571,8 @@ biMul:
 	mpop		rdi, rsi, r8, r9
 
 	mov		r15, rax
+	pop		rax
+	mov		[r15 + Bigint.sign], rax
 
 ;; R10: i loop counter.
 	xor		r10, r10
@@ -589,11 +660,11 @@ biMul:
 	mov		rdx, [r15 + Bigint.vector]
 	mov		[rdi + Bigint.vector], rdx
 
-	;mov		rdx, [r15 + Bigint.sign]
-	;mov		[rdi + Bigint.sign], rdx
+	mov		rdx, [r15 + Bigint.sign]
+	mov		[rdi + Bigint.sign], rdx
 
 	mov		rdi, r15
-	call		free
+	call		__free
 
 .done:
 	mpop		r12, r13, r14, r15
@@ -634,6 +705,7 @@ _biTrimZeros:
 ;;	* RDI: pointer to DST.
 ;;	* RSI: pointer to SRC.
 biAdd:
+	mpush		r14, r15
 	mov		rdx, [rsi + Bigint.sign]
 	mov		rax, [rdi + Bigint.sign]
 	cmp		rdx, SIGN_ZERO
@@ -674,12 +746,49 @@ biAdd:
 	mpush		rdi, rsi
 	bigint_add_digits	[rdi + Bigint.vector], [rsi + Bigint.vector]
 	mpop		rdi, rsi
-
-	call		_biTrimZeros
-	jmp		.done
+	jmp		.trim_zeros
 
 .signs_diff:
+	mpush		rdi, rsi, rax, rdx
+	mov		rdi, [rdi + Bigint.vector]
+	mov		rsi, [rsi + Bigint.vector]
+	call		_biSubDigits
+	mov		r14, rax
+	mov		r15, rdx
+	mpop		rdi, rsi, rax, rdx
 
+	mpush		rdi, rsi, rax, rdx
+	mov		rdi, [rdi + Bigint.vector]
+	call		__free
+	mpop		rdi, rsi, rax, rdx
+	mov		[rdi + Bigint.vector], r14
+;; sign
+	imul		r15, [rdi + Bigint.sign]
+	mov		[rdi + Bigint.sign], r15
+
+.trim_zeros:
+	call		_biTrimZeros
+
+.done:
+	mpop		r14, r15
+	ret
+
+;; void biSub(BigInt dst, BigInt src);
+;;
+;; Subtracts Bigint SRC from Bigint DST.
+;; Takes:
+;;	* RDI: pointer to DST.
+;;	* RSI: pointer to SRC.
+biSub:
+	mov		rax, [rsi + Bigint.sign]
+	cmp		rax, SIGN_ZERO
+	je		.done
+.do_sub:
+	neg		qword [rdi + Bigint.sign]
+	mpush		rdi, rsi
+	call		biAdd
+	mpop		rdi, rsi
+	neg		qword [rdi + Bigint.sign]
 .done:
 	ret
 
@@ -766,7 +875,83 @@ _biAddDigits:
 	ret
 
 
+;; void _biSubDigits(Vector src, Vector dst)
+;;
+;; Subtracts DST from SRC.
+;; Takes:
+;;	* RDI: pointer to SRC.
+;;	* RSI: pointer to DST.
+;; Returns:
+;;	* RAX: pointer to result
+;;	* RDX: -1 if SRC < DST
+;;	        1 otherwise
+_biSubDigits:
+	mpush		r15
+	mpush		rdi, rsi
+	call		_digsCmpAbs
+	mpop		rdi, rsi
+	push		rax
 
+	cmp		rax, SIGN_ZERO
+	jge		.start_sub
+
+	xchg		rdi, rsi
+
+.start_sub:
+	mov		rax, [rdi + Vector.size]
+	mov		rdx, [rsi + Vector.size]
+	mov		rcx, rax
+	cmp		rcx, rdx
+	cmovl		rcx, rdx
+
+	mpush		rdi, rsi, rcx
+	vector_new	rcx
+	mpop		rdi, rsi, rcx
+	mov		r15, rax
+
+	xor		r8, r8
+	xor		r9, r9
+.loop_sub:
+	mpush		rcx, r9
+
+	mpush		rdi, rsi, r8
+	vector_get	rsi, r8
+	mov		rdx, rax
+	mpop		rdi, rsi, r8
+
+	mpush		rdi, rsi, r8, rdx
+	vector_get	rdi, r8
+	mpop		rdi, rsi, r8, rdx
+
+	mpop		rcx, r9
+
+	sub		rax, rdx
+	sub		rax, r9
+	xor		r9, r9
+
+	cmp		rax, 0
+	jge		.set_digit
+
+	mov		r9, 1
+	push		rbx
+	mov		rbx, BASE
+	add		rax, rbx
+	pop		rbx
+
+.set_digit:
+	mpush		rdi, rsi, r8, r9, rcx
+	vector_set	r15, r8, rax
+	mpop		rdi, rsi, r8, r9, rcx
+
+	inc		r8
+	loop		.loop_sub
+
+.sub_done:
+	pop		rdx
+	mov		rax, r15
+
+	mpop		r15
+	ret
 
 
 ;; Makes a copy of Bigint.
@@ -779,7 +964,7 @@ biCopy:
 ;; Allocates memory for BigInt struct.
 	mov		rdi, 1
 	mov		rsi, Bigint_size
-	call		calloc
+	call		__calloc
 	pop		rdi
 	push		rax
 ;; Make a copy of vector.
@@ -794,4 +979,20 @@ biCopy:
 
 	mov		rax, rdx
 
+	ret
+
+
+;; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+;;
+;; Compute QUOTIENT and REMAINDER by divising NUMBERATOR by DENOMINATOR.
+;; QUOTIENT * DENOMINATOR + REMAINDER = NUMBERATOR
+;;
+;; REMAINDER must be in range [0, DENOMINATOR) if DENOMINATOR > 0
+;;                        and (DENOMINATOR, 0] if DENOMINATOR < 0.
+;; Takes:
+;;	* RDI: pointer to QUOTIENT.
+;;	* RSI: pointer to REMAINDER.
+;;	* RDX: pointer to NUMBERATOR.
+;;	* RCX: pointer to DENOMINATOR.
+biDivRem:
 	ret
