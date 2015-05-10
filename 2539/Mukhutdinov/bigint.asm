@@ -153,6 +153,136 @@ biDelete:
               call  vectorDelete
               ret
 
+
+;; @cdecl64
+;; void biAdd(BigInt dst, BigInt src);
+;;
+;; Adds src to dst, storing result in dst
+;;
+;; @param  RDI dst  -- first summand
+;; @param  RSI src  -- second summand
+biAdd:
+              CDECL_ENTER 0, 0
+              ; TBD: only unsigned addition yet
+              call  biAddUnsigned
+              CDECL_RET
+
+;; @cdecl64
+;; void biSub(BigInt dst, BigInt src);
+;;
+;; Subtracts src from dst, storing result in dst
+;;
+;; @param  RDI dst  -- minuend
+;; @param  RSI src  -- subtrahend
+biSub:
+              CDECL_ENTER 0, 0
+              ; TBD: only unsigned subtraction yet
+              call  biSubUnsigned
+              CDECL_RET
+ 
+;; @cdecl64
+;; void biAddUnsigned(BigInt dst, BigInt src);
+;;
+;; Adds src to dst, storing result in dst
+;; Assumes that both summands are positive
+;;
+;; @param  RDI dst  -- first summand
+;; @param  RSI src  -- second summand
+biAddUnsigned:
+              push  rdi
+              mov   rcx, [rdi + vector.size]
+              mov   r8, [rsi + vector.size]
+
+              lea   rdi, [rdi + vector.data]
+              lea   rsi, [rsi + vector.data]
+              
+              clc                   ; Reset carry
+              pushf                 ; Save flags to restore CF when needed
+.sum_loop:
+              xor   rax, rax
+
+              test  r8, r8          ; Test whether we are still in SRC range
+              je    .skip_src_copy  ; Don't take digit from SRC in this case
+
+              mov   rax, [rsi]
+              add   rsi, 8
+              dec   r8
+.skip_src_copy:
+              popf                  ; Restore CF
+              adc   [rdi], rax
+              pushf                 ; and save it again
+
+              lea   rdi, [rdi + 8]  ; Use LEA to save CF
+              dec   rcx
+              jnz   .sum_loop       ; Add until we are not at the end of DST
+
+              jc    .append_zero    ; or till we have carry
+
+              test  r8, r8          
+              jne   .append_zero    ; or until we are not at the end of SRC
+
+              popf                  ; Remove flags from stack
+              pop   rdi             ; Restore DST address
+              ret
+              
+.append_zero:
+              popf                  ; Such a mess with POP/PUSH[f] is necessary to save CF
+              pop   rdi             ; between iterations
+              pushf 
+
+              mpush rsi, r8         ; RSI and R8 may spoil while append
+              APPEND_0_AND_POINT_TO_END
+              inc   rcx
+
+              mpop  rsi, r8
+
+              popf
+              push  rax             ; Save maybe new vector address
+              pushf
+              jmp   .sum_loop
+
+;; @cdecl64
+;; void biSubUnsigned(BigInt dst, BigInt src);
+;;
+;; Subtracts src from dst, storing result in dst
+;; Assumes that dst and src are positive, and dst > src
+;;
+;; @param  RDI dst  -- minuend
+;; @param  RSI src  -- subtrahend
+biSubUnsigned:
+              push  rdi
+              mov   rcx, [rdi + vector.size]
+              mov   r8, [rsi + vector.size]
+
+              lea   rdi, [rdi + vector.data]
+              lea   rsi, [rsi + vector.data]
+
+              clc                   ; Reset carry
+              pushf                 ; Save CF
+.sub_loop:
+              xor   rax, rax
+
+              test  r8, r8          ; Test whether we are still in SRC range
+              je    .skip_src_copy  ; Don't take digit from SRC in this case
+
+              mov   rax, [rsi]
+              add   rsi, 8
+              dec   r8
+.skip_src_copy:
+              popf                  ; Restore CF
+              sbb   [rdi], rax
+              pushf                 ; and save it again
+
+              lea   rdi, [rdi + 8]  ; Use LEA to save CF
+              dec   rcx
+              jnz   .sub_loop       ; Subtract until wea re not at the end of DST
+              jc    .sub_loop       ; or till we have carry
+
+              popf                  ; Remove flags from stack
+              pop   rdi
+              call  __clearTail     ; Clear leading zeroes, if they exist
+              ret
+              
 ;; @cdecl64
 ;; void biToString(BigInt bi, char *buffer, size_t limit);
 ;;
@@ -340,15 +470,17 @@ __addShort:
               add   [rdi], rdx      ; Add the RDX to least significant bigint digit
               jnc   .finish         ; and finish, if we have no carry
 .carry_loop:
-              add   rdi, 8
+              lea   rdi, [rdi + 8]  ; Use LEA to save CF
               dec   rcx
               jnz   .add_carry      ; Append zero to a vector if necessary
 
               pop   rdi
+              pushf                 ; Save CF
               
               APPEND_0_AND_POINT_TO_END
               inc   rcx             
-
+              
+              popf                  ; Restore CF
               push  rax             ; Save maybe new vector address
 .add_carry:
               mov   rax, [rdi]
