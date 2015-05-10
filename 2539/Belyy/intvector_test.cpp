@@ -11,7 +11,6 @@ typedef void * vector;
 
 // Asm imports.
 extern "C" {
-    vector vecNew();
     vector vecAlloc(uint64_t size);
     void vecFree(vector vec);
     void vecCopy(vector dst, vector src);
@@ -38,21 +37,17 @@ extern "C" {
                         }
 
 
-bool vector_creation(int n) {
-    vector vec = vecNew();
+bool vector_creation(unsigned n) {
+    vector vec = vecAlloc(n);
     EXPECT(vec != nullptr);
 
-    vector vec2 = vecAlloc(n);
-    EXPECT(vec2 != nullptr);
-
     vecFree(vec);
-    vecFree(vec2);
 
     return true;
 }
 
 bool vector_iteration(unsigned n) {
-    vector vec = vecNew();
+    vector vec = vecAlloc(0);
 
     // Fill `vec` in with integers.
     for (unsigned i = 0; i < n; i++) {

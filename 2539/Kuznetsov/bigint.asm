@@ -235,6 +235,7 @@ biClone:
 	mov rsi, [r12 + vector.data_ptr]
 	mov rdi, [rdx + vector.data_ptr] ; prepare for movsq
 	
+	cld
 	rep movsq ; copy the data to new vector
 	
 .ret:
@@ -662,6 +663,8 @@ biRawMulShort:
 	mov rsi, rdi
 	mov rdi, [rdi + vector.data_ptr]
 	xor rax, rax
+	
+	cld
 	rep stosq
 	
 	mov qword [rsi + vector.size], 0

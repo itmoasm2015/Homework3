@@ -11,6 +11,7 @@ extern free
 
 global vectorNew
 global vectorNewRaw
+global vectorCopy
 global vectorDelete
 global vectorSize
 global vectorResize
@@ -53,7 +54,7 @@ vectorNew:
 vectorNewRaw:
               push  rdi
               lea   rdi, [rdi*8 + vector_size]
-              call  malloc
+              ALIGNED_CALL malloc
 
               pop   rdi             ; Set 0 size, 0 sign and given capacity
               mov   qword [rax + vector.size], 0
@@ -63,13 +64,40 @@ vectorNewRaw:
               ret
 
 ;; @cdecl64
+;; Vector vectorCopy(Vector orig);
+;;
+;; Allocates a new vector and copies the data from given vector
+;; to new
+;;
+;; @param  RDI orig  -- original vector
+;; @return RAX Pointer on copy
+vectorCopy:
+              push  rdi
+              mov   rdi, [rdi + vector.capacity]
+              call  vectorNewRaw    ; Allocate the vector of the same capacity
+
+              pop   rsi
+              mov   rdi, rax        ; because RSI is source, and RDI is destination
+
+              push  rax             ; Save copy address
+              mov   rcx, [rsi + vector.size]
+
+              add   rcx, vector_size / 8 ; RCX = orig.size()*8 + sizeof(vector) -- count of bytes which store all the vector data
+             
+              cld                   ; Clear dir flag just in case
+              rep   movsq
+
+              pop   rax
+              ret
+              
+;; @cdecl64
 ;; void vectorDelete(Vector vec)
 ;;
 ;; Frees a vector.
 ;;
 ;; @param  RDI vec -- vector to free
 vectorDelete:
-              call  free
+              ALIGNED_CALL free
               ret
 
 ;; @cdecl64
