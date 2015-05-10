@@ -258,23 +258,7 @@ biToString:
 	jge		.done
 %endmacro
 
-%macro save_regs 0
-	push		rdi
-	push		rsi
-	push		rcx
-	push		rdx
-%endmacro
-
-%macro restore_regs 0
-	pop		rdx
-	pop		rcx
-	pop		rsi
-	pop		rdi
-%endmacro
-
-	push		rdi
-	push		rsi
-	push		rdx
+	mpush		rdi, rsi, rdx
 
 ;; RCX holds number of already written bytes.
 ;; Dec RDX to reserve space for terminator.
@@ -292,9 +276,9 @@ biToString:
 ;; stack: | LIMIT | *BUFFER | *BIGINT | ...
 
 .first_digit:
-	save_regs
+	mpush		rdi, rsi, rcx, rdx
 	vector_back 	[rdi + Bigint.vector]
-	restore_regs
+	mpop		rdi, rsi, rcx, rdx
 
 .check_zero:
 	cmp		rax, 0
@@ -305,8 +289,7 @@ biToString:
 
 .non_zero:
 
-	push		rbx
-	push		rdx
+	mpush		rbx, rdx
 
 	mov		rbx, BASE / 10
 
@@ -346,25 +329,23 @@ biToString:
 	jg		.first_digit_loop
 
 .first_digit_done:
-	pop		rdx
-	pop		rbx
+	mpop		rbx, rdx
 
 .rest_digits:
-	save_regs
+	mpush		rdi, rsi, rcx, rdx
 	vector_size 	[rdi + Bigint.vector]
 	mov		r8, rax
-	restore_regs
+	mpop		rdi, rsi, rcx, rdx
 
 	sub		r8, 2
 	cmp		r8, 0
 	jl		.done
 .cur_digit:
-	save_regs
+	mpush		rdi, rsi, rcx, rdx
 	vector_get 	[rdi + Bigint.vector], r8
-	restore_regs
+	mpop		rdi, rsi, rcx, rdx
 
-	push		rbx
-	push		rdx
+	mpush		rbx, rdx
 
 	mov		rbx, BASE / 10
 
@@ -392,8 +373,7 @@ biToString:
 	jg		.cur_digit_loop
 
 .cur_digit_done:
-	pop		rdx
-	pop		rbx
+	mpop		rbx, rdx
 
 	dec		r8
 	cmp		r8, 0
@@ -401,9 +381,7 @@ biToString:
 
 .done:
 	write_byte 	rsi, rcx, 0
-	pop		rdx
-	pop		rsi
-	pop		rdi
+	mpop		rdi, rsi, rdx
 
 	ret
 
