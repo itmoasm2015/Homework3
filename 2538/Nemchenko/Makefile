@@ -1,11 +1,12 @@
 CC=g++
-TARGET=libhw.a
-OBJECTS=bigint_impl.o
-CXXFLAGS=-Wall -Wextra -g3 -std=c++1y -I../../include/
+TARGET=test
+OBJECTS=test.cpp bigint_impl.o
+CXXFLAGS=-Wall -Wextra -g3 -std=c++1y -I../../include/ -fsanitize=address
 DEPS=../../include/bigint.h
+LDFLAGS=-lgmpxx -lgmp
 
-$(TARGET): $(OBJECTS)  
-	ar rcs $@ $<
+$(TARGET): $(OBJECTS)   
+	$(CC) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
 
 bigint_impl.o: bigint_impl.asm
 	rm -f $(TARGET)

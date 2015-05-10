@@ -54,12 +54,20 @@ global biCmp
 
 ; call free with stack 16 byte alligned 
 %macro mycalloc 0
+    push rdi
+    push rsi
     call_fun_with_stack_aligned calloc
+    pop rsi
+    pop rdi
 %endmacro
 
 ; call free with stack 16 byte alligned 
 %macro myfree 0
+    push rdi
+    push rsi
     call_fun_with_stack_aligned free
+    pop rsi
+    pop rdi
 %endmacro
 
 ; call_fun_2(f::x->y->z, x, y)::z
@@ -816,6 +824,7 @@ move_bigInt:
     push rdi
 
     mov rcx, 3           ; count of copy fields
+    cld
     repnz movsq          ; copy fields size and sign
 
     mov rdi, [rdi]       ; now rdi == dest->data
@@ -823,6 +832,7 @@ move_bigInt:
 
     pop rdi
     pop rsi
+
     mov rcx, [rsi + DATA_FIELD]
     mov [rdi + DATA_FIELD], rcx
     ret
