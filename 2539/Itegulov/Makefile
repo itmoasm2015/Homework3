@@ -2,8 +2,8 @@ CXX = g++
 C = gcc
 ASM = yasm
 AR = ar
-CXX_OPTS = -g -Wall -Wextra -std=c++11 -m64 -L. -I../../include
-C_OPTS = -g -Wall -Wextra -std=c99 -m64 -L. -I../../include
+CXX_OPTS = -g -Wall -Wextra -Wl,-no_pie -std=c++11 -m64 -L. -I../../include
+C_OPTS = -g -Wall -Wextra -Wl,-no_pie -std=c99 -m64 -L. -I../../include
 ifeq ($(shell uname), Darwin)
 ASM_OPTS = -f macho64 --prefix=_
 else

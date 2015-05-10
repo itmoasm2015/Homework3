@@ -8,6 +8,7 @@ global vecFree
 global vecPush
 global vecSet
 global vecGet
+global vecExtend
 global vecSize
 global vecCapacity
 
