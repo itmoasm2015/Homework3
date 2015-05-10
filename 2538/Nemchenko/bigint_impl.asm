@@ -1,3 +1,9 @@
+; calee-save RBX, RBP, R12-R15, DF = 0
+; rdi , rsi ,
+; rdx , rcx , r8 ,
+; r9 , zmm0 - 7 
+
+default rel
 global biFromInt
 global biFromString
 global biToString
@@ -206,11 +212,10 @@ biToString:
     ret                                              ;     return
                                                      ; }
     .next:                                           
-    call_fun_2 createBigInt, [rdi + SIZE_FIELD], rsi ; rax = new BigInt();
+    call_fun_2 createBigInt, [rdi], rsi              ; rax = new BigInt();
     xchg rdi, rax
     call_fun_2 copy_BigInt, rdi, rax                 ; deep_copy: rax = rdi
     xor r13, r13                                     ; r13 = 0, count converted digits
-    mov rdi, rax                                     ; rdi = deep copy of bi
     .loop:
         call_fun_2 div_short, rdi, INPUT_BASE        ; rax = bi % INPUT_BASE
         add al, '0'                                  ; al = '0' + bi % INPUT_BASE
@@ -234,9 +239,9 @@ biToString:
     mov r13, rsi                                     ; r13 = buf + r12
     add r13, r12                                     ; r13 point to last digit
     .while_reverse
-        mov bl, [rsi]                                ; ~swap(buf[i], buf[size - i - 1])
-        xchg bl, [r13]                               ;
-        mov [rsi], bl                                ;
+        mov al, [rsi]                                ; ~swap(buf[i], buf[size - i - 1])
+        xchg al, [r13]                               ;
+        mov [rsi], al                                ;
 
         inc rsi                                      ; if (fst_pointer == last_pointer || fst_pointer + 1 == last_pointer) break
         cmp rsi, r13
