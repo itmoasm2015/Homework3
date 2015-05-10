@@ -222,6 +222,12 @@ biFromString:
 	mov		rdi, [rsp]
 	call		_biTrimZeros
 	pop		rax
+
+	mov		rdx, [rax + Bigint.vector]
+	cmp		qword [rdx + Vector.size], 0
+	jne		.done
+
+	mov		qword [rax + Bigint.sign], 0
 	jmp		.done
 
 .bad_string:
