@@ -287,24 +287,19 @@ biUCmp:
 biDump:
 	enter 0, 0
 
-	;mov r8, [rdi + bigint.vector]
-	;mov r9, [r8 + vector.data]
+	mov r8, [rdi + bigint.vector]
+	mov r9, [r8 + vector.data]
 
-	;mov rsi, [rdi + bigint.sign]
-	;mov rdx, [r8 + vector.size]
-	;mov rcx, [r9]
-	;mov rdi, qword dump_string
-	;call printf
-
-	mov rdi, qword kek
-	xor rax, rax
+	mov rsi, [rdi + bigint.sign]
+	mov rdx, [r8 + vector.size]
+	mov rcx, [r9]
+	mov rdi, qword dump_string
 	call printf
 
 	leave
 	ret
 
-section .bss
+section .data
 minus_one:   dq -1
 one:         dq 1
 dump_string: db "BigInt: sign is %ld, size is %ld, value is %ld", 10, 0
-kek: db "Kek!", 10, 0
