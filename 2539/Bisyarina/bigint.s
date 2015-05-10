@@ -329,12 +329,15 @@ biFromString:
 
 
 biDelete:
+        push r13
+        alignStack16
         push rdi
-        mov rax, [rdi + 8]
-        mov rdi, rax
+        mov rdi, [rdi + 8]
         call free
         pop rdi
         call free
+        remAlignStack16
+        pop r13
         ret
 
 biSign:
@@ -461,8 +464,8 @@ recalloc:
         xor rdx, rdx
         mov qword rcx, 8
         mul rcx
-        mov rsi, rax
-        xor rdx, rdx
+        mov rdx, rax
+        xor rsi, rsi
         call memset
         remAlignStack16
         pop rdi
@@ -495,6 +498,7 @@ biAdd:
         mov rcx, [rsi + 16]
         cmp rax, rcx
         jne .diff_signs
+.just_sum:
         ;; If signs are equal
         ;; Get maximum of sizes
         mov rcx, [rdi]
@@ -560,13 +564,204 @@ biAdd:
         inc rcx
         jmp .loop
 .diff_signs:
+        mov rax, [rdi + 16]
+        mov rcx, [rsi + 16]
+        test rax, rax
+        jz .or_sign
+        test rcx, rcx
+        jz .or_sign
+        
+
+.or_sign:        
+        or rax, rcx
+        mov [rdi + 16], rax
+        jmp .just_sum
 .exit:
         ret
 
 biSub:  
+        ;; Check if rdi and rsi are pointers to same bigint
+        cmp rdi, rsi
+        jne .sub
+        mov qword [rdi], 1
+        mov rdi, [rdi + 8]
+        xor rax, rax
+        mov [rdi], rax
+        jmp .exit
+.sub:
+        
+        ;; Check if signs are equal
+        mov rax, [rdi + 16]
+        mov rcx, [rsi + 16]
+        cmp rax, rcx
+        jne .diff_signs
+.just_sub:
+        ;; TODO check a >= b
+        ;; If signs are equal
+        ;; Get maximum of sizes
+        mov rcx, [rdi]
+        cmp rcx, [rsi]
+        cmovb rcx, [rsi]
+        push rcx
+        inc rcx
+        ;; Realloc rdi's data to max(sizes) + 1
+        push rdi
+        push rsi
+        mov rdi, rsi
+        mov rsi, rcx
+        call recalloc
+        pop rsi
+        pop rdi
+        pop rcx
+        ;; Set loop bound
+        mov r8, [rsi]
+        mov r11, rdi
+        ;; Set pointers to data
+        push rsi
+        push rdi
+        mov rdi, [rdi + 8]
+        mov rsi, [rsi + 8]
+
+        xor r9, r9
+        xor r10, r10
+        xor rcx, rcx
+.loop:
+        ;; Checl length
+        cmp rcx, r8
+        jnl .finish
+.looploop:
+        mov rax, [rdi + rcx * 8]
+        mov rdx, [rsi + rcx * 8]
+        sub rax, rdx
+        ;; Save carry flag
+        adc r10, 0
+        ;; Add previous carry
+        sub rax, r9
+        ;; Save carry flag
+        adc r10, 0
+        mov r9, r10
+        xor r10, r10
+        mov [rdi + rcx * 8], rax
+        inc rcx
+        jmp .loop
+.diff_signs:
+        jmp .exit
+.finish:
+        dec rcx
+        xor rdx, rdx
+.lead_z:
+        test rcx, rcx
+        jz .pop_exit
+        mov rax, [rdi + rcx * 8]
+        test rax, rax
+        jnz .pop_exit
+        inc rdx
+        dec rcx
+        jmp .lead_z
+.pop_exit:
+        pop rdi
+        mov rax, [rdi]
+        sub rax, rdx
+        mov [rdi], rax
+        pop rsi
+.exit:
         ret
 
-biMul:  
+biMul:
+        push r12
+        push r13
+        push r14
+        push r15
+
+        mov rax, [rdi]
+        mov rcx, [rsi]
+        add rax, rcx
+        push rdi
+        push rsi
+        mov rdi, rax
+        call allocate
+        pop rsi
+        pop rdi
+        mov r12, rax
+        push r12
+        mov r12, [r12 + 8]
+
+        xor r8, r8
+        xor r9, r9
+        mov r10, [rdi]
+        mov r11, [rsi]
+        push rdi
+        push rsi
+        mov rdi, [rdi + 8]
+        mov rsi, [rsi + 8]
+        xor r15, r15
+.loopI:
+        cmp r8, r10
+        jnl .finish
+        xor r9, r9
+        xor r13, r13            ;TODO push
+        xor r14, r14            ;TODO push
+.loopJ:
+        cmp r9, r11
+        jl .loopBody
+        test r13, r13
+        jnz .loopBody
+        inc r8
+        jmp .loopI
+.loopBody:
+        xor rdx, rdx
+        mov rax, [rdi + r8 * 8]
+        mov qword rcx, 0
+        cmp r9, r11
+        jnl .loopBodyFinish
+        mov rcx, [rsi + r9 * 8]
+.loopBodyFinish:
+        mul rcx
+        mov r14, rdx
+
+        mov r15, r9
+        add r15, r8
+        add rax, [r12 + r15 * 8]
+        adc r14, 0
+        add rax, r13
+        adc r14, 0
+        mov r13, r14
+        xor r14, r14
+        mov r15, r9
+        add r15, r8
+        mov [r12 + r15 * 8], rax
+        inc r9
+        jmp .loopJ
+        
+.finish:
+        pop rsi
+        pop rdi
+        pop r12
+        mov rax, [r12 + 8]
+        mov rcx, [rdi + 8]
+        mov [rdi + 8], rax
+        mov [r12 + 8], rcx
+        push rdi
+        push rsi
+        mov rdi, r12
+        call biDelete
+        pop rsi
+        pop rdi
+        inc r15
+        mov [rdi], r15
+        mov rax, [rdi + 16]
+        mov rcx, [rsi + 16]
+        xor rdx, rdx
+        mul rcx
+        mov [rdi + 16], rax
+        test rax, rax
+        jnz .exit
+        mov qword [rdi], 1
+.exit:
+        pop r15
+        pop r14
+        pop r13
+        pop r12
         ret
 
 biDivRem:
