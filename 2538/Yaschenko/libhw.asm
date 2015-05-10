@@ -652,6 +652,7 @@ _biTrimZeros:
 ;;	* RDI: pointer to DST.
 ;;	* RSI: pointer to SRC.
 biAdd:
+	mpush		r14, r15
 	mov		rdx, [rsi + Bigint.sign]
 	mov		rax, [rdi + Bigint.sign]
 	cmp		rdx, SIGN_ZERO
@@ -697,11 +698,25 @@ biAdd:
 	jmp		.done
 
 .signs_diff:
-	;call		_biSubDigits
-	;; RAX: new vector
-	;; RDX: sign
+	mpush		rdi, rsi, rax, rdx
+	mov		rdi, [rdi + Bigint.vector]
+	mov		rsi, [rsi + Bigint.vector]
+	call		_biSubDigits
+	mov		r14, rax
+	mov		r15, rdx
+	mpop		rdi, rsi, rax, rdx
+
+	mpush		rdi, rsi, rax, rdx
+	mov		rdi, [rdi + Bigint.vector]
+	call		free
+	mpop		rdi, rsi, rax, rdx
+	mov		[rdi + Bigint.vector], r14
+;; sign
+	imul		rdx, [rdi + Bigint.sign]
+	mov		[rdi + Bigint.sign], rdx
 
 .done:
+	mpop		r14, r15
 	ret
 
 
@@ -798,8 +813,72 @@ _biAddDigits:
 ;;	* RDX: -1 if SRC < DST
 ;;	        1 otherwise
 _biSubDigits:
-	ret
+	mpush		r15
+	mpush		rdi, rsi
+	call		_digsCmpAbs
+	mpop		rdi, rsi
+	push		rax
 
+	cmp		rax, SIGN_ZERO
+	jge		.start_sub
+
+	xchg		rdi, rsi
+
+.start_sub:
+	mov		rax, [rdi + Vector.size]
+	mov		rdx, [rsi + Vector.size]
+	mov		rcx, rax
+	cmp		rcx, rdx
+	cmovl		rcx, rdx
+
+	mpush		rdi, rsi, rcx
+	vector_new	rcx
+	mpop		rdi, rsi, rcx
+	mov		r15, rax
+
+	xor		r8, r8
+	xor		r9, r9
+.loop_sub:
+	mpush		rcx, r9
+
+	mpush		rdi, rsi, r8
+	vector_get	rsi, r8
+	mov		rdx, rax
+	mpop		rdi, rsi, r8
+
+	mpush		rdi, rsi, r8, rdx
+	vector_get	rdi, r8
+	mpop		rdi, rsi, r8, rdx
+
+	mpop		rcx, r9
+
+	sub		rax, rdx
+	sub		rax, r9
+	xor		r9, r9
+
+	cmp		rax, 0
+	jge		.set_digit
+
+	mov		r9, 1
+	push		rbx
+	mov		rbx, BASE
+	add		rax, rbx
+	pop		rbx
+
+.set_digit:
+	mpush		rdi, rsi, r8, r9, rcx
+	vector_set	r15, r8, rax
+	mpop		rdi, rsi, r8, r9, rcx
+
+	inc		r8
+	loop		.loop_sub
+
+.sub_done:
+	pop		rdx
+	mov		rax, r15
+
+	mpop		r15
+	ret
 
 
 ;; Makes a copy of Bigint.
