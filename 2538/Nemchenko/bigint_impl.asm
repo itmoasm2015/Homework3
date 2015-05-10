@@ -42,6 +42,42 @@ global biCmp
     .abs_end_%2
 %endmacro
 
+; call fun <- %1 with stack 16 byte alligned 
+%macro call_fun_with_stack_aligned 1
+    push r15
+    mov r15, rsp
+    and rsp, -16   
+    call %1
+    mov rsp, r15
+    pop r15
+%endmacro
+
+; call free with stack 16 byte alligned 
+%macro mycalloc 0
+    call_fun_with_stack_aligned calloc
+%endmacro
+
+; call free with stack 16 byte alligned 
+%macro myfree 0
+    call_fun_with_stack_aligned free
+%endmacro
+
+; call_fun_2(f::x->y->z, x, y)::z
+; %1 - name of function
+; %2 - first argument
+; %3 - second argument
+%macro call_fun_2_aligned 3
+    push rdi
+    push rsi
+
+    mov  rdi, %2
+    mov  rsi, %3
+    call_fun_with_stack_aligned %1
+
+    pop  rsi
+    pop  rdi
+%endmacro
+
 extern calloc, free
 
 BASE         equ 1 << 64
@@ -156,8 +192,12 @@ biToString:
     jge .next                                        ; if (bi < 0) {
     mov byte [rsi], '-'                              ;   buffer[0] = '-'
     inc rsi                                          ;   buffer++
-    dec r12                                          ;   limit--
-    .next:                                           ; }
+    sub r12, 1                                       ;   limit--
+    jne .next                                        ;   if (limit == 0) {
+    mov byte [rsi], 0                                ;     *buffer = 0
+    ret                                              ;     return
+                                                     ; }
+    .next:                                           
     call_fun_2 createBigInt, [rdi + SIZE_FIELD], rsi ; rax = new BigInt();
     xchg rdi, rax
     call_fun_2 copy_BigInt, rdi, rax                 ; deep_copy: rax = rdi
@@ -180,15 +220,16 @@ biToString:
     mov byte [rsi + r13], 0                          ; buf[r13] = 0
 
     ; reverse buffer
-    sub r13, 1                                       ; if count converted digits == 0 do nothing
+    sub r13, 1                                       ; if count converted digits == 1 do nothing
     jz .end_while_reverse
     mov r12, r13
-    mov r13, rsi                                     ; r13 = buf[r13]; r13 point to last digit
-    add r13, r12
+    mov r13, rsi                                     ; r13 = buf + r12
+    add r13, r12                                     ; r13 point to last digit
     .while_reverse
         mov bl, [rsi]                                ; ~swap(buf[i], buf[size - i - 1])
-        xchg bl, [r13] 
-        mov [rsi], bl
+        xchg bl, [r13]                               ;
+        mov [rsi], bl                                ;
+
         inc rsi                                      ; if (fst_pointer == last_pointer || fst_pointer + 1 == last_pointer) break
         cmp rsi, r13
         je .end_while_reverse
@@ -207,10 +248,10 @@ biToString:
 biDelete:
     push rdi
     mov rdi, [rdi + DATA_FIELD]
-    call free
+    myfree
     pop rdi
     ;call_fun_1 free, [rdi + DATA_FIELD] ; free(bi->data)
-    call free                           ; free(bi)
+    myfree                               ; free(bi)
     ret
 
 ; int biSign(BigInt bi);
@@ -654,25 +695,25 @@ biCmp:
 ; **reallocate memory for data with apropriate size
 ; void realloc_data(BigInt src, long long new_capacity)
 realloc_data:
-    call_fun_2 calloc, rsi, SIZEOF_FLD  ; calloc(new_capacity, 8)
+    call_fun_2_aligned calloc, rsi, SIZEOF_FLD       ; calloc(new_capacity, 8)
 
     push rax
     push rdi
     push rsi
 
-    mov rcx, [rdi + SIZE_FIELD]              ; rcx = src->size
-    mov rsi, [rdi + DATA_FIELD]              ; rsi = src->data
-    mov rdi, rax                             ; rdi = new allocated data
-    repnz movsq                              ; copy src->size qwords from src->data to data
+    mov rcx, [rdi + SIZE_FIELD]                      ; rcx = src->size
+    mov rsi, [rdi + DATA_FIELD]                      ; rsi = src->data
+    mov rdi, rax                                     ; rdi = new allocated data
+    repnz movsq                                      ; copy src->size qwords from src->data to data
 
     pop rsi
     pop rdi
 
-    call_fun_2 free, [rdi + DATA_FIELD], rsi ; free(src->data) and save rsi
+    call_fun_2_aligned free, [rdi + DATA_FIELD], rsi ; free(src->data) and save rsi
 
     pop rax
-    mov [rdi], rsi                           ; src->capacity = new_capacity
-    mov [rdi + DATA_FIELD], rax              ; src->data = rax
+    mov [rdi], rsi                                   ; src->capacity = new_capacity
+    mov [rdi + DATA_FIELD], rax                      ; src->data = rax
     ret
 
 ; realloc data, if needed, to src->size * 2
@@ -754,11 +795,11 @@ set_or_push_back:
 ;   rax = pointer to allocated BigInt
 createBigInt:
     ; allocate memory for: capacity, size, sign, data
-    call_fun_2 calloc, 4, SIZEOF_FLD
+    call_fun_2_aligned calloc, 4, SIZEOF_FLD
 
     mov  [rax], rdi                     ; set capacity
     push rax
-    call_fun_2 calloc, rdi, SIZEOF_FLD
+    call_fun_2_aligned calloc, rdi, SIZEOF_FLD
     mov rdi, rax                        ; rdi = new allocated data
     pop rax
     mov [rax + DATA_FIELD], rdi
@@ -778,7 +819,7 @@ move_bigInt:
     repnz movsq          ; copy fields size and sign
 
     mov rdi, [rdi]       ; now rdi == dest->data
-    call free            
+    myfree
 
     pop rdi
     pop rsi
