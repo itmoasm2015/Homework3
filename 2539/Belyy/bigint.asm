@@ -26,6 +26,7 @@ global biMul
 global biCmp
 global biSign
 
+global biDivShort
 global biDivRem
 global biToString
 
@@ -285,16 +286,16 @@ _abs_compare:       mov rdi, [rdi + bigint.qwords]
                     xor rax, rax
                     cmp r8, [rsi + vector.size]
     ; compare bigint lengths
-                    jl .less
-                    jg .greater
+                    jb .less
+                    ja .greater
                     add rdi, vector.data
                     add rsi, vector.data
 .compare_loop:      dec r8
                     mov rdx, [rsi + 8 * r8]
                     cmp [rdi + 8 * r8], rdx
     ; compare bigint digits
-                    jl .less
-                    jg .greater
+                    jb .less
+                    ja .greater
                     test r8, r8
                     jnz .compare_loop
     ; bigints are equal
@@ -541,7 +542,7 @@ biMul:
                     inc r8
                     cmp r8, r12
                     jne .mul_loop_1
-    ; free `rbx` bigint
+    ; free cloned bigint
                     pop rdi
                     call biDelete
     ; remove leading zeros
@@ -622,6 +623,28 @@ biSign:             xor rax, rax
 .negative:          dec rax
                     ret
 
+; uint64_t biDivShort(bigint bi, uint64_t k);
+; Divides bigint `bi` by a single digit `k`, returning remainder.
+;
+; Takes:
+;   RDI - bigint bi
+;   RSI - uint64_t k
+; Returns:
+;   RAX - remainder
+
+biDivShort:         mov r8, [rdi + bigint.qwords]
+                    mov rcx, [r8 + vector.size]
+                    xor rdx, rdx
+.div_loop:          mov rax, [r8 + 8 * (rcx - 1) + vector.data]
+                    div rsi
+                    mov [r8 + 8 * (rcx - 1) + vector.data], rax
+                    dec rcx
+                    jnz .div_loop
+                    push rdx
+                    call _normalize
+                    pop rax
+                    ret
+
 ; void biDivRem(bigint * quotient, bigint * remainder, bigint numerator, bigint denominator);
 ;
 ; Takes:
@@ -639,7 +662,75 @@ biDivRem:           ret
 ;   RSI - char * buffer
 ;   RDX - size_t limit
 
-biToString:         mov byte [rsi + 0], 'N'
-                    mov byte [rsi + 1], 'A'
-                    mov byte [rsi + 2], 0
+biToString:
+    ; if limit <= 1, just write zero terminator to buffer and exit
+                    cmp rdx, 1
+                    jbe .zero_string
+    ; save sysv registers
+                    push rbx
+                    push rbp
+                    push r12
+    ; save `buffer`, `limit` and bi.negative
+                    push rsi
+                    push rdx
+                    mov al, [rdi + bigint.negative]
+                    push rax
+    ; clone source bigint
+                    call biFromBigInt
+                    mov rbx, rax
+    ; allocate temporary string with len=21*bi.qwords.size
+    ; where 21 ~ log10(2^64)
+                    mov rdi, [rbx + bigint.qwords]
+                    mov rdi, [rdi + vector.size]
+                    imul rdi, 21
+                    call allocAlign
+                    mov rbp, rax
+    ; while bi != 0
+                    xor r12, r12
+.output_loop:       mov rdi, rbx
+                    call biSign
+                    test rax, rax
+                    jz .after_output
+                    mov rdi, rbx
+                    mov rsi, 10
+    ; temp[i++] = '0' + bi % 10
+    ; bi /= 10
+                    call biDivShort
+                    add al, '0'
+                    mov [rbp + r12], al
+                    inc r12
+                    jmp .output_loop
+    ; output '-' if bi is negative
+.after_output:      pop rax
+                    test al, al
+                    jnz .negative   
+.after_negative:    pop rdx
+                    pop rsi
+                    dec rdx
+                    cmp rdx, r12
+                    cmova rdx, r12
+    ; copy last `limit` symbols of `temp` to `buffer`
+.copy_loop:         mov al, [rbp + r12 - 1]
+                    mov [rsi], al
+                    inc rsi
+                    dec r12
+                    dec rdx
+                    jnz .copy_loop
+    ; output zero terminator
+                    mov byte [rsi], 0
+    ; deallocate cloned bigint
+                    mov rdi, rbx
+                    call biDelete
+    ; deallocate temporary string
+                    mov rdi, rbp
+                    call freeAlign
+    ; restore sysv registers
+                    pop r12
+                    pop rbp
+                    pop rbx
+                    ret
+.negative:          mov byte [rbp + r12], '-'
+                    inc r12
+                    jmp .after_negative
+.zero_string:       mov byte [rsi], 0
                     ret

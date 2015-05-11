@@ -193,7 +193,7 @@ biEnl: 		syspush
 		mov	rdi, [rsi + elem]		
 		mov	[rsi + elem], rax		;; Помещаем новый вектор на место старого
 		push	rsi				
-		call	free				;; Удаляем старый вектор
+		call	alligned_free				;; Удаляем старый вектор
 		pop	rsi
 		mov	rdi, rsi
 		
