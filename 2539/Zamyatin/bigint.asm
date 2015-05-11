@@ -11,7 +11,7 @@ global biToString
 global biLeftShift
 global biCopy
 global biMul
-
+global biDivRem
 
 DIGIT 	equ 	1000000000
 ; int: sign
@@ -19,6 +19,9 @@ DIGIT 	equ 	1000000000
 ; int*: data
 ; one digit - 10^9
 
+
+biDivRem:
+	ret
 
 ; allocates rsi bytes and fill it zeroes
 ; rdi - BigInt
