@@ -402,6 +402,7 @@ biAddAbs:
 	mov 	rdi, [rsp]
 	mov 	rcx, rax
 	xchg 	[rdi + 8], rax
+	push 	rax
 	mov 	rdi, rax
 	mov 	rsi, [rsi + 8]
 	mov 	r10, 1000000000
@@ -453,6 +454,8 @@ biAddAbs:
 	je  	.ook
 		inc 	r12
 	.ook:
+	pop 	rdi
+	call 	free
 	pop 	rdi
 	mov	 	dword [rdi + 4], r12d
 	pop 	r12
