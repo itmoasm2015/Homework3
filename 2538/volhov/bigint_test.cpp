@@ -9,12 +9,12 @@
 
 using namespace std;
 
-#define _assert(cond) (if (!(cond)) { cerr << "FAILED AT: " << __func__ << endl; })
-#define success (cout << "PASSED " << __func__ << endl)
+#define success (cout << " [PASSED] " << __func__ << endl)
 
 extern "C" {
     unsigned long int* biDump(BigInt x);
     BigInt biFromUInt(unsigned long int x);
+    BigInt biCopy(BigInt a);
     size_t biSize(BigInt x);
     void biExpand(BigInt x, size_t size);
     void biCutTrailingZeroes(BigInt a);
@@ -40,6 +40,18 @@ void assertion(string s, bool res) {
     }
 }
 
+void test_copy() {
+    for (int i = 0; i < 100; i++) {
+        long int temp = (rand() % 1000);
+        BigInt a = biFromInt(temp);
+        BigInt b = biCopy(a);
+        assert(biCmp(a, b) == 0);
+        biDelete(a);
+        biDelete(b);
+    }
+    success;
+}
+
 void test_sign() {
     for (int i = -50; i < 50; i++) {
         BigInt a = biFromInt(i);
@@ -62,7 +74,6 @@ void test_expand() {
     }
     biDelete(a);
     success;
-    cout << "PASSED " << __func__ << endl;
 }
 
 void test_addition_zeroes() {
@@ -98,11 +109,15 @@ void test_addition_unsigned() {
         BigInt a = biFromUInt(ia);
         BigInt b = biFromUInt(ib);
         biAddUnsigned(a, b);
-        assert(biCmp(a, biFromUInt(ia + ib)) == 0);
+        BigInt temp1 = biFromUInt(ia + ib);
+        assert(biCmp(a, temp1) == 0);
         biAddUnsigned(b, a);
-        assert(biCmp(b, biFromUInt(ib + ib + ia)) == 0);
+        BigInt temp2 = biFromUInt(ib + ib + ia);
+        assert(biCmp(b, temp2) == 0);
         biDelete(a);
         biDelete(b);
+        biDelete(temp1);
+        biDelete(temp2);
     }
     success;
 }
@@ -112,7 +127,7 @@ void test_addition_unsigned() {
 void test_create_big_number(bool verbose = false) {
     BigInt a = biFromInt(51);
     if (verbose) dump(a);
-    for (int i = 0; i < 2000; i++) {
+    for (int i = 0; i < 1000; i++) {
         if (verbose) cout << i << endl;
         biAddUnsigned(a, a);
         if (verbose) dump(a);
@@ -122,7 +137,7 @@ void test_create_big_number(bool verbose = false) {
 }
 
 void test_addition_same_sign() {
-    for (int i = 0; i < 2000000; i++) {
+    for (int i = 0; i < 20000; i++) {
         long int ia = rand() % 0xff + 1;
         long int ib = rand() % 0xff + 1;
         if (rand() % 2 == 0) {
@@ -132,14 +147,15 @@ void test_addition_same_sign() {
         BigInt a = biFromInt(ia);
         BigInt b = biFromInt(ib);
         biAddUnsigned(a, b);
-        if (biCmp(a, biFromInt(ia + ib)) != 0) {
-            cout << "mda" << endl;
-        }
-        assert(biCmp(a, biFromInt(ia + ib)) == 0);
+        BigInt temp1 = biFromInt(ia + ib);
+        assert(biCmp(a, temp1) == 0);
         biAddUnsigned(b, a);
-        assert(biCmp(b, biFromInt(ib + ib + ia)) == 0);
+        BigInt temp2 = biFromInt(ib + ib + ia);
+        assert(biCmp(b, temp2) == 0);
         biDelete(a);
         biDelete(b);
+        biDelete(temp1);
+        biDelete(temp2);
     }
     success;
 }
@@ -149,8 +165,10 @@ void test_negation() {
         int temp = rand() % 0xfffff - 0xffff;
         BigInt a = biFromInt(temp);
         biNegate(a);
-        assert(biCmp(a, biFromInt(-temp)) == 0);
+        BigInt temp2 = biFromInt(-temp);
+        assert(biCmp(a, temp2) == 0);
         biDelete(a);
+        biDelete(temp2);
     }
     success;
 }
@@ -165,10 +183,14 @@ void test_sub_unsigned_zeroes() {
     biSubUnsigned(zero, zero2);
     assert(biCmp(zero, zero2) == 0);
     success;
+    biDelete(zero);
+    biDelete(zero2);
+    biDelete(a);
+    biDelete(b);
 }
 
 void test_unsigned_add_sub() {
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 10000; i++) {
         int counter = rand() % 200;
         int ia = rand() % 0xffff;
         int ib = rand() % 0xffff;
@@ -176,12 +198,60 @@ void test_unsigned_add_sub() {
         BigInt b = biFromUInt(ib);
         for (int j = 0; j < counter; j++) biAddUnsigned(a, b);
         for (int j = 0; j < counter; j++) biSubUnsigned(a, b);
-        assert(biCmp(a, biFromUInt(ia)) == 0);
+        BigInt temp = biFromUInt(ia);
+        assert(biCmp(a, temp) == 0);
+        biDelete(a);
+        biDelete(b);
+        biDelete(temp);
+    }
+    success;
+}
+
+void test_sub_signed(bool verbose = false) {
+    for (int i = 0; i < 200000; i++) {
+        int ia = rand() % 1000 - 500;
+        int ib = rand() % 1000 - 500;
+        if (verbose) cout << ia << " " << ib << endl;
+        BigInt a = biFromInt(ia);
+        BigInt b = biFromInt(ib);
+        biSub(a, b);
+        BigInt temp = biFromInt(ia - ib);
+        assert(biCmp(a, temp) == 0);
+        biDelete(a);
+        biDelete(b);
+        biDelete(temp);
+    }
+    success;
+}
+
+void test_add_signed(bool verbose = false) {
+    for (int i = 0; i < 200000; i++) {
+        int ia = rand() % 1000 - 500;
+        int ib = rand() % 1000 - 500;
+        if (verbose) cout << ia << " " << ib << endl;
+        BigInt a = biFromInt(ia);
+        BigInt b = biFromInt(ib);
+        biAdd(a, b);
+        BigInt temp = biFromInt(ia + ib);
+        assert(biCmp(a, temp) == 0);
+        biDelete(a);
+        biDelete(b);
+        biDelete(temp);
     }
     success;
 }
 
 int main() {
+    //int ia = 277;
+    //int ib = 415;
+    //cout << ia << " " << ib << endl;
+    //BigInt a = biFromInt(ia);
+    //BigInt b = biFromInt(ib);
+    //biSub(a, b);
+    //dump(a);
+    //BigInt temp = biFromInt(ia - ib);
+
+    test_copy();
     test_sign();
     test_expand();
     test_addition_zeroes();
@@ -191,4 +261,6 @@ int main() {
     test_negation();
     test_sub_unsigned_zeroes();
     test_unsigned_add_sub();
+    test_sub_signed();
+    test_add_signed();
 }
