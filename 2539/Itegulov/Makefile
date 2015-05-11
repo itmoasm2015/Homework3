@@ -6,6 +6,8 @@ CXX_OPTS = -g -Wall -Wextra -std=c++11 -m64 -L. -I../../include
 C_OPTS = -g -Wall -Wextra -std=c99 -m64 -L. -I../../include
 ifeq ($(shell uname), Darwin)
 ASM_OPTS = -f macho64 --prefix=_
+CXX_OPTS += -Wl,-no_pie
+C_OPTS += -Wl,-no_pie
 else
 ASM_OPTS = -g dwarf2 -f elf64
 endif
