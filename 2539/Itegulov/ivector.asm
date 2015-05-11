@@ -8,6 +8,7 @@ global vecFree
 global vecPush
 global vecSet
 global vecGet
+global vecExtend
 global vecSize
 global vecCapacity
 
@@ -29,7 +30,7 @@ section .text
 vecNew:
 	mov rdi, DEFAULT_CAPACITY
 vecAlloc:
-	enter 0, 0
+	enter 8, 0
 	push rdi
 	mov rdi, vector_size
 	call malloc ; allocate vector structure
