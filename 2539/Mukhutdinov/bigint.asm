@@ -85,6 +85,8 @@ global biToString
 ;;
 ;; Creates a BigInt from a single int64_t value.
 ;;
+;; O(1)
+;;
 ;; @param  RDI x -- source integer
 ;; @return RAX -- a freshly baked BigInt
 biFromInt:
@@ -108,6 +110,8 @@ biFromInt:
 ;; BigInt biFromString(char const *s);
 ;;
 ;; Makes a BigInt from a string literal.
+;;
+;; O(nm), where n - length of string, m - size of bigint
 ;;
 ;; @param  RDI s -- address of beginning of string
 ;; @return RAX -- a freshly baked BigInt
@@ -162,6 +166,8 @@ biFromString:
 ;;
 ;; Deletes a BigInt
 ;;
+;; O(1)
+;;
 ;; @param  RDI bi -- BigInt to delete
 biDelete:
               call  vectorDelete
@@ -173,6 +179,8 @@ biDelete:
 ;;
 ;; Adds src to dst, storing result in dst
 ;;
+;; O(max(n, m)), where n - size of DST, m - size of SRC
+;; 
 ;; @param  RDI dst  -- first summand
 ;; @param  RSI src  -- second summand
 biAdd:
@@ -207,6 +215,8 @@ biAdd:
 ;;
 ;; Subtracts src from dst, storing result in dst
 ;;
+;; O(max(n, m)), where n - size of DST, m - size of SRC
+;;
 ;; @param  RDI dst  -- minuend
 ;; @param  RSI src  -- subtrahend
 biSub:
@@ -235,6 +245,8 @@ biSub:
 ;;
 ;; Adds src to dst, storing result in dst
 ;; Assumes that both summands are positive
+;;
+;; O(max(n, m)), where n - size of DST, m - size of SRC
 ;;
 ;; @param  RDI dst  -- first summand
 ;; @param  RSI src  -- second summand
@@ -297,6 +309,8 @@ biAddUnsigned:
 ;; Subtracts src from dst, storing result in dst
 ;; Assumes that dst and src are positive, and dst >= src
 ;;
+;; O(n), where n - size of DST
+;;
 ;; @param  RDI dst  -- minuend
 ;; @param  RSI src  -- subtrahend
 biSubUnsigned:
@@ -340,6 +354,8 @@ biSubUnsigned:
 ;; Reverse subtraction. Subtracts dst from src, storing result in dst
 ;; Assumes that dst and src are positive, and dst <= src
 ;;
+;; O(m), where m - size of SRC
+;;             
 ;; Mostly copypasted from biSubUnsigned, but I don't know an elegant way not to copypaste
 ;; ASM code in such situations: a macro would be too large and too specific, wrapping in
 ;; the more general function would be cumbersome too and taxing because of calls inside loop
@@ -386,6 +402,8 @@ biSubRevUnsigned:
 ;; void biMul(BigInt src, BigInt dst);
 ;;
 ;; Multiplies DST by SRC and stores result in DST
+;;
+;; O(nm), where n - size of DST, m - size of SRC
 ;;
 ;; @param  RDI dst  -- first factor
 ;; @param  RSI src  -- second factor
@@ -464,11 +482,18 @@ biMul:
               call  __validateZero  ; Fix sign if result is zero
               
               CDECL_RET
+
+;; A placeholder for biDivRem function
+biDivRem:
+              nop
+              ret
               
 ;; @cdecl64
 ;; void biToString(BigInt bi, char *buffer, size_t limit);
 ;;
 ;; Makes a string representation of BigInt and stores it into buffer.
+;;
+;; O(nm), where n - size of bigint, m - length of string representation
 ;;
 ;; @param  RDI bi     -- address of BigInt to store
 ;; @param  RSI buffer -- address of buffer
@@ -553,6 +578,8 @@ biToString:
 ;;
 ;; Returns 0 if bi == 0, -1 if bi < 0 and 1 if bi > 0
 ;;
+;; O(1)
+;;
 ;; @param  RDI bi -- bigint to compare
 ;; @return RAX -- result of comparison
 biSign:
@@ -576,6 +603,8 @@ biSign:
 ;; int biCmp(BigInt a, BigInt b);
 ;;
 ;; Compares 2 bigints. Returns 0 if a == b, -1 if a < b, 1 if a > b
+;;
+;; O(n) in worst case, where n - size of both bigints
 ;;
 ;; @param  RDI a  -- first bigint
 ;; @param  RSI b  -- second bigint
@@ -626,6 +655,8 @@ biCmp:
 ;;
 ;; Compares absolute values of 2 bigints
 ;;
+;; O(n) in worst case, where n - size of both bigints
+;; 
 ;; @param  RDI a  -- first bigint
 ;; @param  RSI b  -- second bigint
 ;; @return RAX -1 if |a| < |b|, 0 if |a| = |b| and 1 if |a| > |b|
@@ -668,6 +699,8 @@ biCmpAbs:
 ;;
 ;; Adds given uint64_t to given BigInt
 ;;
+;; O(n) in worst case, O(1) in general
+;;
 ;; @param  RDI -- BigInt address
 ;; @param  RDX -- uint64_t to add
 ;; @return RDI -- Updated BigInt address
@@ -704,6 +737,8 @@ __addShort:
 ;; __mulByShort -- inner non-cdecl function
 ;;
 ;; Multiplicates given BigInt by given uint64_t
+;;
+;; O(n), where n - size of bigint
 ;;
 ;; @param  RDI -- BigInt address
 ;; @param  RSI -- uint64_t to multiply
@@ -750,6 +785,8 @@ __mulByShort:
 ;;
 ;; Divides given BigInt by given uint64_t
 ;;
+;; O(n), where n - size of bigint
+;; 
 ;; @param  RDI -- BigInt address
 ;; @param  RSI -- uint64_t to divide by
 ;; @return RDI -- Divided BigInt address
@@ -780,8 +817,10 @@ __divByShort:
 
 ;; @cdecl64
 ;; __clearTail -- inner function (surprisingly cdecl-compatible)
-;;
+;; 
 ;; Clears the leading zeroes (except the least significant)
+;;
+;; O(n), where n - size of bigint
 ;;
 ;; @param  RDI -- BigInt address
 ;; @spoils RCX
@@ -810,6 +849,8 @@ __clearTail:
 ;; __validateZero -- inner function (surprisingly cdecl-compatible)
 ;;
 ;; Preserves invariant of 0 sign for 0. If RDI is bigint-ish zero, then set 0 sign to it.
+;;
+;; O(1)
 ;;
 ;; @param  RDI -- BigInt address
 ;; @spoils RAX
