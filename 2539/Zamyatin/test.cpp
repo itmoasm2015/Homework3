@@ -5,7 +5,7 @@ using namespace std;
 void print(BigInt x) {
 	char str[409600];
 	memset(str, 0, 409600);
-	biToString(x, str, 409600);
+	biToString(x, str, 409599);
 	printf("%s\n", str);
 }
 

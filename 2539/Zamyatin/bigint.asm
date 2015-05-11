@@ -19,13 +19,16 @@ DIGIT 	equ 	1000000000
 ; int*: data
 ; one digit - 10^9
 
+
+; allocates rsi bytes and fill it zeroes
+; rdi - BigInt
 allocate:
 	sub 	rsp, 16
-	mov 	[rsp], rdi
+	mov 	[rsp], rdi ; store bigint
 	call 	malloc
-	mov 	rdi, [rsp]
+	mov 	rdi, [rsp] ; take bigint
 	add 	rsp, 16
-	.loop:
+	.loop: ; fill zeroes
 		cmp 	rdi, 0
 		je 		.finish
 		sub 	rdi, 4
@@ -34,6 +37,7 @@ allocate:
 	.finish:
 	ret
 ;=============
+; creates BigInt from int64_t
 biFromInt:
 	sub 	rsp, 16
 	mov  	[rsp + 8], rdi
@@ -42,25 +46,23 @@ biFromInt:
 	mov 	[rsp], rax
 	mov 	rdi, 16
 	call 	malloc
-	
 	mov 	rdi, 0
 	mov 	[rax], rdi
 	mov 	[rax + 8], rdi
-
 	mov 	rdi, [rsp]
 	mov 	[rdi + 8], rax
 	mov 	rsi, [rsp + 8]
 	mov		dword [rdi], 0
 	mov		dword [rdi+4], 0
-
+	; some init stuff
 	cmp 	rsi, 0
 	jge 	.positive
-		neg 	rsi
+		neg 	rsi ; change sign
 		mov 	dword [rdi], 1
 	.positive:
 		xchg 	rax, rsi
 		mov 	r8, DIGIT
-		.loop:
+		.loop: ; fill digits
 			mov 	rdx, 0
 			div 	r8
 			mov 	[rsi], edx
@@ -74,6 +76,7 @@ biFromInt:
 		mov 	rax, rdi
 	ret
 ;=============
+; removes zeroes from begin(end) of number
 biTrim:
 	push 	rdi
 	xor 	rsi, rsi
@@ -82,7 +85,7 @@ biTrim:
 	.loop
 		cmp 	esi, 0
 		je 		.finish
-		dec		esi
+		dec		esi ; decrement lengtn of number from end untill positive digit
 		cmp 	dword [rdi + rsi * 4], 0
 		je 		.loop
 	.finish
@@ -92,6 +95,7 @@ biTrim:
 	mov 	dword [rdi + 4], esi
 	ret
 ;=============
+; frees memory allocated for BigInt
 biDelete:
 	sub 	rsp, 16
 	mov 	[rsp], rdi
@@ -102,39 +106,41 @@ biDelete:
 	add 	rsp, 16
 	ret
 ;=============
+; takes sign of BigInt
 biSign:
 	mov 	esi, [rdi]
 	cmp 	esi, 0
 	mov 	rax, -1
-	jg 		.return
+	jg 		.return ; if sign is minus - return
 	mov 	esi, [rdi + 4]
 	mov 	rax, 1
 	cmp 	esi, 1
-	jg  	.return
+	jg  	.return ; check length of number, if bigger then one, sign is plus
 	mov 	rdi, [rdi + 8]
 	cmp 	dword [rdi], 0
-	jg 		.return
+	jg 		.return ; check digit of number, if bigger then zero, sign is plus, otherwise zero
 	mov 	rax, 0
 	.return:
 		ret	
 ;=============
+; compare two BigInt's
 biCmp:
 	mov 	ecx, dword [rdi]
 	shl 	ecx, 1
-	or 		ecx, dword [rsi]
+	or 		ecx, dword [rsi] ; mask of sign
 	cmp 	ecx, 1
 	je 		.ret1
 	cmp 	ecx, 2
 	je 		.ret2
-	
+	; check signs of numbers and making decision about comparing, and store mask of sign
 	mov 	rdx, 0
 	mov 	edx, dword [rdi + 4]
 	cmp 	edx, dword [rsi + 4]
-	jg 		.g  
-	jl  	.l
+	jg 		.g  ;compare length of numbers
+	jl  	.l  ;*
 	mov 	rdi, [rdi + 8]
 	mov 	rsi, [rsi + 8]
-	.loop:
+	.loop: ; find first diff
 		cmp 	edx, 0
 		je 		.retEq
 		dec 	edx
@@ -164,6 +170,7 @@ biCmp:
 		mov 	rax, 0
 		ret
 ;=============
+; makes string. don't put zero at end of string. you should care about zero at the end.
 biToString:
 	push 	rdi
 	push 	rsi
@@ -176,7 +183,7 @@ biToString:
 	cmp 	rdx, 0
 	je 		.return
 
-	cmp 	dword [rdi], 0
+	cmp 	dword [rdi], 0 ; take sign
 	je 		.pos
 	mov 	byte [rsi], '-'
 	inc 	rsi
@@ -193,7 +200,7 @@ biToString:
 	mov 	rax, 0
 	mov 	eax, dword [rdi + r8]
 	mov 	r11, 0
-	.loop2:
+	.loop2: ; handle first digit, to trims zeroes from one digit
 		cmp 	r9, 0
 		je 		.finish2
 		mov 	rdx, 0
@@ -206,7 +213,7 @@ biToString:
 		jg 	.loop2
 	.finish2:
 
-	.loop3:
+	.loop3: ; for reversed order
 		pop 	rax
 		mov 	byte [rsi], al
 		inc 	rsi
@@ -214,7 +221,7 @@ biToString:
 		cmp 	r11, 0
 		jg 		.loop3
 	
-	.loop:
+	.loop: ; make string, r9 - limit, r8 - length of number
 		cmp 	r9, 0
 		je 		.return
 		cmp 	r8, 0
@@ -246,6 +253,7 @@ biToString:
 		pop 	r11
 		ret
 ;=============
+; subtract two bigints. answer is x, where x = ||a| - |b||
 biSubAbs:
 	cmp 	rdi, rsi
 	jne 	.diff
@@ -285,7 +293,7 @@ biSubAbs:
 	inc 	rsi
 	shl 	rsi, 2
 	mov 	rdi, rsi
-	call 	allocate
+	call 	allocate ; allocate place for new digits
 	mov 	rcx, rax
 	pop 	rsi
 	pop 	rdi
@@ -303,7 +311,7 @@ biSubAbs:
 	push 	rax
 	push 	r12
 	
-	mov 	r10, 1000000000
+	mov 	r10, DIGIT
 	mov	 	r11, 0
 	mov 	r12, [r12 + 8]	
 	.loop1:
@@ -367,6 +375,7 @@ biSubAbs:
 		call 	free
 		ret
 ;=============
+; add two bigints. answer is x, where x = |a| + |b|
 biAddAbs:
 	cmp 	rdi, rsi
 	jne 	.diff
@@ -405,7 +414,7 @@ biAddAbs:
 	push 	rax
 	mov 	rdi, rax
 	mov 	rsi, [rsi + 8]
-	mov 	r10, 1000000000
+	mov 	r10, DIGIT
 	mov 	r11, 0
 	mov 	r12, 0
 
@@ -466,6 +475,7 @@ biAddAbs:
 
 	ret	
 ;=============
+; add two bigints. looks at signs and make desicion
 biAdd:
 	mov 	ecx, dword [rdi]
 	shl 	ecx, 1
@@ -522,6 +532,7 @@ biAdd:
 	.return:
 		ret
 ;=============
+; subltract two bigints. looks at signs and make desicion
 biSub:
  	mov 	eax, 0
  	mov 	eax, dword [rsi]
@@ -536,6 +547,7 @@ biSub:
  	mov 	dword[rsi], eax
  	ret
 ;=============
+; mul bigint and one digit
 biMulShort:
 	cmp 	esi, 0
 	jge 	.positive
@@ -563,7 +575,7 @@ biMulShort:
 	push 	rax
 	mov 	rdi, rax
 	mov 	r11, 0
-	mov 	r10, 1000000000
+	mov 	r10, DIGIT
 	.loop:
 		cmp 	r8, 0
 		je 		.finish
@@ -595,6 +607,7 @@ biMulShort:
 	pop 	r10
 	ret
 ;=============
+; shift left for rsi digits
 biLeftShift:
 	mov 	r8, 0
 	mov 	r8d, dword [rdi + 4]
@@ -629,6 +642,7 @@ biLeftShift:
 	call free
 	ret
 ;=============
+; copy big int
 biCopy:
 	push 	rdi
 	mov 	rdi, 16
@@ -661,6 +675,7 @@ biCopy:
 	mov 	rax, rsi
 	ret
 ;=============
+; mul two big ints
 biMul:
 	mov 	eax, dword [rdi]
 	add 	eax, dword [rsi]
