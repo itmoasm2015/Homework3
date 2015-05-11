@@ -1,3 +1,4 @@
+default rel
 extern 		malloc
 extern 		free
 global biFromInt
