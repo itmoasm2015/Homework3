@@ -269,7 +269,7 @@ biDelete:
 
 ; int biSign(BigInt bi);
 biSign:
-    mov rax, [rdi + SIZE_FIELD]    
+    mov rax, [rdi + SIGN_FIELD]    
     ret
 
 ; void biAdd(BigInt dst, BigInt src);

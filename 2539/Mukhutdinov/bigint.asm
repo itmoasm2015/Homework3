@@ -25,24 +25,27 @@
 	      JCOND e, %1, %2, %3
 %endmacro
 
-
-;; Resize operations are so common, so here are this macros
-%macro RESIZE 3
-              mpush rdi, rsi, rdx
-              mov   rdi, %1
-              mov   rsi, %2
-              mov   rdx, %3
-              call  vectorResize
-              mpop  rdi, rsi, rdx
-%endmacro
-
+;; Append 0 operation is very common, so here are this macro
+;;
+;; Input:
+;;   - RDI - vector to append to
+;; Output:
+;;   - RDI - address of appended vector
+;;   - RAX - original vector address
+;; Spoils: everything which malloc can spoil
+;; Saves:  RCX, because something related to a size of vector are commonly there
 %macro APPEND_0_AND_POINT_TO_END 0
+              push  rcx
               xor   rsi, rsi
               call  vectorAppend    
               
-              mov   rdi, [rax + vector.size]
-              dec   rdi             ; vector.size() - 1
-              lea   rdi, [rax + rdi*8 + vector.data]
+              mov   rsi, [rdi + vector.size]
+              dec   rsi             ; vector.size() - 1
+
+              mov   rax, rdi        ; Save original vector address in RAX to use it after
+              GET_DATA rdi, rdi
+              lea   rdi, [rdi + rsi*8]
+              pop   rcx
 %endmacro
 
 section .text
@@ -50,6 +53,7 @@ section .text
 extern vectorNew
 extern vectorNewRaw
 extern vectorCopy
+extern vectorCopyTo
 extern vectorDelete
 extern vectorAppend
 extern vectorResize
@@ -88,7 +92,8 @@ biFromInt:
               mov   qword [rax + vector.sign], 1
 .positive:    
               mov   qword [rax + vector.size], 1
-              mov   [rax + vector.data], rdi
+              GET_DATA rsi, rax
+              mov   [rsi], rdi
               ret
 
 ;; @cdecl64
@@ -135,6 +140,7 @@ biFromString:
               mov   dl, [rax]
               jmp   .main_loop
 .return:      
+              call  __validateZero
               mov   rax, rdi
               ret
 .return_null:
@@ -163,8 +169,18 @@ biDelete:
 ;; @param  RSI src  -- second summand
 biAdd:
               CDECL_ENTER 0, 0
-              ; TBD: only unsigned addition yet
+
+              mov   rax, [rdi + vector.sign]
+              mov   rbx, [rsi + vector.sign]
+
+              cmp   rax, rbx
+              je    .unsigned_add   ; If signs are the same, then it's a simple addition
+
+              
+              
+.unsigned_add: 
               call  biAddUnsigned
+              call  __validateZero
               CDECL_RET
 
 ;; @cdecl64
@@ -178,6 +194,7 @@ biSub:
               CDECL_ENTER 0, 0
               ; TBD: only unsigned subtraction yet
               call  biSubUnsigned
+              call  __validateZero  ; Fixes sign if result is zero
               CDECL_RET
  
 ;; @cdecl64
@@ -193,8 +210,8 @@ biAddUnsigned:
               mov   rcx, [rdi + vector.size]
               mov   r8, [rsi + vector.size]
 
-              lea   rdi, [rdi + vector.data]
-              lea   rsi, [rsi + vector.data]
+              GET_DATA rdi, rdi
+              GET_DATA rsi, rsi
               
               clc                   ; Reset carry
               pushf                 ; Save flags to restore CF when needed
@@ -254,9 +271,9 @@ biSubUnsigned:
               mov   rcx, [rdi + vector.size]
               mov   r8, [rsi + vector.size]
 
-              lea   rdi, [rdi + vector.data]
-              lea   rsi, [rsi + vector.data]
-
+              GET_DATA rdi, rdi
+              GET_DATA rsi, rsi
+              
               clc                   ; Reset carry
               pushf                 ; Save CF
 .sub_loop:
@@ -282,6 +299,90 @@ biSubUnsigned:
               pop   rdi
               call  __clearTail     ; Clear leading zeroes, if they exist
               ret
+
+
+;; @cdecl64
+;; void biMul(BigInt src, BigInt dst);
+;;
+;; Multiplies DST by SRC and stores result in DST
+;;
+;; @param  RDI dst  -- first factor
+;; @param  RSI src  -- second factor
+biMul:
+              CDECL_ENTER 0, 0
+              mpush rdi, rsi
+
+              mov   rdi, [rdi + vector.size] ; Prepare arguments for vectorNew
+              add   rdi, [rsi + vector.size] ; Size of result should be dst.size() + src.size() to be enough for sure
+              xor   rsi, rsi
+
+              push  rdi             ; Save that to set the size later
+              call  vectorNew       ; Create new vector for result, filled with zeroes
+              pop   rdi
+
+              mov   [rax + vector.size], rdi ; Write vector size down
+
+              mpop  rdi, rsi
+
+              mov   rbx, [rdi + vector.sign] ; Check if signs of dst and src are different, and set sign 1 to result, if so
+              JCOND e, rbx, [rsi + vector.sign], .start_job
+
+              mov   qword [rax + vector.sign], 1
+.start_job:
+              mpush rdi, rax        ; Save result and DST to copy later
+
+              mov   r14, [rdi + vector.size] ; Store vectore sizes
+              mov   r15, [rsi + vector.size]
+              
+              GET_DATA rdi, rdi     ; Pointers on data
+              GET_DATA rsi, rsi
+              GET_DATA r13, rax
+
+              xor   rcx, rcx        ; i = 0  -- RCX is the outer loop counter
+.outer:      
+              xor   rdx, rdx        ; Reset carry
+              xor   rbx, rbx        ; j = 0  -- RBX is the inner loop counter
+.inner:       
+              lea   r8, [r13 + rcx]
+              mov   r8, [r8 + rbx]  ; r8 = result[i + j]
+
+              xor   r9, r9
+              JCOND ae, rbx, r15, .skip_src_copy ; If we have reached the end of src, assume 0 is its current digit
+
+              mov   r9, [rsi + rbx] ; Or copy actual digit otherwise
+.skip_src_copy:
+              mov   r10, rdx        ; Store previous carry in R10
+              mov   rax, [rdi + rcx]
+              mul   r9
+
+              add   rax, r8         ; Add previously counted result to product
+              adc   rdx, 0
+              add   rax, r10        ; Add previous carry to product
+              adc   rdx, 0
+
+              lea   r8, [r13 + rcx]
+              lea   r8, [r8 + rbx]  ; Point R8 to result[i + j]
+
+              mov   [r8], rax       ; Store new result
+
+              inc   rbx             
+              JCOND b, rbx, r15, .inner ; Repeat till we are not at the end of src
+              
+              test  rdx, rdx
+              jne   .inner          ; or till we have carry
+              
+              inc   rcx
+              JCOND b, rcx, r14, .outer ; ? i < dst.size()
+
+              mpop  rax, rdi        ; Restore result and dst in reverse order to make __clearTail
+              call  __clearTail
+
+              mov   rsi, rdi        ; Prepare args for vectorCopyTo
+              mov   rdi, rax
+              call  vectorCopyTo    ; Copy result to dst
+              call  __validateZero  ; Fix sign if result is zero
+              
+              CDECL_RET
               
 ;; @cdecl64
 ;; void biToString(BigInt bi, char *buffer, size_t limit);
@@ -376,7 +477,9 @@ biToString:
 biSign:
               ;; Check for zero at first
               JCOND ne, qword [rdi + vector.size], 1, .sign_check
-              JCOND ne, qword [rdi + vector.data], 0, .sign_check
+              
+              GET_DATA rax, rdi     
+              JCOND ne, qword [rax], 0, .sign_check
 
               xor   rax, rax
               ret
@@ -423,8 +526,8 @@ biCmp:
               ja    .a_abs_gt_b
               
               ;; Here RCX stores the size of a and b
-              lea   rdi, [rdi + vector.data]
-              lea   rsi, [rsi + vector.data]
+              GET_DATA rdi, rdi
+              GET_DATA rsi, rsi
 .compare_loop:
               mov   rax, [rdi]
               cmp   rax, [rsi]
@@ -465,8 +568,8 @@ biCmp:
 __addShort:
               push  rdi
               mov   rcx, [rdi + vector.size]
-              lea   rdi, [rdi + vector.data]
-
+              GET_DATA rdi, rdi
+              
               add   [rdi], rdx      ; Add the RDX to least significant bigint digit
               jnc   .finish         ; and finish, if we have no carry
 .carry_loop:
@@ -481,7 +584,7 @@ __addShort:
               inc   rcx             
               
               popf                  ; Restore CF
-              push  rax             ; Save maybe new vector address
+              push  rax             ; Save vector address again
 .add_carry:
               mov   rax, [rdi]
               adc   rax, 0
@@ -502,8 +605,8 @@ __addShort:
 __mulByShort:
               push  rdi
               mov   rcx, [rdi + vector.size]
-              lea   rdi, [rdi + vector.data]
-
+              GET_DATA rdi, rdi
+              
               xor   rdx, rdx        ; Reset carry data
 .mult_loop:
               mov   r8, rdx         ; Save carry
@@ -528,7 +631,7 @@ __mulByShort:
               inc   rcx             
               
               mpop  rsi, rdx        
-              push  rax             ; Save maybe new vector address
+              push  rax             ; Save vector address again
                      
               jmp   .mult_loop
 .clear_tail:
@@ -549,7 +652,8 @@ __divByShort:
               push  rdi
               mov   rcx, [rdi + vector.size]
               dec   rcx
-              lea   rdi, [rdi + rcx*8 + vector.data] ; Point RDI to the end of vector
+              GET_DATA rdi, rdi
+              lea   rdi, [rdi + rcx*8] ; Point RDI to the end of vector 
               inc   rcx
 
               xor   rdx, rdx        ; Reset carry data
@@ -579,16 +683,34 @@ __clearTail:
               push  rdi
               mov   rcx, [rdi + vector.size]          ; Store vector size in RCX
               dec   rcx
-              lea   rdi, [rdi + rcx*8 + vector.data]  ; Point RDI to the end
+              GET_DATA rdi, rdi
+              lea   rdi, [rdi + rcx*8]  ; Point RDI to the end
               inc   rcx
 .check_loop
               JCOND ne, qword [rdi], 0, .finish ; Finish if current digit isn't zero
-              JCOND e, rcx, 1, .finish ; or it's the least significant digit
+              JCOND e, rcx, 1, .finish ; or it's the least significant digit, which means we have zero here
 
               dec   rcx
               sub   rdi, 8
               jmp   .check_loop
+
 .finish:
-              pop rdi
+              pop   rdi
               mov   [rdi + vector.size], rcx
+              ret
+
+;; @cdecl64
+;; __validateZero -- inner function (surprisingly cdecl-compatible)
+;;
+;; Preserves invariant of 0 sign for 0. If RDI is bigint-ish zero, then set 0 sign to it.
+;;
+;; @param  RDI -- BigInt address
+;; @spoils RAX
+__validateZero:
+              call  biSign
+              test  rax, rax
+              jnz   .return
+
+              mov   qword [rdi + vector.sign], 0
+.return:      
               ret

@@ -31,7 +31,10 @@ global biMulShort
 global biDivShort
 global biCutTrailingZeroes
 global biAddUnsigned
+global biSubUnsigned
 global biNegate
+global biCmpUnsigned
+global biCopy
 
 ;;; void biCutTrailingZeroes(BigInt a)
 ;;; removes trailing zeroes (except the last one);
@@ -246,22 +249,23 @@ biSize:
 ;;; spoiled: ∅
 biNegate:
         ;; if size > 1 just negate sign
-        cmp     [rdi+bigint.size], 1
+        cmp     dword[rdi+bigint.size], 1
         jge     .nonzero
 
         ;; if size == 1 && [data] != 0 negate sign
         push    r8
-        mov     r8d, [rdi+bigint.data]
-        cmp     [r8d], 0
+        mov     r8d, dword[rdi+bigint.data]
+        cmp     qword[r8d], 0
         pop     r8
         jne     .nonzero
 
         ;; set sign = 0 otherwise
-        mov     [rdi+bigint.sign], 0
+        mov     dword[rdi+bigint.sign], 0
         ret
 
+        ;; negate sign if nonzero
         .nonzero
-        not     [rdi+bigint.sign]
+        not     dword[rdi+bigint.sign]
         ret
 
 ;;; int biSign(BigInt bi);
@@ -290,6 +294,30 @@ biSign:
 ;;; Compare two BitInts.
 ;;; returns sign(a - b)
 biCmp:
+        ;; cmp by sign first
+        mov     eax, dword[rdi+bigint.sign]
+        cmp     eax, dword[rsi+bigint.sign]
+        jg      .gt
+        jl      .lt
+
+        call    biCmpUnsigned
+        jmp     .return
+
+        .gt
+        mov     rax, 1
+        jmp     .return
+
+        .lt
+        mov     rax, -1
+        jmp     .return
+
+        .return
+        ret
+
+;;; int biCmp(BigInt a, BigInt b);
+;;; Compare two abs of BitInts.
+;;; returns sign(|a| - |b|)
+biCmpUnsigned:
         ;; compare by length first
         mov     eax, dword[rdi+bigint.size]
         cmp     eax, dword[rsi+bigint.size]
@@ -324,6 +352,7 @@ biCmp:
 
         .return
         ret
+
 
 ;;; void biExpand(BigInt a, size_t new_size);
 ;;; copies all data to bigger array, filling higher integers with zeroes
@@ -397,7 +426,7 @@ biExpand:
 ;;; ! dst ≠ src
 ;;; dst = |dst| + |src|
 biAddUnsigned:
-        ;; expand destination or source to get equal size()
+        ;; expand destination or source to get equal .size (dst should have dst.size + 1)
         mov     eax, dword[rdi+bigint.size]
         cmp     eax, dword[rsi+bigint.size]
         jle      .expand_dst
@@ -417,7 +446,7 @@ biAddUnsigned:
         push    rdi
         push    rsi
         mov     esi, dword[rsi+bigint.size]
-        mov     r11d, esi       ; r11d will hold number of
+        mov     r11d, esi       ; r11d will hold size of src (in case dst == src and they both will expand)
         inc     esi             ; we reserve one extra cell to save last carry
         push    r11
         call    biExpand
@@ -440,7 +469,7 @@ biAddUnsigned:
         jge     .loop_end
         popf
         mov     rax, [r9+8*rcx]
-        adc     [r8+8*rcx], rax
+        adc     qword[r8+8*rcx], rax
         pushf
         inc     rcx
         jmp     .loop
@@ -464,17 +493,116 @@ biAddUnsigned:
 ;;; int biAdd(BigInt dst, BigInt src);
 ;;; dst += src
 biAdd:
-        cmp
-        .min_min
-        .plus_plus
+        mov     eax, dword[rdi+bigint.sign]
+        add     eax, dword[rsi+bigint.sign]
+        cmp     eax, 0
+        je      .same_sign
+        cmp     eax, 0xffffffff
+        je      .same_sign
+        ;; There should be .min_plus and .plus_min implemented by biSubUnsigned
+        call    fail
+
+        .same_sign              ; if dst and src are the same sign, <sign(dst);|dst|+|src|> is OK
+        call    biAddUnsigned
+        ret
         .min_plus
         .plus_min
+        call    fail
+
+;;; void biSubUnsigned(BigInt dst, BigInt src);
+;;; should be true: |dst| > |src|
+;;; |dst| -= |src|
+biSubUnsigned:
+        ;; fail if |dst| < |src|
+        push    rdi
+        push    rsi
+        call    biCmp
+        pop     rsi
+        pop     rdi
+        cmp     rax, 0
+        jl      fail
+
+         ;; if needed, expand source to get equal .size with dst
+        mov     eax, dword[rdi+bigint.size]
+        cmp     eax, dword[rsi+bigint.size]
+        jg      .expand_src
+        jle     .after_expand
+        .expand_src
+        push    rdi
+        push    rsi
+        mov     rax, rdi        ; swap rsi and rdi
+        mov     rdi, rsi
+        mov     esi, dword[rax+bigint.size]
+        inc     esi
+        call    biExpand
+        pop     rsi
+        pop     rdi
+
+        .after_expand
+        ;; r10d holds vector size
+        mov     r10d, dword[rdi+bigint.size]
+
+        ;; save data pointers
+        mov     r8, [rdi+bigint.data]
+        mov     r9, [rsi+bigint.data]
+
+        ;; process subtracting
+        clc
+        xor     rcx, rcx
+        pushf
+        .loop
+        cmp     ecx, r11d
+        jge     .loop_end
+        popf
+        mov     rax, [r9+8*rcx]
+        sbb     qword[r8+8*rcx], rax
+        pushf
+        inc     rcx
+        jmp     .loop
+        .loop_end
+        popf
+
+        ;; removes redundant zeroes
+        push    rsi
+        call    biCutTrailingZeroes
+        pop     rsi
+        mov     rdi, rsi
+        call    biCutTrailingZeroes
+
         ret
+
 
 ;;; void biSub(BigInt dst, BigInt src);
 ;;; dst -= src
 biSub:
+        mov     eax, dword[rdi+bigint.sign]
+        add     eax, dword[rsi+bigint.sign]
+        cmp     eax, 0
+        je      .same_sign
+        cmp     eax, 0xffffffff
+        je      .same_sign
+        ;; There should be .min_plus and .plus_min implemented by biSubUnsigned
+        call    fail
+
+        ;; if the sign is same, than swap if dest <
+        .same_sign
+        push    rsi
+        push    rdi
+        call    biCmpUnsigned
+        pop     rdi
+        pop     rsi
+        cmp     rax, 0
+        jl      .same_sign_l
+        jge     .same_sign_ge
+        .same_sign_l
+        ;; must swap here
+        call    fail
+        .same_sign_ge
+        call    biSubUnsigned
         ret
+        .min_plus
+        .plus_min
+        call    fail
 
 ;;; void biMulShort(BigInt dst, unsigned long int src);
 biMulShort:
