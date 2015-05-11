@@ -81,15 +81,24 @@ createNumber:		; create number
 	push r11
 	push rcx
 	push rbx
-	cmp rsp, 15
+	push rdx
+	push rax
+	mov rdx, 0
+	mov rax, rsp
+	mov rcx, 16
+	div rcx
+	cmp rdx, 0
 	jnz .call
+	pop rax
 	call malloc
 	jmp .ok
 .call:
 	sub rsp, 8
+	pop rax
 	call malloc
 	add rsp, 8
 .ok:
+	pop rdx
 	pop rbx
 	pop rcx
 	pop r11
@@ -101,14 +110,18 @@ createNumber:		; create number
 
 callFree:
 	saveOther
-	cmp rsp, 15
+	mov rax, rsp
+	mov rdx, 0
+	mov rcx, 16
+	div rcx
+	cmp rdx, 0
 	jnz .call
 	call free
 	jmp .ok
 .call:
-	push rdi
+	sub rsp, 8
 	call free
-	pop rdi
+	add rsp, 8
 .ok:
 	returnOther
 	ret

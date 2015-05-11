@@ -5,7 +5,7 @@
 #include <ctime>
 
 const int MAX_INT = 1000;
-const int LEN_BUF = 100;
+const int LEN_BUF = 100000;
 const int BASE = 1000000000;
 char out[LEN_BUF];
 
@@ -100,35 +100,31 @@ bool testMul() {
 int main() {
 	srand(time(NULL));
 	printf("START TEST\n");
-//	if (testSum()) {
-//		if (testSub()) {
-//			testMul();
-//		}
-//	}
+	if (testSum()) {
+		if (testSub()) {
+			testMul();
+		}
+	}
 	//2^1024 -1 - (-1) = 2^1024
 	BigInt two = biFromInt((int64_t)1);
-	printf("x\n");
 	BigInt two2 = biFromInt((int64_t)2);
-	for (int i = 0; i < 1024; i++) {
-		printf("x %d ", i);
+	for (int i = 0; i < 0; i++) {
 		biMul(two, two2);
-		printf("%d, ", i);
+		biToString(two, out, LEN_BUF);
+//		printf("%d = %s\n", i + 1, out);
 	}
-	printf("\nx\n");
+	BigInt ttwo = biFromInt((int64_t)1);
+	biMul(ttwo, two);
 	biToString(two, out, LEN_BUF);
-	printf("x\n");
 	printf("2^1024 = %s ", out);
 	BigInt one = biFromInt((int64_t)1);
-	printf("x\n");
 	BigInt mone = biFromInt((int64_t)-1);
-	printf("x\n");
 	biSub(two, one);
-	printf("x\n");
 	biSub(two, mone);
-	printf("x\n");
 	biToString(two, out, LEN_BUF);
-	printf("x\n");
+	int cmp = biCmp(ttwo, two);
 	printf(" == %s\n", out);
+	printf("CMP %d\n", cmp);
 /*	char ss[100];
 	int i = 1;
 	while (i < 10) {
