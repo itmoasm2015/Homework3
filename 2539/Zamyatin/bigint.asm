@@ -1,3 +1,4 @@
+default rel
 extern 		malloc
 extern 		free
 global biFromInt
@@ -12,6 +13,7 @@ global biLeftShift
 global biCopy
 global biMul
 global biDivRem
+global biFromString
 
 DIGIT 	equ 	1000000000
 ; int: sign
@@ -19,6 +21,85 @@ DIGIT 	equ 	1000000000
 ; int*: data
 ; one digit - 10^9
 
+
+checkString:
+	cmp 	byte [rdi], '-'
+	jne 	.checkPlusSign
+		inc 	rdi
+		jmp 	.noSign
+	.checkPlusSign:
+	cmp 	byte [rdi], '+'
+		jne 	.noSign
+		inc 	rdi
+	.noSign:
+	.loop:
+		cmp 	byte [rdi], 0
+		je 		.ok
+		cmp 	byte[rdi], '0'
+		jl 		.nok
+		cmp 	byte[rdi], '9'
+		jg 		.nok
+		inc 	rdi
+		jmp 	.loop
+	.ok:
+		mov 	rax, 1
+		ret
+	.nok:
+		mov 	rax, 0
+		ret
+
+
+biFromString:
+	push 	rdi
+	call 	checkString
+	cmp 	rax, 0
+	jne 	.ok
+		pop 	rdi
+		jmp 		.r
+	.ok:
+	mov 	rdi, 0
+	call 	biFromInt
+	pop 	rdi
+	push 	0
+	cmp 	byte [rdi], '+'
+	jne 	.checkNeg
+		inc 	rdi
+		jmp 	.loop
+	.checkNeg:
+	cmp 	byte [rdi], '-'	
+	jne 	.loop
+		inc 	rdi
+		mov		dword [rsp], 1
+	.loop:
+		cmp 	byte[rdi], 0
+		je 	 	.return
+		mov 	rsi, 0
+		mov 	sil, byte [rdi]
+		sub 	rsi, '0'
+		push 	rdi
+		push 	rax
+		push 	rsi
+		mov 	rdi, rax
+		mov 	rsi, 10
+		call 	biMulShort
+		pop 	rsi
+		mov 	rdi, rsi
+		call 	biFromInt
+		mov 	rsi, rax
+		mov 	rax, [rsp]
+		mov 	rdi, rax
+		call 	biAdd
+		pop 	rax
+		pop 	rdi
+		inc 	rdi
+		jmp 	.loop
+	.return:
+		cmp 	rax, 0
+		je 		.r
+		pop 	rdi
+		mov 	dword [rax], edi
+		.r:
+			ret
 
 biDivRem:
 	ret

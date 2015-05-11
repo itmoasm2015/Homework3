@@ -5,6 +5,8 @@ section .text
 	extern malloc
 	extern free
 
+	global biCopy
+
 	global biFromInt
 	global biFromString
 	global biToString
@@ -193,7 +195,7 @@ biEnl: 		syspush
 		mov	rdi, [rsi + elem]		
 		mov	[rsi + elem], rax		;; Помещаем новый вектор на место старого
 		push	rsi				
-		call	free				;; Удаляем старый вектор
+		call	alligned_free				;; Удаляем старый вектор
 		pop	rsi
 		mov	rdi, rsi
 		
@@ -491,6 +493,7 @@ biSubMod:	syspush
 		cmp	qword[r9], 0
 		jne	.end
 		call	biPop
+		jmp	.to_end
 .end		syspop
 		ret
 
@@ -696,7 +699,7 @@ biMul:		syspush
 		xor	rdx, rdx
 		mov	r13, BASE
 		mov	r8, [rdi + vsize]
-		mov	r9, [rdi + vsize]
+		mov	r9, [rsi + vsize]
 	
 	;; Вычисляем результат используя алгоритм быстрого перемноженя двух длинных чисел
 		mov	r11, 0	
