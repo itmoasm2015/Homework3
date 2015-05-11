@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <random>
 #include <algorithm>
+#include <vector>
 
 #define DEBUG(...) fprintf(stderr, __VA_ARGS__);
 
@@ -67,6 +68,50 @@ void test_mul_by_two_large(const int iterations = 1, bool verbose = false) {
   }
 }
 
+void test_add_large(const int iterations = 1, const int summands = 100, bool verbose = false) {
+  if (verbose) DEBUG("biAdd large testing (%d iterations)\n", iterations);
+  // tests biSub, biSign, biInc and biCmp also
+  for (int it = 0; it < iterations; ++it) {
+    std::vector <BigIntRepresentation *> summand(summands);
+    for (int i = 0; i < summands; ++i) {
+      summand[i] = ((BigIntRepresentation *) biFromInt((int64_t) rng()));
+    }
+    BigIntRepresentation *first = (BigIntRepresentation *) biFromInt(0);
+    for (auto i : summand) {
+      biAdd(first, i);
+    }
+    std::shuffle(summand.begin(), summand.end(), rng);
+    BigIntRepresentation *second = (BigIntRepresentation *) biFromInt(0);
+    for (auto i : summand) {
+      biAdd(second, i);
+    }
+    assert (first != nullptr && second != nullptr);
+    assert (first->size == second->size);
+    for (int i = 0; i < (int) first->size; ++i) {
+      assert (first->data[i] == second->data[i]);
+    }
+    
+    assert (biCmp(first, second) == 0);
+
+    biInc(first);
+    assert (biCmp(first, second) > 0);
+    assert (biCmp(second, first) < 0);
+    biInc(second);
+    assert (biCmp(second, first) == 0);
+
+    biSub(first, second);
+    assert (biSign(first) == 0);
+    assert (first->size == 1);
+    assert (first->data[0] == 0);
+    
+    biDelete(first);
+    biDelete(second);
+    for (auto i : summand) {
+      biDelete(i);
+    }
+  }
+}
+
 void test_add(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("biAdd testing (%d iterations)\n", iterations);
   // small only
@@ -116,12 +161,8 @@ void test_inc_case(int64_t val) {
   BigIntRepresentation *bar = (BigIntRepresentation *) biFromInt(0);
   biAdd(bar, foo);
   static BigIntRepresentation *one = (BigIntRepresentation *) biFromInt(1);
-//  dump(foo);
-//  dump(bar);
   biInc(foo);
-//  dump(foo);
   biAdd(bar, one);
-//  dump(bar);
   assert (foo->size == bar->size && foo->capacity == bar->capacity);
   for (int i = 0; i < (int) std::min(foo->size, bar->size); ++i) {
     assert (foo->data[i] == bar->data[i]);
@@ -149,7 +190,7 @@ void test_inc(const int iterations = 1, bool verbose = false) {
       biInc(foo);
       biAdd(baz, one);
       assert (one->size == 1 && one->capacity == 1 && one->data[0] == 1);
-      assert (foo->size == baz->size && foo->capacity == baz->capacity);
+      assert (foo->size == baz->size); 
       for (int i = 0; i < (int) foo->size; ++i) assert (foo->data[i] == baz->data[i]);
       biDelete(baz);
     }
@@ -184,6 +225,7 @@ int main() {
   test_mul_by_two(1000, true);
   test_mul_by_two_large(1000, true);
   test_add(100, true);
+  test_add_large(100, 100, true);
   test_not(100, true);
   test_inc(100, true);
   test_sub(100, true);

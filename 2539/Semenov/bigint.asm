@@ -16,7 +16,7 @@ global biNot            ;; DONE
 global biInc            ;; DONE
 global biSub            ;; DONE (TODO: test it better)
 global biMul            ;; TODO
-global biCmp            ;; TODO
+global biCmp            ;; DONE
 global biSign           ;; DONE
 
 global biDivRem         ;; TODO
@@ -270,6 +270,7 @@ biMulBy2:
             dec rcx
             jnz .loop
 
+            call biNormalize ; normalize x
             ret
 
 
@@ -384,6 +385,7 @@ biAdd:
         .return:
             pop rbp
             pop rbx
+            call biNormalize ; normalize dst
             ret
 
 
@@ -393,12 +395,13 @@ biAdd:
 biNot:
             mov rcx, [rdi + SIZE]
             mov rdx, [rdi + DATA]
+
         .not_loop: ; for RCX from x->size downto 1: x->data[RCX] = ~x->data[RCX]
             xor qword [rdx + 8 * rcx - 8], -1
-
             dec rcx
             jnz .not_loop
-            ret
+
+            ret ; no need to normalize, cause if x normalized, then ~x normalized too
 
 
 ; void biInc(BigInt x);
@@ -407,6 +410,7 @@ biNot:
 biInc:
             mov rdx, [rdi + DATA]
             mov r8, [rdi + SIZE]
+
             overflowWarning [rdx + 8 * r8 - 8] ; most significant coefficient of x
             jz .main_part
             lea rsi, [r8 + 1]
@@ -435,6 +439,7 @@ biInc:
             jc .inc_loop
 
         .return:
+            call biNormalize
             ret
 
 
@@ -446,7 +451,7 @@ biNegate:
             call biNot
             pop rdi
             push rdi
-            call biInc
+            call biInc ; x normalized
             pop rdi
             ret
 
@@ -464,17 +469,81 @@ biSub:
 
             mov rsi, [rsp]
             mov rdi, [rsp + 8]
-            call biAdd
+            call biAdd ; dst normalized
 
             mov rdi, [rsp]
             call biNegate ; return src to initial value
+
             pop rsi
             pop rdi
             ret
 
 
 biMul:      ret
-biCmp:      ret
+
+
+; int biCmp(BigInt fst, BigInt snd);
+; retval < 0 iff fst < snd
+; retval > 0 iff fst > snd
+; fst in RDI
+; snd in RSI
+; retval in RAX (EAX)
+biCmp:
+            ; as fst and snd are normalized, 
+            ; we need just check signs, after that - sizes, 
+            ; and finally coefficients one by one
+            push rdi
+            push rsi
+            call biSign
+            push rax ; in RAX was sign of fst
+            mov rdi, [rsp + 8] ; RDI = snd
+            call biSign ; in RAX sign of snd
+            pop r8 ; in R8 sign of fst
+            pop rsi
+            pop rdi
+            cmp r8, rax ; sign(fst) vs sign(snd)
+            jg .greater
+            jl .less
+            ; sign(fst) = sign(snd)  in rax
+            mov r8, [rdi + SIZE]
+            mov r9, [rsi + SIZE]
+            cmp r8, r9
+            jb .shorter
+            ja .longer
+            ; sign(fst) = sign(snd), fst->size = snd->size
+            mov r10, [rdi + DATA]
+            mov r11, [rsi + DATA]
+
+            mov rcx, r8
+        .comparison_loop: ; for RCX from size downto 1 do:
+            mov rdx, [r10 + 8 * rcx - 8]
+            cmp rdx, [r11 + 8 * rcx - 8] ; fst->data[RCX - 1] vs snd->data[RCX - 1]
+            jb .less
+            ja .greater
+            dec rcx
+            jnz .comparison_loop
+
+            xor rax, rax ; fst = snd
+            ret
+
+        .shorter:
+            cmp rax, 0
+            jge .less    ; positive and shorter => less
+            jmp .greater ; negative and shorter => greater
+
+        .longer:
+            cmp rax, 0
+            jge .greater ; positive and longer => greater
+            jmp .less    ; negative and longer => less
+
+        .greater
+            mov rax, 1
+            ret
+
+        .less
+            mov rax, -1
+            ret
+
 
 ; int biSign(BigInt x);
 ; x in RDI
@@ -486,11 +555,16 @@ biSign:
             cmp r10, 0
             jg .positive
             jl .negative
+            cmp r9, 1 ; x->size = 1?
+            jne .positive ; x looks like 0000...0001... with at least 64 leading zeros
+            ; else x = 0
             xor rax, rax
             ret
+
         .positive:
             mov rax, 1
             ret
+
         .negative:
             mov rax, -1
             ret
@@ -500,5 +574,52 @@ biDivRem:   ret
 biToString: ret
 
 biTrim:     ret
-biNormalize:ret
+
+
+; void biNormalize(BigInt x)
+; removes leading ones/zeros (in two's complement representaion)
+; TODO: call trim inside to spare memory
+; x in RDI
+biNormalize:
+            ; we need to find last idx such that
+            ;  * or sign(x->data[idx - 1]) != sign(x->data[idx - 2])
+            ;  * or x->data[idx - 1] not in {-1, 0}
+            ; that idx will be new size of x
+            mov r8, [rdi + SIZE]
+            mov r9, [rdi + DATA]
+        .normalization_loop:
+            cmp r8, 1
+            jbe .return
+
+            ; let's check first condition:
+            mov r10, [r9 + 8 * r8 - 8]  ; R10 = x->data[R8 - 1]
+            mov r11, [r9 + 8 * r8 - 16] ; R11 = x->data[R8 - 2]
+            ; set R10 and R11 to most significant bit of them:
+            shr r10, 63
+            shr r11, 63
+            cmp r10, r11
+            jne .return ; sign(x->data[idx - 1]) != sign(x->data[idx - 2])
+
+            ; and second condition:
+            mov r10, [r9 + 8 * r8 - 8] ; once again R10 = x->data[R8 - 1]
+            xor rax, rax
+            cmp r10, 0
+            jne .label_1
+            inc rax
+          .label_1:
+
+            cmp r10, -1
+            jne .label_2
+            inc rax
+          .label_2:
+
+            test rax, rax 
+            jz .return ; RAX = 0 iff R10 not in {0, -1}
+
+            dec r8
+            jmp .normalization_loop
+
+        .return:
+            mov [rdi + SIZE], r8
+            ret
 
