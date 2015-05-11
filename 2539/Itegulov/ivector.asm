@@ -11,6 +11,7 @@ global vecGet
 global vecExtend
 global vecSize
 global vecCapacity
+global vecCopy
 
 default rel
 
@@ -202,4 +203,39 @@ vecExtend:
 	leave
 	ret
 
+;;; vector* vecCopy(vector* vec)
+;;; Copies passed vector.
+vecCopy:
+	enter 0, 0
 
+	push rdi
+	push rdi
+	mov rdi, vector.size
+	call malloc
+	pop rdi
+	pop rdi
+	mov rdx, [rdi + vector.size]
+	mov [rax + vector.size], rdx
+	mov rdx, [rdi + vector.capacity]
+	mov [rax + vector.size], rdx
+
+	push rdi
+	push rax
+	mov rdi, [rdi + vector.capacity]
+	shl rdi, 3
+	call malloc
+	pop rcx
+	pop rsi
+
+	push rcx
+	push rcx
+	mov rdi, rax
+	mov rdx, [rsi + vector.size]
+	shl rdx, 3
+	mov rsi, [rsi + vector.data]
+	call memcpy
+	pop rax
+	pop rax
+
+	leave
+	ret
