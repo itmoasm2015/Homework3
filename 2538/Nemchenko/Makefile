@@ -5,11 +5,12 @@ CXXFLAGS=-Wall -Wextra -g3 -std=c++1y -I../../include/ #-fsanitize=address
 DEPS=../../include/bigint.h
 LDFLAGS=-lgmpxx -lgmp
 
+test: test.cpp $(OBJECTS)   
+	$(CC) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
+
 all: $(OBJECTS)  
 	ar rcs $(TARGET) $<
 
-test: test.cpp $(OBJECTS)   
-	$(CC) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
 
 bigint_impl.o: bigint_impl.asm
 	rm -f $(TARGET)
