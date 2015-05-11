@@ -1,5 +1,9 @@
 ;;; vector.asm
 ;;; Operations on auto-resizing vectors of uint64_t
+;;;
+;;; A place for data is allocated separately from vector data structure itself
+;;; in order to prevent pointer invalidating after reallocation (which is essential
+;;; in such functions as biAdd, biSub and biMul)
 
 %include "macro.inc"
 %include "vector.inc"
@@ -26,6 +30,8 @@ global vectorSet
 ;; Allocates a new vector with provided initial capacity
 ;; and fill it with given value
 ;;
+;; O(initialCapacity)
+;;
 ;; @param  RDI initialCapacity
 ;; @param  RSI fillVal -- an int64_t which will be stored in every vector cell
 ;; @return RAX Pointer on the vector struct
@@ -49,6 +55,8 @@ vectorNew:
 ;;
 ;; Allocates a new vector with provided initial capacity
 ;; and garbage inside
+;;
+;; O(1)
 ;;
 ;; @param  RDI initialCapacity
 ;; @return RAX Pointer on the vector struct
@@ -80,6 +88,8 @@ vectorNewRaw:
 ;; Allocates a new vector and copies the data from given vector
 ;; to new
 ;;
+;; O(malloc + n), where n - size of original vector
+;;
 ;; @param  RDI orig  -- original vector
 ;; @return RAX Pointer on copy
 vectorCopy:
@@ -110,6 +120,8 @@ vectorCopy:
 ;; void vectorCopyTo(Vector dst, Vector src);
 ;;
 ;; Assignment operator. Copies contents from SRC to DST
+;;
+;; O(n), where n - size of SRC
 ;;
 ;; @param  RDI dst  -- destination vector
 ;; @param  RSI src  -- source vector
@@ -143,6 +155,8 @@ vectorCopyTo:
 ;;
 ;; Frees a vector.
 ;;
+;; O(1)
+;;
 ;; @param  RDI vec -- vector to free
 vectorDelete:
               push  rdi
@@ -158,6 +172,8 @@ vectorDelete:
 ;;
 ;; Returns vector size.
 ;;
+;; O(1)
+;;
 ;; @param  RDI vec
 ;; @return RAX Vector size
 vectorSize:
@@ -168,6 +184,8 @@ vectorSize:
 ;; uint64_t vectorGet(Vector vec, unsigned int i);
 ;;
 ;; Get element by index.
+;;
+;; O(1)
 ;;
 ;; @param  RDI vec
 ;; @param  RSI i
@@ -182,6 +200,8 @@ vectorGet:
 ;;
 ;; Set element by index.
 ;;
+;; O(1)
+;;
 ;; @param  RDI vec
 ;; @param  RSI i
 ;; @param  RDX val
@@ -194,6 +214,8 @@ vectorSet:
 ;; void vectorResize(Vector vec, unsigned int newSize, int64_t tailFill);
 ;;
 ;; Resizes a vector, reallocating data if necessary
+;;
+;; O(newSize - oldSize), amortized
 ;;
 ;; @param  RDI vec      -- vector to resize
 ;; @param  RSI newSize  -- new size
@@ -257,6 +279,8 @@ vectorResize:
 ;; Vector vectorAppend(Vector vec, uint64_t val);
 ;;
 ;; Append a value to vector, incrementing its size
+;;
+;; O(1), amortized
 ;;
 ;; @param  RDI vec  -- vector to append to
 ;; @param  RSI val  -- value to append

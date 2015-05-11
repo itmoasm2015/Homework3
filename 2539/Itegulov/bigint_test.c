@@ -3,28 +3,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void biUAdd(BigInt, BigInt);
+void biUSub(BigInt, BigInt);
 void biDump(BigInt);
+BigInt biCopy(BigInt);
+
+int test_count = 0;
+
+void test_add(long long first, long long second) {
+	test_count++;
+	long long result = first + second;
+	BigInt resultBig = biFromInt(result);
+	BigInt firstBig = biFromInt(first);
+	BigInt secondBig = biFromInt(second);
+	biAdd(firstBig, secondBig);
+	assert(biCmp(firstBig, resultBig) == 0 && biCmp(resultBig, firstBig) == 0);
+	biDelete(resultBig);
+	biDelete(firstBig);
+	biDelete(secondBig);
+}
 
 int main() {
-	BigInt big = biFromInt(100LL);
-	BigInt two = biFromInt(2LL);
-	BigInt result = biFromInt(102LL);
-	BigInt negative = biFromInt(-10LL);
-	assert(big != NULL && two != NULL);
-	biUAdd(big, two);
-	biDump(big);
-	biDump(two);
-	biDump(result);
-	biDump(negative);
-	assert(biCmp(big, result) == 0);
-	assert(biCmp(two, result) == -1);
-	assert(biCmp(big, two) == 1);
-	assert(biCmp(big, negative) == 1);
-	assert(biCmp(negative, two) == -1);
-	assert(biCmp(negative, negative) == 0);
-	biDelete(result);
-	biDelete(big);
-	biDelete(two);
+	for (int i = -100; i <= 100; i++) {
+		for (int j = -100; j <= 100; j++) {
+			test_add(i, j);
+		}
+	}
+	printf("Passed %d tests\n", test_count);
 	return 0;
 }
