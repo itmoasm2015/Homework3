@@ -283,6 +283,47 @@ biUCmp:
 	leave
 	ret
 
+biCmp:
+	enter 0, 0
+
+	mov r8, [rdi + bigint.vector]
+	mov r9, [rsi + bigint.vector]
+	mov rdx, [r8 + vector.size]
+	test rdx, rdx
+	jnz .nz
+
+	mov rdx, [r9 + vector.size]
+	test rdx, rdx
+	jnz .nz
+
+	jmp .ret     ; zeros are equal
+
+.nz
+	mov rax, [rdi + bigint.sign]
+	mov rdx, [rsi + bigint.sign]
+
+	cmp rax, rdx ; compare signs
+
+	je .compare  ; if signs are equal, then we must really compare them
+
+	cmova rax, [minus_one]
+	cmovb rax, [one]
+
+	jmp .ret
+
+.compare
+	push rdx
+	call biUCmp  ; let's compare stupidly
+	pop rdx
+	mov rdi, rax
+	neg rdi      ; negate result if signs are minuses
+	test rdx, rdx
+	cmovnz rax, rdi
+
+.ret
+	leave
+	ret
+
 
 biDump:
 	enter 0, 0

@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 void biUAdd(BigInt, BigInt);
-int biUCmp(BigInt, BigInt);
 void biDump(BigInt);
 
 int main() {
@@ -18,9 +17,12 @@ int main() {
 	biDump(two);
 	biDump(result);
 	biDump(negative);
-	assert(biUCmp(big, result) == 0);
-	assert(biUCmp(two, result) == -1);
-	assert(biUCmp(big, two) == 1);
+	assert(biCmp(big, result) == 0);
+	assert(biCmp(two, result) == -1);
+	assert(biCmp(big, two) == 1);
+	assert(biCmp(big, negative) == 1);
+	assert(biCmp(negative, two) == -1);
+	assert(biCmp(negative, negative) == 0);
 	biDelete(result);
 	biDelete(big);
 	biDelete(two);
