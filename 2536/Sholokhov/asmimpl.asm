@@ -699,7 +699,7 @@ biMul:		syspush
 		xor	rdx, rdx
 		mov	r13, BASE
 		mov	r8, [rdi + vsize]
-		mov	r9, [rdi + vsize]
+		mov	r9, [rsi + vsize]
 	
 	;; Вычисляем результат используя алгоритм быстрого перемноженя двух длинных чисел
 		mov	r11, 0	
@@ -819,6 +819,7 @@ biToString:	syspush
 		pop	rdx
 		cmp	rbx, rdx
 		jle	.reverse_loop
+		dec	rdx
 		xchg	rbx, rdx
 		
 .reverse_loop	cmp	rbx, 0				;; проходимся по промежуточному буферу в обратном порядке и копируем посимвольно в buf.

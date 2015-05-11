@@ -282,7 +282,7 @@ biSign:
 ;;	* RDX: max number of chars.
 biToString:
 ;; These macros are used only in this function, so don't move it to macros file.
-
+;;
 ;; Writes byte %3 to [%1 + %2].
 %macro write_byte 3
 	mov		byte [%1 + %2], %3
@@ -330,9 +330,9 @@ biToString:
 
 .non_zero:
 
-	mpush		rbx, rdx
+	mpush		r10, rdx
 
-	mov		rbx, BASE / 10
+	mov		r10, BASE / 10
 
 ;; R8 holds boolean flag meaning that digits have started (first non-zero digit was written).
 ;; It's needed to not skip zeros after first non-zero written digit (since remainder after 10-division is checked).
@@ -341,7 +341,7 @@ biToString:
 ;; Prints out highest digit of Bigint.
 .first_digit_loop:
 	xor		rdx, rdx
-	div		rbx
+	div		r10
 
 	cmp		r8, 0
 	jne		.write_digit
@@ -359,7 +359,7 @@ biToString:
 	inc		rcx
 
 .skip_write:
-	div10		rbx
+	div10		r10
 
 	mov		rax, rdx
 
@@ -370,11 +370,11 @@ biToString:
 	check_limits 	rcx, rdx
 	sub		rsp, 16
 
-	cmp		rbx, 0
+	cmp		r10, 0
 	jg		.first_digit_loop
 
 .first_digit_done:
-	mpop		rbx, rdx
+	mpop		r10, rdx
 ;; Process the rest digits of Bigint.
 ;; Unlike first digit, these digits are divided fixed number of times (BASE_LEN)
 ;; since we want all the digits, eve leading zeros.
@@ -392,21 +392,21 @@ biToString:
 	vector_get 	[rdi + Bigint.vector], r8
 	mpop		rdi, rsi, rcx, rdx
 
-	mpush		rbx, rdx
+	mpush		r10, rdx
 
-	mov		rbx, BASE / 10
+	mov		r10, BASE / 10
 
 	mov		r9, BASE_LEN
 .cur_digit_loop:
 	dec		r9
 	xor		rdx, rdx
-	div		rbx
+	div		r10
 
 	add		rax, 48
 
 	write_byte 	rsi, rcx, al
 
-	div10		rbx
+	div10		r10
 
 	mov		rax, rdx
 
@@ -420,7 +420,7 @@ biToString:
 	jg		.cur_digit_loop
 
 .cur_digit_done:
-	mpop		rbx, rdx
+	mpop		r10, rdx
 
 	dec		r8
 	cmp		r8, 0
@@ -430,7 +430,6 @@ biToString:
 ;; Write terminator.
 	write_byte 	rsi, rcx, 0
 	mpop		rdi, rsi, rdx
-
 	ret
 
 
@@ -571,7 +570,47 @@ _digsCmpAbs:
 .done:
 	ret
 
+biMul:
+	mov		rax, [rdi + Bigint.sign]
+	mov		rdx, [rsi + Bigint.sign]
 
+	cmp		rax, SIGN_ZERO
+	je		.zero
+	cmp		rdx, SIGN_ZERO
+	je		.zero
+
+	imul		rax, rdx
+	mov		[rdi + Bigint.sign], rax
+
+	mpush		rdi, rsi
+	mov		rdi, [rdi + Bigint.vector]
+	mov		rsi, [rsi + Bigint.vector]
+	call		_biMulDigits
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi, rax
+	vector_delete	[rdi + Bigint.vector]
+	mpop		rdi, rsi, rax
+
+	mov		[rdi + Bigint.vector], rax
+	jmp		.done
+.zero:
+	mpush		rdi, rsi
+	vector_delete	[rdi + Bigint.vector]
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi
+	vector_new	0
+	mpop		rdi, rsi
+
+	mov		[rdi + Bigint.vector], rax
+	mov		qword [rdi + Bigint.sign], SIGN_ZERO
+
+.done:
+	mpush		rdi
+	call		_biTrimZeros
+	mpop		rdi
+	ret
 
 ;; void biMul(BigInt dst, BigInt src);
 ;;
@@ -579,7 +618,7 @@ _digsCmpAbs:
 ;; Takes:
 ;;	* RDI: pointer to DST.
 ;;	* RSI: pointer to SRC.
-biMul:
+_biMul:
 	mpush		r12, r13, r14, r15
 
 	mov		rax, [rdi + Bigint.sign]
@@ -678,10 +717,10 @@ biMul:
 
 ;; RAX = RAX % BASE
 ;; RDX = RAX / BASE
-	mpush		rbx
-	mov		rbx, BASE
-	idiv		rbx
-	mpop		rbx
+	mpush		r10
+	mov		r10, BASE
+	div		r10
+	mpop		r10
 
 ;; Update CARRY with new value.
 	mov		r12, rax
@@ -699,6 +738,9 @@ biMul:
 
 	cmp		r11, r9
 	jl		.loop_j
+
+.carry:
+
 
 	inc		r10
 	cmp		r10, r8
@@ -1011,10 +1053,10 @@ _biSubDigits:
 	jge		.set_digit
 ;; If RAX < 0, make borrow = 1 and RAX += BASE
 	mov		r9, 1
-	push		rbx
-	mov		rbx, BASE
-	add		rax, rbx
-	pop		rbx
+	push		r10
+	mov		r10, BASE
+	add		rax, r10
+	pop		r10
 
 .set_digit:
 ;; Set current digit to result.
@@ -1031,6 +1073,97 @@ _biSubDigits:
 	mov		rax, r15
 
 	mpop		r15
+	ret
+
+
+;; Vector _biMulDigits(Vector src, Vector dst)
+;;
+;; Multiplies DST by SRC, creating new vector with result.
+;; Takes:
+;;	* RDI: pointer to SRC.
+;;	* RSI: pointer to DST.
+;; Returns:
+;;	* RAX: pointer to vector with result.
+_biMulDigits:
+	mpush		r12, r15
+
+	mpush		rdi, rsi
+	vector_size	rsi
+	mov		r9, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi, r9
+	vector_size	rdi
+	mov		r8, rax
+	mpop		rdi, rsi, r9
+
+	mov		rcx, r8
+	add		rcx, r9
+
+	mpush		rdi, rsi, rcx, r8, r9
+	vector_new	rcx
+	mpop		rdi, rsi, rcx, r8, r9
+
+	mov		r15, rax
+
+;; i loop counter over a.
+	xor		r10, r10
+.loop_i:
+;; j loop counter over b.
+	xor		r11, r11
+;; carry.
+	xor		r12, r12
+.loop_j:
+	mpush		rdi, rsi
+	vector_get	rsi, r11
+	mov		rcx, rax
+	mpop		rdi, rsi
+
+	mpush		rdi, rsi, rcx
+	vector_get	rdi, r10
+	mpop		rdi, rsi, rcx
+
+	xor		rdx, rdx
+	mul		rcx
+
+	mov		rcx, r10
+	add		rcx, r11
+	push		rcx
+
+	mpush		rax, rdx, rdi, rsi
+	vector_get	r15, rcx
+	mov		rcx, rax
+	mpop		rax, rdx, rdi, rsi
+
+	add		rax, rcx
+	adc		rdx, 0
+
+	add		rax, r12
+	adc		rdx, 0
+
+	mov		rcx, BASE
+	div		rcx
+
+	mov		r12, rax
+
+	mpush		rdi, rsi
+	vector_set	r15, [rsp + 16], rdx
+	mpop		rdi, rsi
+	add		rsp, 8
+
+	inc		r11
+	cmp		r11, r9
+	jl		.loop_j
+	cmp		r12, 0
+	jg		.loop_j
+
+	inc		r10
+	cmp		r10, r8
+	jl		.loop_i
+
+.mul_done:
+	mov		rax, r15
+	mpop		r12, r15
 	ret
 
 

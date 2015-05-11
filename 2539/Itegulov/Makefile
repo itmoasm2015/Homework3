@@ -35,7 +35,7 @@ vector_test.o: vector_test.cpp
 bigint_test.o: bigint_test.c
 	$(C) -o $@ -c $(C_OPTS) $^
 
-libhw.a: ivector.o bigint.o
+libhw.a: ivector.o bigint.o 
 	$(AR) rcs $@ $^
 
 ivector.o: ivector.asm

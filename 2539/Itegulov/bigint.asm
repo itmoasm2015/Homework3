@@ -21,6 +21,7 @@ extern vecFree
 extern vecEnsureCapacity
 extern vecExtend
 extern vecPush
+extern vecCopy
 
 global biFromInt
 global biFromString
@@ -35,8 +36,10 @@ global biDivRem
 
 ;;; Internal functions (for debug)
 global biUAdd
+global biUSub
 global biUCmp
 global biDump
+global biCopy
 
 ;;; bigint biAlloc(uint64 length)
 ;;; Allocates new bigint with specified length (in qwords).
@@ -284,7 +287,7 @@ biUCmp:
 	ret
 
 biCmp:
-	enter 0, 0
+	enter 8, 0
 
 	mov r8, [rdi + bigint.vector]
 	mov r9, [rsi + bigint.vector]
@@ -296,6 +299,7 @@ biCmp:
 	test rdx, rdx
 	jnz .nz
 
+	xor rax, rax
 	jmp .ret     ; zeros are equal
 
 .nz
@@ -325,6 +329,182 @@ biCmp:
 	ret
 
 
+biUSub:
+	enter 16, 0   ;; need 8 bytes to save first bigint (to shrink it's size later)
+	              ;; but need 8 more bytes for alignment
+	mov [rsp], rdi
+	mov rdi, [rdi + bigint.vector]
+	mov rsi, [rsi + bigint.vector]
+
+	mov r8, rdi
+	mov r9, [rsi + vector.size]
+
+	test r9, r9
+	jz .ret       ; do not subtract zero
+
+	mov rdi, [rdi + vector.data]
+	mov rsi, [rsi + vector.data]
+
+	xor rcx, rcx
+	xor rax, rax
+
+.loop
+	sahf
+	mov rax, [rdi + rcx * 8]
+	sbb rax, [rsi + rcx * 8]
+	mov [rdi + rcx * 8], rax
+	lahf
+
+	inc rcx
+	cmp rcx, r9
+	jb .loop
+
+	bt rcx, 8
+	jnc .shrink
+
+.loop2          ; we have carry and we need to something with it
+	mov rax, [rdi + rcx * 8]
+	test rax, rax
+	jz .continue
+	dec rax
+	mov [rdi + rcx * 8], rax
+	jmp .shrink
+.continue
+	sub rax, 1
+	mov [rdi + rcx * 8], rax
+	inc rcx
+	jmp .loop2
+
+.shrink
+	mov rdi, [rsp]
+	call biShrink
+.ret
+	leave
+	ret
+
+;;; void biAdd(bigint* first, bigint* second);
+;;; first += second
+;;; Doesn't ignore sign of bigints.
+biAdd:
+	enter 0, 0
+
+	mov rdx, [rdi + bigint.sign]
+	cmp rdx, [rsi + bigint.sign]
+	jne .different_signs
+
+	call biUAdd         ; we can simply add bigints by abs value if their signs are equal
+
+	jmp .ret
+
+.different_signs
+	push rdi
+	push rsi
+	call biUCmp         ; if |first| >= |second|,
+	pop rsi
+	pop rdi
+
+	jl .lesser
+	
+	call biUSub         ; then just first -= second
+	jmp .ret
+
+.lesser
+
+	push rdi            ; else we need second -= first
+	push rsi
+	mov rdi, rsi
+	call biCopy         ; so we'll copy second
+	pop rsi
+	pop rdi
+	
+	push rdi
+	push rax
+	mov rsi, rdi
+	mov rdi, rax
+	call biUSub         ; and second_copy -= first
+	pop rax
+	pop rdi
+
+	push rdi
+	push rsi
+	mov rsi, rax        ; now we need first = second_copy
+	call biAssign
+	pop rsi
+	pop rdi
+
+	;mov rdi, rax
+	;call free
+
+.ret
+	leave
+	ret
+	
+biAssign:
+	enter 0, 0
+
+	mov rdx, [rsi + bigint.sign]
+	mov [rdi + bigint.sign], rdx
+
+	mov rdx, [rsi + bigint.vector]
+	mov rcx, [rdi + bigint.vector]
+	mov [rdi + bigint.vector], rdx
+
+	mov rdi, rcx
+	call vecFree
+
+	leave
+	ret
+
+;;; void biShrink(bigint* big)
+;;; Removes leading zeros from passed bigint.
+biShrink:
+	enter 0, 0
+	
+	mov rdi, [rdi + bigint.vector]
+	mov rsi, [rdi + vector.data]
+	mov rdx, [rdi + vector.size]
+	test rdx, rdx
+	jz .ret
+	
+.loop
+	mov rax, [rsi + rdx * 8 - 8]
+	test rax, rax
+	jnz .end
+
+	dec rdx
+	test rdx, rdx
+	jnz .ret
+
+.end
+	mov [rdi + vector.size], rdx
+.ret
+	leave
+	ret
+
+;;; bigint* biCopy(bigint* big)
+;;; Copies passed bigint.
+biCopy:
+	enter 8, 0
+
+	push rdi
+	mov rdi, bigint_size
+	call malloc
+	pop rdi
+	mov rdx, [rdi + bigint.sign]
+	mov [rax + bigint.sign], rdx
+	push rax
+	mov rdi, [rdi + bigint.vector]
+	call vecCopy
+	pop rdi
+	mov [rdi + bigint.vector], rax
+	mov rax, rdi
+	leave
+	ret
+
+
+;;; void biDump(bigint* big)
+;;; Prints some information about passed bigint
+;;; (used for debug only).
 biDump:
 	enter 0, 0
 

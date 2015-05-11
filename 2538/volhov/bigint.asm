@@ -4,6 +4,7 @@
 .size   resd 1                  ; .size * 8 is size of .data
 .data   resq 1                  ; unsigned long int*
         endstruc
+
 %define bigint_size 16
 %define trailing_removed_after 0
 
@@ -44,8 +45,6 @@ global biCopy
 biCutTrailingZeroes:
         mov     r8, rdi
 
-        ;; return if it's 0
-
         ;; ecx -- number of trailing zeroes removed
         xor     rcx, rcx
         xor     rax, rax
@@ -65,7 +64,7 @@ biCutTrailingZeroes:
 
         .reallocate
         cmp     ecx, trailing_removed_after
-        jle     .return
+        jle     .nullcheck
 
         ;; allocate array of new size
         push    r8
@@ -94,11 +93,23 @@ biCutTrailingZeroes:
         pop     r10
         pop     r8
         mov     [r8+bigint.data], r10
-        jmp     .return
+        jmp     .nullcheck
         .free
         mov     dword[r8+bigint.sign], 0
         mov     rdi, r9
+        push    r8
         call    free
+        pop     r8
+
+        ;; set sign 0 if zero
+        .nullcheck
+        cmp     dword[r8+bigint.size], 1
+        jg      .return
+        mov     r9, qword[r8+bigint.data]
+        cmp     qword[r9], 0
+        jne     .return
+        mov     dword[r8+bigint.sign], 0
+
         .return
         ret
 
@@ -231,6 +242,102 @@ biDelete:
         pop     rdi
         .outer
         call    free
+        ret
+
+;;; BigInt biCopy(BigInt a);
+;;; get the deep copy of bigint
+biCopy:
+        ;; allocate memory for copy
+        push    rdi
+        mov     rdi, 16
+        call    malloc
+        ;; without this nop, rsp suddenly changes
+        ;; from 0x7fffffffdf10 to 0x7fffffffdf48
+        ;; (I suspect gdb to have bugs or something)
+        nop
+        pop     rdi
+        mov     r8, rax
+
+        ;; copy sign and size
+        mov     rax, qword[rdi]
+        mov     qword[r8], rax
+
+        ;; allocate the place for new array
+        push    rdi
+        push    r8
+        mov     r8, rdi
+        xor     rdi, rdi
+        mov     edi, dword[r8+bigint.size]
+        shl     rdi, 3
+        call    malloc
+        pop     r8
+        pop     rdi
+        mov     r10, rax
+
+        ;; place new .data to new bigint
+        mov     qword[r8+bigint.data], r10
+
+        ;; copy the data
+        mov     r9, [rdi+bigint.data]
+        xor     ecx, ecx
+        .loop
+        cmp     ecx, [rdi+bigint.size]
+        jge     .loop_end
+        mov     rax, qword[r9]
+        mov     qword[r10], rax
+        add     r9, 8
+        add     r10, 8
+        inc     ecx
+        jmp     .loop
+        .loop_end
+
+        mov     rax, r8
+        ret
+
+
+;;; void biAssign(BigInt a, BigInt b);
+;;; a := b
+biAssign:
+        ;; free a.data
+        push    rsi
+        push    rdi
+        mov     rdi, [rdi+bigint.data]
+        call    free
+        pop     rdi
+        pop     rsi
+
+        ;; malloc b.size*8 bytes space and place it to a.data
+        push    rsi
+        push    rdi
+        xor     rdi, rdi
+        mov     edi, dword[rsi+bigint.size]
+        shl     rdi, 3
+        call    malloc
+        pop     rdi
+        pop     rsi
+        mov     r10, rax
+
+        ;; place new .data to new bigint
+        mov     qword[rdi+bigint.data], r10
+
+        ;; copy sign and size
+        mov     rax, qword[rsi]
+        mov     qword[rdi], rax
+
+        ;; copy the data
+        mov     r9, [rsi+bigint.data]
+        xor     ecx, ecx
+        .loop
+        cmp     ecx, dword[rsi+bigint.size]
+        jge     .loop_end
+        mov     rax, qword[r9]
+        mov     qword[r10], rax
+        add     r9, 8
+        add     r10, 8
+        inc     ecx
+        jmp     .loop
+        .loop_end
+
         ret
 
 ;;; unsigned long int* biDump(BigInt x);
@@ -497,26 +604,95 @@ biAdd:
         add     eax, dword[rsi+bigint.sign]
         cmp     eax, 0
         je      .same_sign
-        cmp     eax, 0xffffffff
+        cmp     eax, 0xfffffffe
         je      .same_sign
         ;; There should be .min_plus and .plus_min implemented by biSubUnsigned
-        call    fail
+        jmp     .different_sign
 
-        .same_sign              ; if dst and src are the same sign, <sign(dst);|dst|+|src|> is OK
+        .same_sign              ; if dst and src are the same sign, <sign(dst);|dst|+|src|> is what we need
         call    biAddUnsigned
         ret
-        .min_plus
-        .plus_min
-        call    fail
+
+        ;; choose the type of addition: [(-dst) + src] or [dst + (-src)]
+        .different_sign
+        cmp     dword[rsi+bigint.sign], 0xffffffff
+        je      .plus_minus
+        jne     .minus_plus
+
+        ;; dst + (-src)
+        .plus_minus
+        ;; negate src
+        push    rdi
+        push    rsi
+        mov     rdi, rsi
+        call    biNegate
+        pop     rsi
+        pop     rdi
+
+        ;; subtract dst src
+        push    rsi
+        call    biSub
+        pop     rsi
+
+        ;; negate src back
+        mov     rdi, rsi
+        call    biNegate
+
+        ;; -dst + src
+        ;; temp = dst
+        ;; dst := src
+        ;; rax := dst - temp
+        ;; free temp
+        ;; return rax
+        .minus_plus
+        ;; copy destination to r8
+        push    rdi
+        push    rsi
+        call    biCopy
+        pop     rsi
+        pop     rdi
+        mov     r8, rax
+
+        ;; assign rdi := rsi
+        push    rdi
+        push    r8
+        call    biAssign
+        pop     r8
+        pop     rdi
+
+        ;; rsi = r8
+        mov     rsi, r8
+
+        ;; negate rsi
+        push    rdi
+        push    rsi
+        mov     rdi, rsi
+        call    biNegate
+        pop     rsi
+        pop     rdi
+
+        ;; perform subtraction
+        push    r8
+        call    biSub
+        pop     r8
+
+        ;; free temp
+        push    rax
+        mov     rdi, r8
+        call    biDelete
+        pop     rax
+        ret
+
 
 ;;; void biSubUnsigned(BigInt dst, BigInt src);
 ;;; should be true: |dst| > |src|
 ;;; |dst| -= |src|
 biSubUnsigned:
+        ;; delete this block after debug
         ;; fail if |dst| < |src|
         push    rdi
         push    rsi
-        call    biCmp
+        call    biCmpUnsigned
         pop     rsi
         pop     rdi
         cmp     rax, 0
@@ -551,7 +727,7 @@ biSubUnsigned:
         xor     rcx, rcx
         pushf
         .loop
-        cmp     ecx, r11d
+        cmp     ecx, r10d
         jge     .loop_end
         popf
         mov     rax, [r9+8*rcx]
@@ -579,12 +755,11 @@ biSub:
         add     eax, dword[rsi+bigint.sign]
         cmp     eax, 0
         je      .same_sign
-        cmp     eax, 0xffffffff
+        cmp     eax, 0xfffffffe
         je      .same_sign
-        ;; There should be .min_plus and .plus_min implemented by biSubUnsigned
-        call    fail
+        jmp     .different_sign
 
-        ;; if the sign is same, than swap if dest <
+        ;; if the sign is same, than compare; if |dst| < |src|, swap with temp var
         .same_sign
         push    rsi
         push    rdi
@@ -594,18 +769,101 @@ biSub:
         cmp     rax, 0
         jl      .same_sign_l
         jge     .same_sign_ge
+        ;; copy dst to temp, dst=src, dst = neg(dst), dst -= temp
         .same_sign_l
-        ;; must swap here
-        call    fail
+        ;; copy destination to r8
+        push    rdi
+        push    rsi
+        call    biCopy
+        pop     rsi
+        pop     rdi
+        mov     r8, rax
+
+        ;; assign rdi := rsi
+        push    rdi
+        push    r8
+        call    biAssign
+        pop     r8
+        pop     rdi
+
+        ;; rsi = r8
+        mov     rsi, r8
+
+        ;; negate rdi
+        push    rdi
+        push    rsi
+        call    biNegate
+        pop     rsi
+        pop     rdi
+
+        ;; perform subtraction
+        push    r8
+        call    biSubUnsigned
+        pop     r8
+
+        ;; free temp
+        push    rax
+        mov     rdi, r8
+        call    biDelete
+        pop     rax
+
+        ret
+        ;; if sign is the same, just perform subtraction
         .same_sign_ge
         call    biSubUnsigned
         ret
-        .min_plus
-        .plus_min
-        call    fail
+
+        ;; (-dst) - src; negate src, biAdd them (-dst + (-src)), restore src sign then
+        ;; dst - (-src); same actions
+        .different_sign
+        ;; negate src
+        push    rdi
+        push    rsi
+        mov     rdi, rsi
+        call    biNegate
+        pop     rsi
+        pop     rdi
+
+        ;; sum (-)dst, (-)src
+        push    rsi
+        call    biAdd
+        pop     rsi
+
+        ;; negate src back
+        mov     rdi, rsi
+        call    biNegate
+        ret
 
 ;;; void biMulShort(BigInt dst, unsigned long int src);
 biMulShort:
+        ;; extend size of dst by 1
+        push    rdi
+        push    rsi
+        mov     esi, dword[rdi+bigint.size]
+        inc     esi
+        call    biExpand
+        pop     rsi
+        pop     rdi
+
+        ;; perform multiplication
+        mov     r9, [rdi+bigint.data]
+        xor     r8, r8          ; saving carry here (that's in rdx after mul)
+        xor     rcx, rcx
+        clc
+        .loop
+        mov     rax, [r9]
+        mul     rsi
+        add     rax, r8         ; add carry
+        mov     r8, rdx
+        mov     [r9], rax
+        add     r9, 8
+        inc     ecx
+        cmp     ecx, [rdi+bigint.size]
+        jl      .loop
+
+        ;; normalize
+        call    biCutTrailingZeroes
+
         ret
 
 ;;; void biMul(BigInt dst, BigInt src);
