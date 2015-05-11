@@ -33,23 +33,26 @@ section .text
 ;;	* RAX: pointer to newly created vector.
 vectorNew:
 	push		rdi
+;; If size is less than DEFAULT_CAPACITY, make size be DEFAULT_CAPACITY
+;; (to avoid too small vectors).
 	cmp		rdi, DEFAULT_CAPACITY
 	jge		.round_up
 
 	mov		rdi, DEFAULT_CAPACITY
 
 .round_up:
+;; Round size up to next power of 2.
 	round_next_2_power	rdi
-
+;; Allocate memory for data.
 	push		rdi
 	mov		rsi, ELEM_SIZE
 	call		__calloc
 	push		rax
-
+;; Allocate memory for vector.
 	mov		rdi, 1
 	mov		rsi, Vector_size
 	call		__calloc
-
+;; Fill fields of vector.
 	pop		rdx
 	mov		[rax + Vector.data], rdx
 
@@ -60,6 +63,7 @@ vectorNew:
 	mov		[rax + Vector.size], rdx
 
 	ret
+
 
 ;; void vectorDelete(Vector v);
 ;;
@@ -125,6 +129,7 @@ vectorEnsureCapacity:
 .done:
 	ret
 
+
 ;; unsigned vectorGet(Vector v, size_t index);
 ;;
 ;; Returns INDEX'th element of VECTOR, or 0 if INDEX is out of bounds.
@@ -134,11 +139,12 @@ vectorEnsureCapacity:
 ;; Returns:
 ;;	* RAX: INDEX'th element of VECTOR, or 0 if index is out of bounds.
 vectorGet:
+;; Return zero if index is out of bounds.
 	cmp		rsi, 0
 	jl		.out_of_bounds
 	cmp		rsi, [rdi + Vector.size]
 	jge		.out_of_bounds
-
+;; Return data[index].
 	mov		rax, [rdi + Vector.data]
 	mov		rax, [rax + rsi * ELEM_SIZE]
 
@@ -156,11 +162,12 @@ vectorGet:
 ;; Returns:
 ;;	* RAX: last element of VECTOR.
 vectorBack:
+;; Return zero if index is out of bounds.
 	mov		rsi, [rdi + Vector.size]
 	cmp		rsi, 0
 	jle		.out_of_bounds
 	dec		rsi
-
+;; Return data[size - 1].
 	mov		rdi, [rdi + Vector.data]
 	mov		rax, [rdi + rsi * ELEM_SIZE]
 
@@ -168,6 +175,7 @@ vectorBack:
 .out_of_bounds:
 	xor		rax, rax
 	ret
+
 
 ;; void vectorSet(Vector v, size_t index, unsigned element);
 ;;
@@ -177,17 +185,19 @@ vectorBack:
 ;;	* RSI: INDEX.
 ;;	* RDX: value of ELEMENT.
 vectorSet:
+;; Do nothing if index is out of bounds.
 	cmp		rsi, 0
 	jl		.out_of_bounds
 	cmp		rsi, [rdi + Vector.size]
 	jge		.out_of_bounds
-
+;; Set data[index] to be ELEMENT.
 	mov		rax, [rdi + Vector.data]
 	mov		[rax + rsi * ELEM_SIZE], rdx
 
 	ret
 .out_of_bounds
 	ret
+
 
 ;;size_t vectorSize(Vector v);
 ;;
@@ -199,6 +209,7 @@ vectorSet:
 vectorSize:
 	mov		rax, [rdi + Vector.size]
 	ret
+
 
 ;;size_t vectorCapacity(Vector v);
 ;;
@@ -233,6 +244,7 @@ vectorEmpty:
 .done:
 	ret
 
+
 ;; void vectorPushBack(Vector v, unsigned element);
 ;;
 ;; Adds ELEMENT at the end of VECTOR.
@@ -241,12 +253,13 @@ vectorEmpty:
 ;;	* RDI: pointer to VECTOR.
 ;;	* RSI: value of ELEMENT.
 vectorPushBack:
+;; Check if vector can hold extra element, and expand it if not.
 	push		rdi
 	push		rsi
 	call		vectorEnsureCapacity
 	pop		rsi
 	pop		rdi
-
+;; Put element at the end and increment size.
 	mov		rax, [rdi + Vector.data]
 	mov		rcx, [rdi + Vector.size]
 	mov		[rax + rcx * ELEM_SIZE], rsi
@@ -262,10 +275,11 @@ vectorPushBack:
 ;; Takes:
 ;;	* RDI: pointer to VECTOR.
 vectorPopBack:
+;; Do nothing if vector is empty.
 	mov		rsi, [rdi + Vector.size]
 	cmp		rsi, 0
 	jle		.out_of_bounds
-
+;; Decrement size.
 	dec		rsi
 	mov		[rdi + Vector.size], rsi
 
@@ -311,7 +325,7 @@ vectorCopy:
 
 	pop		rdx
 	pop		rdi
-
+;; Fill fields.
 	mov		rcx, [rdi + Vector.size]
 	mov		[rax + Vector.size], rcx
 

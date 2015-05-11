@@ -4,8 +4,9 @@
 #include <stdlib.h>
 
 void biUAdd(BigInt, BigInt);
-int biUCmp(BigInt, BigInt);
+void biUSub(BigInt, BigInt);
 void biDump(BigInt);
+BigInt biCopy(BigInt);
 
 int main() {
 	BigInt big = biFromInt(100LL);
@@ -18,9 +19,19 @@ int main() {
 	biDump(two);
 	biDump(result);
 	biDump(negative);
-	assert(biUCmp(big, result) == 0);
-	assert(biUCmp(two, result) == -1);
-	assert(biUCmp(big, two) == 1);
+	assert(biCmp(big, result) == 0);
+	assert(biCmp(two, result) == -1);
+	assert(biCmp(big, two) == 1);
+	assert(biCmp(big, negative) == 1);
+	assert(biCmp(negative, two) == -1);
+	assert(biCmp(negative, negative) == 0);
+	biUSub(result, two);
+	assert(biCmp(result, biFromInt(100LL)) == 0); 
+	biDump(result);
+	BigInt temp = biCopy(result);
+	//assert(biCmp(temp, result) == 0);
+	biDump(temp);
+	biDelete(negative);
 	biDelete(result);
 	biDelete(big);
 	biDelete(two);

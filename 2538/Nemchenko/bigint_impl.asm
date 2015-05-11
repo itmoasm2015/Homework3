@@ -269,7 +269,7 @@ biDelete:
 
 ; int biSign(BigInt bi);
 biSign:
-    mov rax, [rdi + SIZE_FIELD]    
+    mov rax, [rdi + SIGN_FIELD]    
     ret
 
 ; void biAdd(BigInt dst, BigInt src);
@@ -920,16 +920,31 @@ add_short:
     mov  r10, [rdi + DATA_FIELD]      ; r10 = src->data
     .while_carry:
         add [r10], rsi                ; src->data[0] += num
-        jnc .end
         mov rsi, 0                    ; carry = 0
+        jnc .end_while
         adc rsi, 0                    ; carry = get_carry()
         add r10, SIZEOF_FLD
         sub rcx, 1
         jg .while_carry
+    .end_while:
 
     cmp  rsi, 0                       ; if (carry == 0) return
-    je .end                           ; else push_back(src, carry)
+    je .after_push                    ; else push_back(src, carry)
     call_fun_2 push_back, rdi, rsi
+    .after_push
+    cmp qword [rdi + SIGN_FIELD], 0         
+    jg .next
+    jl .next
+    mov qword [rdi + SIGN_FIELD], 1   ; if src->sign == 0: src->sign = 1;
+    jmp .end
+
+    .next 
+    cmp qword [rdi +SIZE_FIELD], 1    ;   if src->size == 1:
+    jg .end
+    mov rdi, [rdi + DATA_FIELD]       ;      if src->data[0] == 0:
+    cmp qword [rdi], 0                ;         
+    jne .end
+    mov qword [rdi + SIGN_FIELD], 0   ;        src->sign = 0
 
     .end
     ret
