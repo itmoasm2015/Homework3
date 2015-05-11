@@ -1,6 +1,14 @@
 ;;; bigint.asm
 ;;; Big Integers implementation.
-
+;;;
+;;; BigInt is implemented using auto-expanding vector from vector.asm.
+;;; It stores absolute value in vector's data as an array of uint64_t.
+;;; Sign is stored separately in extra field of vector structure: 0 - positive, 1 - negative.
+;;;
+;;; No leading zeroes are stored in bigint
+;;; Only one representation of zero is supported: vector of size 1 with 0 sign and 0 value in single cell.
+;;; This invariant is preserved by helper functions __clearTail and __validateZero
+              
 %include "macro.inc"
 %include "vector.inc"
 
