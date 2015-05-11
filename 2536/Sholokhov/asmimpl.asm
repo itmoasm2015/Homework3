@@ -5,6 +5,8 @@ section .text
 	extern malloc
 	extern free
 
+	global biCopy
+
 	global biFromInt
 	global biFromString
 	global biToString
@@ -491,6 +493,7 @@ biSubMod:	syspush
 		cmp	qword[r9], 0
 		jne	.end
 		call	biPop
+		jmp	.to_end
 .end		syspop
 		ret
 
