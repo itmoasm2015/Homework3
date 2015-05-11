@@ -35,6 +35,12 @@ BigInt scan(int n) {
 int n;
 int main()
 {
+	BigInt a = biFromString("+123456780000000000000000000000000000000");
+	if (a == 0)
+		cerr << 0 << "\n";
+	else 
+		print(a);
+	return 0;
 	freopen("test.in", "r", stdin);
 	freopen("test.out", "w", stdout);
 	scanf("%d", &n);
