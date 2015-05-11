@@ -12,6 +12,7 @@ extern free
 global vectorNew
 global vectorNewRaw
 global vectorCopy
+global vectorCopyTo
 global vectorDelete
 global vectorSize
 global vectorResize
@@ -29,12 +30,12 @@ global vectorSet
 ;; @param  RSI fillVal -- an int64_t which will be stored in every vector cell
 ;; @return RAX Pointer on the vector struct
 vectorNew:
-              push  rdi
+              mpush rsi, rdi        ; Store RDI and RSI because they are going to be spoiled
               call  vectorNewRaw
 
-              pop   rcx             ; Get the length of vector to RCX
-              lea   rdi, [rax + vector.data]
-
+              mpop  rsi, rcx        ; Get the capacity of vector to RCX
+              GET_DATA rdi, rax     ; Store vector data pointer in RDI
+              
               cld                   ; Clear dir flag just in case
               push  rax
               mov   rax, rsi        ; Fill values
@@ -53,11 +54,21 @@ vectorNew:
 ;; @return RAX Pointer on the vector struct
 vectorNewRaw:
               push  rdi
-              lea   rdi, [rdi*8 + vector_size]
-              ALIGNED_CALL malloc
+              mov   rdi, vector_size
+              ALIGNED_CALL malloc   ; Allocate space for vector itself
 
-              pop   rdi             ; Set 0 size, 0 sign and given capacity
-              mov   qword [rax + vector.size], 0
+              pop   rdi             ; Restore given capacity
+              push  rdi
+              
+              lea   rdi, [rdi*8]    ; Get number of bytes to alloc
+              push  rax
+              ALIGNED_CALL malloc   ; Allocate space for vector data
+
+              mpop  rdi, r8        
+              SET_DATA r8, rax      ; Write the data pointer to vector structure
+              mov   rax, r8
+              
+              mov   qword [rax + vector.size], 0 ; Set 0 size, 0 sign and given capacity
               mov   qword [rax + vector.sign], 0
               mov   [rax + vector.capacity], rdi
 
@@ -75,21 +86,58 @@ vectorCopy:
               push  rdi
               mov   rdi, [rdi + vector.capacity]
               call  vectorNewRaw    ; Allocate the vector of the same capacity
-
+              
               pop   rsi
               mov   rdi, rax        ; because RSI is source, and RDI is destination
 
-              push  rax             ; Save copy address
-              mov   rcx, [rsi + vector.size]
+              mov   r8, [rsi + vector.size] ; Save size in R8 for a while
+              mov   rcx, 3          ; Copy all metadata, except data pointer
 
-              add   rcx, vector_size / 8 ; RCX = orig.size()*8 + sizeof(vector) -- count of bytes which store all the vector data
-             
-              cld                   ; Clear dir flag just in case
+              mpush rdi, rsi
+              cld
+              rep   movsq           ; Metadata copied, RSI and RDI are now pointing on data pointers
+
+              mpop  rdi, rsi
+              
+              GET_DATA rdi, rdi
+              GET_DATA rsi, rsi
+              mov   rcx, r8
+              
               rep   movsq
-
-              pop   rax
               ret
               
+;; @cdecl64
+;; void vectorCopyTo(Vector dst, Vector src);
+;;
+;; Assignment operator. Copies contents from SRC to DST
+;;
+;; @param  RDI dst  -- destination vector
+;; @param  RSI src  -- source vector
+;; @saves  RDI
+vectorCopyTo:
+              mpush rdi, rsi
+              mov   rsi, [rsi + vector.size]
+              call  vectorResize    ; Set dst.size = src.size
+
+              mov   r8, rsi         ; Store vector size in R8
+              pop   rsi
+
+              mov   rcx, 3          ; Copy all metadata but data pointer
+
+              mpush rdi, rsi
+              cld
+              rep   movsq           ; Metadata copied, RSI and RDI are now pointing on data pointers
+              mpop  rdi, rsi
+
+              GET_DATA rdi, rdi
+              GET_DATA rsi, rsi
+              mov   rcx, r8
+              rep   movsq           
+              
+              pop   rdi             ; We save RDI for convenience
+              ret
+
+
 ;; @cdecl64
 ;; void vectorDelete(Vector vec)
 ;;
@@ -97,7 +145,12 @@ vectorCopy:
 ;;
 ;; @param  RDI vec -- vector to free
 vectorDelete:
+              push  rdi
+              GET_DATA rdi, rdi     ; Free vector data
               ALIGNED_CALL free
+              
+              pop   rdi
+              ALIGNED_CALL free     ; and vector itself
               ret
 
 ;; @cdecl64
@@ -118,9 +171,10 @@ vectorSize:
 ;;
 ;; @param  RDI vec
 ;; @param  RSI i
-;; @return RAX Vector size
+;; @return RAX Vector element
 vectorGet:
-              mov   rax, [rdi + rsi*8 + vector.data]
+              GET_DATA rax, rdi
+              mov   rax, [rax + rsi*8]
               ret
 
 ;; @cdecl64
@@ -131,20 +185,20 @@ vectorGet:
 ;; @param  RDI vec
 ;; @param  RSI i
 ;; @param  RDX val
-;; @return RAX Vector size
 vectorSet:
-              mov   [rdi + rsi*8 + vector.data], rdx
+              GET_DATA rax, rdi
+              mov   [rax + rsi*8], rdx
               ret
 
 ;; @cdecl64
-;; Vector vectorResize(Vector vec, unsigned int newSize, int64_t tailFill);
+;; void vectorResize(Vector vec, unsigned int newSize, int64_t tailFill);
 ;;
-;; Resizes a vector, reallocating if necessary
+;; Resizes a vector, reallocating data if necessary
 ;;
-;; @param  RDI vec     -- vector to resize
-;; @param  RSI newSize -- new size
+;; @param  RDI vec      -- vector to resize
+;; @param  RSI newSize  -- new size
 ;; @param  RDX tailFill -- an int64_t to fill the rest of resized vector
-;; @return RAX Address of resized vector
+;; @saves RDI, RSI, RDX
 vectorResize:
               CDECL_ENTER 0, 0
               mov   r12, [rdi + vector.size]     ; size
@@ -154,25 +208,31 @@ vectorResize:
               jle   .assign_size    ; and reallocate vector, if so
 
               mpush rdx, rsi, rdi
-              lea   rdi, [rsi*2]
-              call  vectorNewRaw    ; Allocate a bigger vector
+              lea   rsi, [rsi*2]
+              mov   [rdi + vector.capacity], rsi ; Save new capacity (newSize*2)
+              
+              lea   rdi, [rsi*8]    ; Get number of bytes to allocate (newSize*2*sizeof(uint64_t))
+              ALIGNED_CALL malloc   ; Allocate a bigger data space
 
               pop   rdi             ; Seems weird, but we actually need to restore initial RDI
               push  rdi
 
-              lea   rsi, [rdi + vector.data] ; Prepare pointers for copying
-              lea   rdi, [rax + vector.data]
+              GET_DATA rsi, rdi     ; Prepare pointers for copying
+              mov   rdi, rax
               mov   rcx, r12        ; the old size is in RCX
 
               cld                   ; Copy data
               rep   movsq
 
               pop   rdi             ; Clear old vector
-              push  rax
-              call  vectorDelete
+              push  rdi
+              GET_DATA rdi, rdi
+              
+              push  rax             ; Save new data address
+              ALIGNED_CALL free     ; Free old data            
 
-              pop   rax
-              mov   rdi, rax        ; Point RDI to new vector and restore passed size in RSI
+              mpop  rdi, rax
+              SET_DATA rdi, rax     ; Point data pointer on new data
               mpop  rdx, rsi
 .assign_size:
               mov   [rdi + vector.size], rsi
@@ -180,7 +240,8 @@ vectorResize:
               jle   .return
 
               push  rdi             ; Prepare pointers for tail filling
-              lea   rdi, [rdi + r12*8 + vector.data]
+              GET_DATA rdi, rdi
+              lea   rdi, [rdi + r12*8]
               mov   rcx, rsi
               sub   rcx, r12
 
@@ -189,7 +250,6 @@ vectorResize:
               rep   stosq
               pop   rdi
 .return:
-              mov   rax, rdi        ; Return vector address in RAX
               CDECL_RET
 
 
@@ -200,7 +260,7 @@ vectorResize:
 ;;
 ;; @param  RDI vec  -- vector to append to
 ;; @param  RSI val  -- value to append
-;; @return RAX Address of altered vector
+;; @saves  RDI
 vectorAppend:
               mov   rdx, [rdi + vector.size]
               inc   rdx
