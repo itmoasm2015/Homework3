@@ -8,7 +8,6 @@ global biFromInt        ;; DONE
 global biFromString     ;; TODO
 
 global biAllocate       ;; DONE
-global biGrowCapacity   ;; DONE
 global biDelete         ;; DONE
 
 global biMulBy2         ;; DONE 
@@ -19,15 +18,22 @@ global biSub            ;; DONE (TODO: test it better)
 global biMul            ;; TODO
 global biCmp            ;; TODO
 global biSign           ;; DONE
+
 global biDivRem         ;; TODO
 
 global biToString       ;; TODO
 
+
 ;;; biginteger is represented in two's complement system
-;;; biginteger stored as a tupple:
-;;; (lenght in dwords, capacity, pointer to array of unsigned integers)
+;;; biginteger stored as a tuple:
 ;;; 
-;;; typedef (void *) BigInt
+;;; struct BigIntRepresentation {
+;;;   int64_t *data;    /* not null */
+;;;   size_t size;      /* size > 0 */
+;;;   size_t capacity;  /* capacity >= size */
+;;; }
+;;; typedef (BigIntRepresentation *) BigInt
+
 
 %define DATA 0
 %define SIZE 8
@@ -90,6 +96,7 @@ global biToString       ;; TODO
  
 
 section .text
+
 
 ; BigInt biAllocate(uint capacity);
 ; allocates memory for capacity-digits BigInt 
@@ -197,6 +204,7 @@ biGrowCapacity:
 
         .return:
             ret 
+
 
 ; void biEnsureCapacity(BigInt x, size_t capacity);
 ; x in RDI
@@ -327,7 +335,7 @@ biAdd:
           .right_value_in_rax:
             cmp rdx, r8
             je .ready
-            jb .wtf
+            ; else dst->size < RDX
 
         .fill_loop: ; for R8 from dst->size up to RDX (new size): dst->data[R8] = RAX
             mov [r9 + 8 * r8], rax
@@ -373,23 +381,9 @@ biAdd:
             inc rcx
             jmp .add_remainder_loop
             
-;            dec rcx
-;        .add_carry_loop: ; while RCX < dst->size and carry flag is set
-;            inc rcx
-;            cmp rcx, r8
-;            jae .return
-;
-;            add qword [r9 + 8 * rcx], 1
-;            jc .add_carry_loop
-
         .return:
             pop rbp
             pop rbx
-            ret
-
-        .wtf:
-            xor rdi, rdi
-            xor rsi, rsi
             ret
 
 
@@ -437,47 +431,47 @@ biInc:
             inc rcx
             cmp rcx, r8
             ja .return
-;            xor r11, r11
-;            add [rdx + 8 * rcx - 8], r10
-;            adc r11, 0
-;            mov r10, r11
-;            jne .inc_loop
-            add qword [rdx + 8 * rcx - 8], 1
-;            mov rax, [rdx + 8 * rcx - 8] 
-;            inc rax
-;            mov [rdx + 8 * rcx - 8], rax ; inc x->data[RCX - 1]
+            add qword [rdx + 8 * rcx - 8], 1 ; why INC does not change CF?..
             jc .inc_loop
 
         .return:
             ret
+
+
+; void biNegate(BigInt x);
+; x = -x = (~x) + 1
+; x in RDI
+biNegate:
+            push rdi
+            call biNot
+            pop rdi
+            push rdi
+            call biInc
+            pop rdi
+            ret
+
 
 ; void biSub(BigInt dst, BigInt src);
 ; dst -= src
 ; dst in RDI
 ; src in RSI
 biSub:      
-            ; let src := -src = (~src) + 1 [in two's complement representation]
-        %macro negate_src 0
+            ; dst -= src <==> dst += (-src)
             push rdi
             push rsi
             mov rdi, rsi
-            call biNot
-            pop rdi
-            push rdi
-            call biInc
-            pop rsi
-            pop rdi
-        %endmacro
-            negate_src
-            ; now we can just call biAdd(dst, src)
-            push rdi
-            push rsi
+            call biNegate
+
+            mov rsi, [rsp]
+            mov rdi, [rsp + 8]
             call biAdd
+
+            mov rdi, [rsp]
+            call biNegate ; return src to initial value
             pop rsi
             pop rdi
-            ; and finally return src to initial value
-            negate_src
             ret
+
 
 biMul:      ret
 biCmp:      ret
@@ -504,4 +498,7 @@ biSign:
 
 biDivRem:   ret
 biToString: ret
+
+biTrim:     ret
+biNormalize:ret
 

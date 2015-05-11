@@ -10,7 +10,6 @@
 extern "C" {
 #endif
 
-void biGrowCapacity(BigInt x, size_t new_capacity);
 void biMulBy2(BigInt x);
 void biNot(BigInt x);
 void biInc(BigInt x);
@@ -19,7 +18,7 @@ void biInc(BigInt x);
 }
 #endif
 
-struct BigIntMask {
+struct BigIntRepresentation {
   int64_t *data;
   size_t size;
   size_t capacity;
@@ -28,7 +27,7 @@ struct BigIntMask {
 #define dump(x) fprintf(stderr, "%s: ", #x); dump_(x)
 
 void dump_(BigInt xx, FILE *stream = stderr) {
-  BigIntMask *x = (BigIntMask *) xx;
+  BigIntRepresentation *x = (BigIntRepresentation *) xx;
   fprintf(stream, "BigInt: size = %zd, capacity = %zd, elements:\n ", x->size, x->capacity);
   for (int i = (int) x->size - 1; i >= 0; --i) {
     for (int bit = 63; bit >= 0; --bit) {

@@ -9,9 +9,6 @@ global free
 extern biAllocate
 global _biAllocate
 
-extern biGrowCapacity
-global _biGrowCapacity
-
 extern biFromInt
 global _biFromInt
 extern biFromString
@@ -47,7 +44,6 @@ calloc:         jmp _calloc
 free:           jmp _free
 
 _biAllocate:    jmp biAllocate
-_biGrowCapacity:jmp biGrowCapacity 
 _biFromInt:     jmp biFromInt
 _biFromString:  jmp biFromString
 _biDelete:      jmp biDelete

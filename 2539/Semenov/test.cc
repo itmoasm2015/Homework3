@@ -14,7 +14,7 @@ void test_constructor_and_destructor(const int iterations = 1, bool verbose = fa
   if (verbose) DEBUG("Constructor and destructor testing (%d iterations)\n", iterations); 
   for (int i = 0; i < iterations; ++i) {
     int64_t val = (int64_t) rng();
-    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(val);
     assert (foo != nullptr);
     assert (foo->size == foo->capacity && foo->size == 1);
     assert (foo->data[0] == val);
@@ -26,24 +26,10 @@ void test_sign(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("Sign testing (%d iterations)\n", iterations);
   for (int i = 0; i < iterations; ++i) {
     int64_t val = (int64_t) rng();
-    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(val);
     int real_sign = val < 0 ? -1 : val > 0 ? 1 : 0;
     int sign = biSign(foo);
     assert (real_sign == sign);
-    biDelete(foo);
-  }
-}
-
-void test_grow_capacity(const int iterations = 1, bool verbose = false) {
-  if (verbose) DEBUG("biGrowCapacity testing (%d iteratinos)\n", iterations);
-  for (int i = 0; i < iterations; ++i) {
-    int64_t val = (int64_t) rng();
-    BigIntMask *foo = (BigIntMask *) biFromInt(val);
-    biGrowCapacity(foo, size_t(42 + i));
-    assert (foo != nullptr);
-    assert (foo->size == 1);
-    assert (foo->capacity == size_t(42 + i));
-    assert (foo->data[0] == val);
     biDelete(foo);
   }
 }
@@ -53,7 +39,7 @@ void test_mul_by_two(const int iterations = 1, bool verbose = false) {
   
   for (int i = 0; i < iterations; ++i) {
     int64_t val = (int64_t) rng() / 2;
-    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(val);
     biMulBy2(foo);
     assert (foo != nullptr);
     assert (foo->size == 1);
@@ -67,7 +53,7 @@ void test_mul_by_two_large(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("biMulBy2 large testing (%d iteratinos)\n", iterations);
   int64_t val = (1 << 13) - 1;
   for (int it = 0; it < 2; ++it) {
-    BigIntMask *foo = (BigIntMask *) biFromInt(val);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(val);
     for (int pow = 1; pow <= iterations; ++pow) {
       size_t msb(pow + 12);
       biMulBy2(foo);
@@ -87,8 +73,8 @@ void test_add(const int iterations = 1, bool verbose = false) {
   for (int it = 0; it < iterations; ++it) {
     int64_t first = (int64_t) rng() % (1LL << 60);
     int64_t second = (int64_t) rng() % (1LL << 60);
-    BigIntMask *foo = (BigIntMask *) biFromInt(first);
-    BigIntMask *bar = (BigIntMask *) biFromInt(second);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(first);
+    BigIntRepresentation *bar = (BigIntRepresentation *) biFromInt(second);
     biAdd(foo, bar);
     assert (foo != nullptr && bar != nullptr);
     assert (foo->size == 1 && bar->size == 1);
@@ -105,15 +91,15 @@ void test_not(const int iterations = 1, bool verbose = false) {
   const int BUBEN = 100;
   for (int it = 0; it < iterations; ++it) {
     int64_t first = (int64_t) rng();
-    BigIntMask *foo = (BigIntMask *) biFromInt(first);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(first);
     for (int _ = 0; _ < BUBEN; ++_) {
       int64_t second = (int64_t) rng();
-      BigIntMask *bar = (BigIntMask *) biFromInt(second);
+      BigIntRepresentation *bar = (BigIntRepresentation *) biFromInt(second);
       biAdd(foo, bar);
       assert (foo != nullptr && bar != nullptr);
       assert (bar->size == 1 && bar->capacity == 1);
       assert (bar->data[0] == second);
-      BigIntMask *baz = (BigIntMask *) biFromInt(0);
+      BigIntRepresentation *baz = (BigIntRepresentation *) biFromInt(0);
       biAdd(baz, foo); // baz = biClone(foo), TODO: biClone
       biNot(foo);
       biNot(foo);
@@ -126,10 +112,10 @@ void test_not(const int iterations = 1, bool verbose = false) {
 }
  
 void test_inc_case(int64_t val) {
-  BigIntMask *foo = (BigIntMask *) biFromInt(val);
-  BigIntMask *bar = (BigIntMask *) biFromInt(0);
+  BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(val);
+  BigIntRepresentation *bar = (BigIntRepresentation *) biFromInt(0);
   biAdd(bar, foo);
-  static BigIntMask *one = (BigIntMask *) biFromInt(1);
+  static BigIntRepresentation *one = (BigIntRepresentation *) biFromInt(1);
 //  dump(foo);
 //  dump(bar);
   biInc(foo);
@@ -147,18 +133,18 @@ void test_inc_case(int64_t val) {
 void test_inc(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("biInc testing (%d iterations)\n", iterations);
   const int BUBEN = 100;
-  BigIntMask *one = (BigIntMask *) biFromInt(1);
+  BigIntRepresentation *one = (BigIntRepresentation *) biFromInt(1);
   for (int it = 0; it < iterations; ++it) {
     int64_t first = (int64_t) rng();
     int64_t second = (int64_t) rng();
-    BigIntMask *foo = (BigIntMask *) biFromInt(first);
-    BigIntMask *bar = (BigIntMask *) biFromInt(second);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(first);
+    BigIntRepresentation *bar = (BigIntRepresentation *) biFromInt(second);
     for (int _ = 0; _ < BUBEN; ++_) {
       biAdd(foo, bar);
       assert (foo != nullptr && bar != nullptr);
       assert (bar->size == 1 && bar->capacity == 1);
       assert (bar->data[0] == second);
-      BigIntMask *baz = (BigIntMask *) biFromInt(0);
+      BigIntRepresentation *baz = (BigIntRepresentation *) biFromInt(0);
       biAdd(baz, foo); // baz = biClone(foo), TODO: biClone
       biInc(foo);
       biAdd(baz, one);
@@ -178,8 +164,8 @@ void test_sub(const int iterations = 1, bool verbose = false) {
   for (int it = 0; it < iterations; ++it) {
     int64_t first = (int64_t) rng() % (1LL << 60);
     int64_t second = (int64_t) rng() % (1LL << 60);
-    BigIntMask *foo = (BigIntMask *) biFromInt(first);
-    BigIntMask *bar = (BigIntMask *) biFromInt(second);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(first);
+    BigIntRepresentation *bar = (BigIntRepresentation *) biFromInt(second);
     biSub(foo, bar);
     assert (foo != nullptr && bar != nullptr);
     assert (foo->size == 1 && bar->size == 1);
@@ -195,7 +181,6 @@ int main() {
   test_inc_case(-4858338985614885836);
   test_constructor_and_destructor(100, true);
   test_sign(100, true);
-  test_grow_capacity(100, true);
   test_mul_by_two(1000, true);
   test_mul_by_two_large(1000, true);
   test_add(100, true);
