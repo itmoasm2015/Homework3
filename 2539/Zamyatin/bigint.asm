@@ -21,14 +21,28 @@ DIGIT 	equ 	1000000000
 ; int*: data
 ; one digit - 10^9
 
+myFree:
+	push 	0
+	mov 	rax, rsp
+	and 	rax, -32
+	sub 	rax, rsp
+	add 	rsp, rax
+	mov 	[rsp], rax
+	call 	free
+	pop 	rdi
+	sub 	rsp, rdi
+	ret
+
 
 checkString:
+	mov 	rsi, 0
 	cmp 	byte [rdi], '-'
 	jne 	.checkPlusSign
 		inc 	rdi
 		jmp 	.noSign
 	.checkPlusSign:
 	cmp 	byte [rdi], '+'
+		je 		.nok
 		jne 	.noSign
 		inc 	rdi
 	.noSign:
@@ -40,8 +54,11 @@ checkString:
 		cmp 	byte[rdi], '9'
 		jg 		.nok
 		inc 	rdi
+		inc 	rsi
 		jmp 	.loop
 	.ok:
+		cmp 	rsi, 0
+		je  	.nok
 		mov 	rax, 1
 		ret
 	.nok:
@@ -109,7 +126,18 @@ biDivRem:
 allocate:
 	sub 	rsp, 16
 	mov 	[rsp], rdi ; store bigint
+	
+	push 	0
+	mov 	rax, rsp
+	and 	rax, -32
+	sub 	rax, rsp
+	add 	rsp, rax
+	mov 	[rsp], rax
 	call 	malloc
+	pop 	rdi
+	sub 	rsp, rdi
+
+
 	mov 	rdi, [rsp] ; take bigint
 	add 	rsp, 16
 	.loop: ; fill zeroes
@@ -126,10 +154,10 @@ biFromInt:
 	sub 	rsp, 16
 	mov  	[rsp + 8], rdi
 	mov 	rdi, 16
-	call 	malloc
+	call 	allocate
 	mov 	[rsp], rax
 	mov 	rdi, 16
-	call 	malloc
+	call 	allocate
 	mov 	rdi, 0
 	mov 	[rax], rdi
 	mov 	[rax + 8], rdi
@@ -184,9 +212,9 @@ biDelete:
 	sub 	rsp, 16
 	mov 	[rsp], rdi
 	mov 	rdi, [rdi + 8]
-	call 	free
+	call 	myFree
 	mov 	rdi, [rsp]
-	call 	free
+	call 	myFree
 	add 	rsp, 16
 	ret
 ;=============
@@ -254,8 +282,14 @@ biCmp:
 		mov 	rax, 0
 		ret
 ;=============
-; makes string. don't put zero at end of string. you should care about zero at the end.
+; makes string. puts zero at the end
 biToString:
+	cmp 	rdx, 0
+	jne  	.ok
+		ret 
+	.ok:
+	dec 	rdx
+
 	push 	rdi
 	push 	rsi
 	call 	biTrim
@@ -285,21 +319,25 @@ biToString:
 	mov 	eax, dword [rdi + r8]
 	mov 	r11, 0
 	.loop2: ; handle first digit, to trims zeroes from one digit
-		cmp 	r9, 0
-		je 		.finish2
+		;cmp 	r9, 0
+		;je 		.finish2
 		mov 	rdx, 0
 		div 	r10
 		add 	rdx, 	'0'
 		push 	rdx
 		inc 	r11
-		dec 	r9
+		;dec 	r9
 		cmp 	rax, 0
 		jg 	.loop2
 	.finish2:
 
 	.loop3: ; for reversed order
 		pop 	rax
+		cmp 	r9, 0
+		jle 	.noMov1
 		mov 	byte [rsi], al
+		.noMov1:
+		dec 	r9
 		inc 	rsi
 		dec 	r11
 		cmp 	r11, 0
@@ -307,7 +345,7 @@ biToString:
 	
 	.loop: ; make string, r9 - limit, r8 - length of number
 		cmp 	r9, 0
-		je 		.return
+		jle 	.return
 		cmp 	r8, 0
 		je 		.finish
 		sub 	r8, 4
@@ -324,14 +362,18 @@ biToString:
 			div 	r10
 			add 	rdx, 	'0'
 			dec 	rcx
+			cmp 	rcx, r9
+			jge 	.noMov
 			mov 	byte [rsi + rcx], dl
-			dec 	r9
+			.noMov:
+			;dec 	r9
 			jmp 	.loop1
 		.finish1:
+		sub 	r9, 9
 		add 	rsi, 9
 		jmp 	.loop
 	.finish:
-		
+	mov 	byte [rsi], 0	
 	.return:
 		pop 	r10
 		pop 	r11
@@ -456,7 +498,7 @@ biSubAbs:
 		pop 	r10
 		pop 	r12
 		pop 	r13
-		call 	free
+		call 	myFree
 		ret
 ;=============
 ; add two bigints. answer is x, where x = |a| + |b|
@@ -548,7 +590,7 @@ biAddAbs:
 		inc 	r12
 	.ook:
 	pop 	rdi
-	call 	free
+	call 	myFree
 	pop 	rdi
 	mov	 	dword [rdi + 4], r12d
 	pop 	r12
@@ -679,7 +721,7 @@ biMulShort:
 	mov 	dword [rcx], r11d
 	pop 	rdi
 	push 	r11
-	call 	free
+	call 	myFree
 	pop 	r11
 	pop 	rdi
 	cmp 	r11d, 0
@@ -739,7 +781,7 @@ biCopy:
 	mov 	eax, dword [rdi + 4]
 	shl 	eax, 2
 	mov 	rdi, rax
-	call 	malloc
+	call 	allocate
 	pop 	rsi
 	pop 	rdi
 	mov 	[rsi + 8], rax
@@ -835,9 +877,9 @@ biMul:
 	mov 	rsi, [r13 + 8]
 	mov 	[rdi + 8], rsi
 	mov	 	rdi, r9
-	call 	free
+	call 	myFree
 	pop 	rdi 
-	call 	free
+	call 	myFree
 	pop 	r13
 	pop 	r12
 	pop 	r10

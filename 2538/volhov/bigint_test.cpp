@@ -20,6 +20,7 @@ extern "C" {
     void biCutTrailingZeroes(BigInt a);
     void biAddUnsigned(BigInt a, BigInt b);
     void biSubUnsigned(BigInt a, BigInt b);
+    void biMulShort(BigInt a, unsigned long int b);
     void biNegate(BigInt a);
 }
 
@@ -241,16 +242,40 @@ void test_add_signed(bool verbose = false) {
     success;
 }
 
-int main() {
-    //int ia = 277;
-    //int ib = 415;
-    //cout << ia << " " << ib << endl;
-    //BigInt a = biFromInt(ia);
-    //BigInt b = biFromInt(ib);
-    //biSub(a, b);
-    //dump(a);
-    //BigInt temp = biFromInt(ia - ib);
+void test_mul_short() {
+    // stage 1
+    int ia = 277;
+    BigInt a = biFromInt(ia);
+    BigInt b = biFromInt(ia);
+    biMulShort(a, 10000000);
+    biMulShort(a, 10000000);
+    biMulShort(a, 10000000);
+    biMulShort(a, 10000000);
+    biMulShort(b, 10000);
+    biMulShort(b, 10000);
+    biMulShort(b, 10000);
+    biMulShort(b, 10000);
+    biMulShort(b, 10000);
+    biMulShort(b, 10000);
+    biMulShort(b, 10000);
+    assert(biCmp(a, b) == 0);
+    biDelete(a);
+    biDelete(b);
+    //stage 2
+    for (int i =0 ; i < 200000; i++) {
+        unsigned long int ia = rand() % 10000;
+        unsigned long int ib = rand() % 10000;
+        BigInt temp = biFromUInt(ia);
+        biMulShort(temp, ib);
+        BigInt expected = biFromUInt(ia * ib);
+        assert(biCmp(temp, expected) == 0);
+        biDelete(temp);
+        biDelete(expected);
+    }
+    success;
+}
 
+int main() {
     test_copy();
     test_sign();
     test_expand();
@@ -263,4 +288,5 @@ int main() {
     test_unsigned_add_sub();
     test_sub_signed();
     test_add_signed();
+    test_mul_short();
 }

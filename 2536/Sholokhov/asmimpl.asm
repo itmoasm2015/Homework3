@@ -819,6 +819,7 @@ biToString:	syspush
 		pop	rdx
 		cmp	rbx, rdx
 		jle	.reverse_loop
+		dec	rdx
 		xchg	rbx, rdx
 		
 .reverse_loop	cmp	rbx, 0				;; проходимся по промежуточному буферу в обратном порядке и копируем посимвольно в buf.

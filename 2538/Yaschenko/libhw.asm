@@ -282,7 +282,7 @@ biSign:
 ;;	* RDX: max number of chars.
 biToString:
 ;; These macros are used only in this function, so don't move it to macros file.
-
+;;
 ;; Writes byte %3 to [%1 + %2].
 %macro write_byte 3
 	mov		byte [%1 + %2], %3
@@ -330,9 +330,9 @@ biToString:
 
 .non_zero:
 
-	mpush		rbx, rdx
+	mpush		r10, rdx
 
-	mov		rbx, BASE / 10
+	mov		r10, BASE / 10
 
 ;; R8 holds boolean flag meaning that digits have started (first non-zero digit was written).
 ;; It's needed to not skip zeros after first non-zero written digit (since remainder after 10-division is checked).
@@ -341,7 +341,7 @@ biToString:
 ;; Prints out highest digit of Bigint.
 .first_digit_loop:
 	xor		rdx, rdx
-	div		rbx
+	div		r10
 
 	cmp		r8, 0
 	jne		.write_digit
@@ -359,7 +359,7 @@ biToString:
 	inc		rcx
 
 .skip_write:
-	div10		rbx
+	div10		r10
 
 	mov		rax, rdx
 
@@ -370,11 +370,11 @@ biToString:
 	check_limits 	rcx, rdx
 	sub		rsp, 16
 
-	cmp		rbx, 0
+	cmp		r10, 0
 	jg		.first_digit_loop
 
 .first_digit_done:
-	mpop		rbx, rdx
+	mpop		r10, rdx
 ;; Process the rest digits of Bigint.
 ;; Unlike first digit, these digits are divided fixed number of times (BASE_LEN)
 ;; since we want all the digits, eve leading zeros.
@@ -392,21 +392,21 @@ biToString:
 	vector_get 	[rdi + Bigint.vector], r8
 	mpop		rdi, rsi, rcx, rdx
 
-	mpush		rbx, rdx
+	mpush		r10, rdx
 
-	mov		rbx, BASE / 10
+	mov		r10, BASE / 10
 
 	mov		r9, BASE_LEN
 .cur_digit_loop:
 	dec		r9
 	xor		rdx, rdx
-	div		rbx
+	div		r10
 
 	add		rax, 48
 
 	write_byte 	rsi, rcx, al
 
-	div10		rbx
+	div10		r10
 
 	mov		rax, rdx
 
@@ -420,7 +420,7 @@ biToString:
 	jg		.cur_digit_loop
 
 .cur_digit_done:
-	mpop		rbx, rdx
+	mpop		r10, rdx
 
 	dec		r8
 	cmp		r8, 0
@@ -430,7 +430,6 @@ biToString:
 ;; Write terminator.
 	write_byte 	rsi, rcx, 0
 	mpop		rdi, rsi, rdx
-
 	ret
 
 
@@ -609,7 +608,7 @@ biMul:
 
 .done:
 	mpush		rdi
-	call _biTrimZeros
+	call		_biTrimZeros
 	mpop		rdi
 	ret
 
@@ -718,10 +717,10 @@ _biMul:
 
 ;; RAX = RAX % BASE
 ;; RDX = RAX / BASE
-	mpush		rbx
-	mov		rbx, BASE
-	div		rbx
-	mpop		rbx
+	mpush		r10
+	mov		r10, BASE
+	div		r10
+	mpop		r10
 
 ;; Update CARRY with new value.
 	mov		r12, rax
@@ -1054,10 +1053,10 @@ _biSubDigits:
 	jge		.set_digit
 ;; If RAX < 0, make borrow = 1 and RAX += BASE
 	mov		r9, 1
-	push		rbx
-	mov		rbx, BASE
-	add		rax, rbx
-	pop		rbx
+	push		r10
+	mov		r10, BASE
+	add		rax, r10
+	pop		r10
 
 .set_digit:
 ;; Set current digit to result.
