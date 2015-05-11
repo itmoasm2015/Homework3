@@ -699,7 +699,7 @@ biMul:		syspush
 		xor	rdx, rdx
 		mov	r13, BASE
 		mov	r8, [rdi + vsize]
-		mov	r9, [rdi + vsize]
+		mov	r9, [rsi + vsize]
 	
 	;; Вычисляем результат используя алгоритм быстрого перемноженя двух длинных чисел
 		mov	r11, 0	
