@@ -284,6 +284,12 @@ biCmp:
 ;=============
 ; makes string. don't put zero at end of string. you should care about zero at the end.
 biToString:
+	cmp 	rdx, 0
+	jne  	.ok
+		ret 
+	.ok:
+	dec 	rdx
+
 	push 	rdi
 	push 	rsi
 	call 	biTrim
@@ -313,21 +319,25 @@ biToString:
 	mov 	eax, dword [rdi + r8]
 	mov 	r11, 0
 	.loop2: ; handle first digit, to trims zeroes from one digit
-		cmp 	r9, 0
-		je 		.finish2
+		;cmp 	r9, 0
+		;je 		.finish2
 		mov 	rdx, 0
 		div 	r10
 		add 	rdx, 	'0'
 		push 	rdx
 		inc 	r11
-		dec 	r9
+		;dec 	r9
 		cmp 	rax, 0
 		jg 	.loop2
 	.finish2:
 
 	.loop3: ; for reversed order
 		pop 	rax
+		cmp 	r9, 0
+		jle 	.noMov1
 		mov 	byte [rsi], al
+		.noMov1:
+		dec 	r9
 		inc 	rsi
 		dec 	r11
 		cmp 	r11, 0
@@ -335,7 +345,7 @@ biToString:
 	
 	.loop: ; make string, r9 - limit, r8 - length of number
 		cmp 	r9, 0
-		je 		.return
+		jle 	.return
 		cmp 	r8, 0
 		je 		.finish
 		sub 	r8, 4
@@ -352,14 +362,18 @@ biToString:
 			div 	r10
 			add 	rdx, 	'0'
 			dec 	rcx
+			cmp 	rcx, r9
+			jge 	.noMov
 			mov 	byte [rsi + rcx], dl
-			dec 	r9
+			.noMov:
+			;dec 	r9
 			jmp 	.loop1
 		.finish1:
+		sub 	r9, 9
 		add 	rsi, 9
 		jmp 	.loop
 	.finish:
-		
+	mov 	byte [rsi], 0	
 	.return:
 		pop 	r10
 		pop 	r11
