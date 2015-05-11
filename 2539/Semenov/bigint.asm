@@ -13,7 +13,9 @@ global biDelete         ;; DONE
 
 global biMulBy2         ;; DONE 
 global biAdd            ;; DONE (TODO: test it better)
-global biSub            ;; TODO
+global biNot            ;; DONE
+global biInc            ;; DONE
+global biSub            ;; DONE (TODO: test it better)
 global biMul            ;; TODO
 global biCmp            ;; TODO
 global biSign           ;; DONE
@@ -303,10 +305,9 @@ biAdd:
             jmp .good_size_in_rdx
 
         .r8_greater_than_r10:
-;              ret
             mov rdx, r8
             overflowWarning [r9 + 8 * r8 - 8] ; mos singnigicant coefficient in dst
-            jnz .good_size_in_rdx
+            jz .good_size_in_rdx
             inc rdx
 
         .good_size_in_rdx:
@@ -354,21 +355,35 @@ biAdd:
             cmp rcx, r10
             jb .add_loop
 
-        .add_carry_loop: ; while RCX < dst->size and carry flag is set
+            push rbp
+            xor rbp, rbp
+            cmp rbp, [r11 + 8 * r10 - 8] ; 0 vs most significant bit in src
+            jle .add_remainder_loop
+            mov rbp, -1
+
+        .add_remainder_loop: ; while RCX < dst->size (and carry flag is set)
             cmp rcx, r8
             jae .return
-            test rbx, rbx 
-            jz .return 
-
-            mov rax, [r9 + 8 * rcx]
-            add rax, rbx 
-            mov rbx, 0
+            mov rax, rbx
+            xor rbx, rbx
+            add rax, rbp
             adc rbx, 0
-
+            add [r9 + 8 * rcx], rax ; dst->data[RCX] += mask + carry_bit
+            adc rbx, 0
             inc rcx
-            jmp .add_carry_loop
+            jmp .add_remainder_loop
+            
+;            dec rcx
+;        .add_carry_loop: ; while RCX < dst->size and carry flag is set
+;            inc rcx
+;            cmp rcx, r8
+;            jae .return
+;
+;            add qword [r9 + 8 * rcx], 1
+;            jc .add_carry_loop
 
         .return:
+            pop rbp
             pop rbx
             ret
 
@@ -377,7 +392,93 @@ biAdd:
             xor rsi, rsi
             ret
 
-biSub:      ret
+
+; void biNot(BigInt x);
+; x = ~x
+; x in RDI
+biNot:
+            mov rcx, [rdi + SIZE]
+            mov rdx, [rdi + DATA]
+        .not_loop: ; for RCX from x->size downto 1: x->data[RCX] = ~x->data[RCX]
+            xor qword [rdx + 8 * rcx - 8], -1
+
+            dec rcx
+            jnz .not_loop
+            ret
+
+
+; void biInc(BigInt x);
+; x = x + 1
+; x in RDI
+biInc:
+            mov rdx, [rdi + DATA]
+            mov r8, [rdi + SIZE]
+            overflowWarning [rdx + 8 * r8 - 8] ; most significant coefficient of x
+            jz .main_part
+            lea rsi, [r8 + 1]
+            push rdi
+            call biEnsureCapacity ; biEnsureCapacity(x, x->size + 1)
+            pop rdi
+            mov rdx, [rdi + DATA]
+            mov r8, [rdi + SIZE]
+            xor rax, rax
+            cmp rax, [rdx + 8 * r8 - 8] ; 0 vs most significant coefficient of x
+            jle .actual_value_in_rax
+            mov rax, -1
+          .actual_value_in_rax:
+            mov [rdx + 8 * r8], rax
+            inc r8
+            mov [rdi + SIZE], r8 ; update x->size
+
+        .main_part:
+            xor rcx, rcx
+            mov r10, 1
+        .inc_loop: ; for RCX from 1 to x->size (R8), while carry flag is set: 
+            inc rcx
+            cmp rcx, r8
+            ja .return
+;            xor r11, r11
+;            add [rdx + 8 * rcx - 8], r10
+;            adc r11, 0
+;            mov r10, r11
+;            jne .inc_loop
+            add qword [rdx + 8 * rcx - 8], 1
+;            mov rax, [rdx + 8 * rcx - 8] 
+;            inc rax
+;            mov [rdx + 8 * rcx - 8], rax ; inc x->data[RCX - 1]
+            jc .inc_loop
+
+        .return:
+            ret
+
+; void biSub(BigInt dst, BigInt src);
+; dst -= src
+; dst in RDI
+; src in RSI
+biSub:      
+            ; let src := -src = (~src) + 1 [in two's complement representation]
+        %macro negate_src 0
+            push rdi
+            push rsi
+            mov rdi, rsi
+            call biNot
+            pop rdi
+            push rdi
+            call biInc
+            pop rsi
+            pop rdi
+        %endmacro
+            negate_src
+            ; now we can just call biAdd(dst, src)
+            push rdi
+            push rsi
+            call biAdd
+            pop rsi
+            pop rdi
+            ; and finally return src to initial value
+            negate_src
+            ret
+
 biMul:      ret
 biCmp:      ret
 

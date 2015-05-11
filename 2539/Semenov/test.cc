@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <random>
+#include <algorithm>
 
 #define DEBUG(...) fprintf(stderr, __VA_ARGS__);
 
@@ -94,16 +95,113 @@ void test_add(const int iterations = 1, bool verbose = false) {
     assert (foo->capacity == 1 && bar->capacity == 1);
     assert (bar->data[0] == second);
     assert (foo->data[0] == first + second);
+    biDelete(foo);
+    biDelete(bar);
+  }
+}
+
+void test_not(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biNot testing (%d iterations)\n", iterations);
+  const int BUBEN = 100;
+  for (int it = 0; it < iterations; ++it) {
+    int64_t first = (int64_t) rng();
+    BigIntMask *foo = (BigIntMask *) biFromInt(first);
+    for (int _ = 0; _ < BUBEN; ++_) {
+      int64_t second = (int64_t) rng();
+      BigIntMask *bar = (BigIntMask *) biFromInt(second);
+      biAdd(foo, bar);
+      assert (foo != nullptr && bar != nullptr);
+      assert (bar->size == 1 && bar->capacity == 1);
+      assert (bar->data[0] == second);
+      BigIntMask *baz = (BigIntMask *) biFromInt(0);
+      biAdd(baz, foo); // baz = biClone(foo), TODO: biClone
+      biNot(foo);
+      biNot(foo);
+      for (int i = 0; i < (int) foo->size; ++i) assert (foo->data[i] == baz->data[i]);
+      biDelete(bar);
+      biDelete(baz);
+    }
+    biDelete(foo);
+  }
+}
+ 
+void test_inc_case(int64_t val) {
+  BigIntMask *foo = (BigIntMask *) biFromInt(val);
+  BigIntMask *bar = (BigIntMask *) biFromInt(0);
+  biAdd(bar, foo);
+  static BigIntMask *one = (BigIntMask *) biFromInt(1);
+//  dump(foo);
+//  dump(bar);
+  biInc(foo);
+//  dump(foo);
+  biAdd(bar, one);
+//  dump(bar);
+  assert (foo->size == bar->size && foo->capacity == bar->capacity);
+  for (int i = 0; i < (int) std::min(foo->size, bar->size); ++i) {
+    assert (foo->data[i] == bar->data[i]);
+  }
+  biDelete(foo);
+  biDelete(bar);
+}
+
+void test_inc(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biInc testing (%d iterations)\n", iterations);
+  const int BUBEN = 100;
+  BigIntMask *one = (BigIntMask *) biFromInt(1);
+  for (int it = 0; it < iterations; ++it) {
+    int64_t first = (int64_t) rng();
+    int64_t second = (int64_t) rng();
+    BigIntMask *foo = (BigIntMask *) biFromInt(first);
+    BigIntMask *bar = (BigIntMask *) biFromInt(second);
+    for (int _ = 0; _ < BUBEN; ++_) {
+      biAdd(foo, bar);
+      assert (foo != nullptr && bar != nullptr);
+      assert (bar->size == 1 && bar->capacity == 1);
+      assert (bar->data[0] == second);
+      BigIntMask *baz = (BigIntMask *) biFromInt(0);
+      biAdd(baz, foo); // baz = biClone(foo), TODO: biClone
+      biInc(foo);
+      biAdd(baz, one);
+      assert (one->size == 1 && one->capacity == 1 && one->data[0] == 1);
+      assert (foo->size == baz->size && foo->capacity == baz->capacity);
+      for (int i = 0; i < (int) foo->size; ++i) assert (foo->data[i] == baz->data[i]);
+      biDelete(baz);
+    }
+    biDelete(foo);
+    biDelete(bar);
+  }
+}
+
+void test_sub(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biSub testing (%d iterations)\n", iterations);
+  // small only
+  for (int it = 0; it < iterations; ++it) {
+    int64_t first = (int64_t) rng() % (1LL << 60);
+    int64_t second = (int64_t) rng() % (1LL << 60);
+    BigIntMask *foo = (BigIntMask *) biFromInt(first);
+    BigIntMask *bar = (BigIntMask *) biFromInt(second);
+    biSub(foo, bar);
+    assert (foo != nullptr && bar != nullptr);
+    assert (foo->size == 1 && bar->size == 1);
+    assert (foo->capacity == 1 && bar->capacity == 1);
+    assert (bar->data[0] == second);
+    assert (foo->data[0] == first - second);
+    biDelete(foo);
+    biDelete(bar);
   }
 }
 
 int main() {
+  test_inc_case(-4858338985614885836);
   test_constructor_and_destructor(100, true);
   test_sign(100, true);
   test_grow_capacity(100, true);
   test_mul_by_two(1000, true);
   test_mul_by_two_large(1000, true);
   test_add(100, true);
+  test_not(100, true);
+  test_inc(100, true);
+  test_sub(100, true);
   return 0;
 }
 

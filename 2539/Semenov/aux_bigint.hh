@@ -12,6 +12,8 @@ extern "C" {
 
 void biGrowCapacity(BigInt x, size_t new_capacity);
 void biMulBy2(BigInt x);
+void biNot(BigInt x);
+void biInc(BigInt x);
 
 #ifdef __cplusplus
 }
@@ -23,7 +25,9 @@ struct BigIntMask {
   size_t capacity;
 };
 
-void dump(BigInt xx, FILE *stream = stderr) {
+#define dump(x) fprintf(stderr, "%s: ", #x); dump_(x)
+
+void dump_(BigInt xx, FILE *stream = stderr) {
   BigIntMask *x = (BigIntMask *) xx;
   fprintf(stream, "BigInt: size = %zd, capacity = %zd, elements:\n ", x->size, x->capacity);
   for (int i = (int) x->size - 1; i >= 0; --i) {
