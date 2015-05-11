@@ -10,25 +10,24 @@ BOOST_AUTO_TEST_CASE (VectorTest)
 
     BOOST_CHECK_EQUAL(vectorSize(v), 0);
 
-    v = vectorResize(v, 5, 0);
+    vectorResize(v, 5, 0);
     BOOST_CHECK_EQUAL(vectorSize(v), 5);
 
     for (int i = 0; i < 5; i++) {
         BOOST_CHECK_EQUAL(vectorGet(v, i), 0);
     }
-
     vectorSet(v, 3, 1e17);
     BOOST_CHECK_EQUAL(vectorGet(v, 3), 1e17);
 
-    v = vectorAppend(v, 30);
-    v = vectorAppend(v, 40);
-    v = vectorAppend(v, 60);
+    vectorAppend(v, 30);
+    vectorAppend(v, 40);
+    vectorAppend(v, 60);
     BOOST_CHECK_EQUAL(vectorSize(v), 8);
     BOOST_CHECK_EQUAL(vectorGet(v, 5), 30);
     BOOST_CHECK_EQUAL(vectorGet(v, 6), 40);
     BOOST_CHECK_EQUAL(vectorGet(v, 7), 60);
 
-    v = vectorResize(v, 10, -1);
+    vectorResize(v, 10, -1);
     BOOST_CHECK_EQUAL(vectorSize(v), 10);
     BOOST_CHECK_EQUAL(vectorGet(v, 8), 0xFFFFFFFFFFFFFFFF);
 
@@ -38,7 +37,14 @@ BOOST_AUTO_TEST_CASE (VectorTest)
     for (int i = 0; i < s; i++) {
         BOOST_CHECK_EQUAL(vectorGet(v, i), vectorGet(v2, i));
     }
+    vectorResize(v2, 30, 255555);
 
+    vectorCopyTo(v, v2);
+    BOOST_CHECK_EQUAL(vectorSize(v), vectorSize(v2));
+
+    for (size_t i = 0; i < vectorSize(v); i++) {
+        BOOST_CHECK_EQUAL(vectorGet(v, i), vectorGet(v2, i));
+    }
     vectorDelete(v);
     vectorDelete(v2);
 }
@@ -59,6 +65,7 @@ BOOST_AUTO_TEST_CASE(BigintCreationAndOutput)
     BigInt bi_s2 = biFromString("-234435");
     BOOST_ASSERT(bi_s != NULL);
     BOOST_ASSERT(bi_s != NULL);
+
 
     // naive comparison
     int size = vectorSize(bi);
@@ -82,6 +89,9 @@ BOOST_AUTO_TEST_CASE(BigintCreationAndOutput)
 
     biToString(bi_s2, buf, 3);
     BOOST_CHECK_EQUAL(buf, "-2");
+
+    biToString(bi_zero, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "0");
 
     BigInt big = biFromString("100000000000000000000000000005000000000000000000000000000000000000000000000000000");
     BOOST_CHECK_EQUAL(vectorSize(big), 5);
@@ -130,7 +140,6 @@ BOOST_AUTO_TEST_CASE(BigintCreationAndOutput)
     biDelete(bi_s);
     biDelete(bi_s2);
 }
-
 BOOST_AUTO_TEST_CASE(biAddUnsignedSmall)
 {
     char buf[4096];
@@ -206,4 +215,33 @@ BOOST_AUTO_TEST_CASE(biSubUnsignedBig)
     biDelete(b2);
     biDelete(b2_512);
     biDelete(one);
+}
+
+BOOST_AUTO_TEST_CASE(biMulSmall)
+{
+    char buf[4096];
+    BigInt b1 = biFromInt(123);
+    BigInt b2 = biFromInt(213123);
+
+    biMul(b1, b2);
+    biToString(b1, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "26214129");
+
+    BigInt b3 = biFromInt(-10000);
+    BigInt b4 = biFromInt(12341);
+
+    biMul(b3, b4);
+    biToString(b3, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "-123410000");
+
+    BigInt zero = biFromInt(0);
+    biMul(b3, zero);
+    biToString(b3, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "0");
+
+    biDelete(b1);
+    biDelete(b2);
+    biDelete(b3);
+    biDelete(b4);
+    biDelete(zero);
 }

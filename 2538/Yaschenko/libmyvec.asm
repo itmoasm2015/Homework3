@@ -4,9 +4,6 @@ default rel
 %include "libhw.i"
 %include "libmyvec.i"
 
-extern calloc
-extern free
-extern memcpy
 
 global vectorNew
 global vectorDelete
@@ -21,6 +18,8 @@ global vectorPopBack
 global vectorEmpty
 global vectorCopy
 
+section .text
+
 %assign DEFAULT_CAPACITY 8
 %assign ELEM_SIZE        8
 
@@ -33,34 +32,38 @@ global vectorCopy
 ;; Returns:
 ;;	* RAX: pointer to newly created vector.
 vectorNew:
-	push	rdi
-	cmp	rdi, DEFAULT_CAPACITY
-	jge	.round_up
+	push		rdi
+;; If size is less than DEFAULT_CAPACITY, make size be DEFAULT_CAPACITY
+;; (to avoid too small vectors).
+	cmp		rdi, DEFAULT_CAPACITY
+	jge		.round_up
 
-	mov	rdi, DEFAULT_CAPACITY
+	mov		rdi, DEFAULT_CAPACITY
 
 .round_up:
-	round_next_2_power rdi
+;; Round size up to next power of 2.
+	round_next_2_power	rdi
+;; Allocate memory for data.
+	push		rdi
+	mov		rsi, ELEM_SIZE
+	call		__calloc
+	push		rax
+;; Allocate memory for vector.
+	mov		rdi, 1
+	mov		rsi, Vector_size
+	call		__calloc
+;; Fill fields of vector.
+	pop		rdx
+	mov		[rax + Vector.data], rdx
 
-	push	rdi
-	mov	rsi, ELEM_SIZE
-	call	calloc
-	push	rax
+	pop		rdx
+	mov		[rax + Vector.capacity], rdx
 
-	mov	rdi, 1
-	mov	rsi, Vector_size
-	call	calloc
-
-	pop	rdx
-	mov	[rax + Vector.data], rdx
-
-	pop	rdx
-	mov	[rax + Vector.capacity], rdx
-
-	pop	rdx
-	mov	[rax + Vector.size], rdx
+	pop		rdx
+	mov		[rax + Vector.size], rdx
 
 	ret
+
 
 ;; void vectorDelete(Vector v);
 ;;
@@ -68,13 +71,13 @@ vectorNew:
 ;; Takes:
 ;;	* RDI: pointer to vector.
 vectorDelete:
-	push	rdi
+	push		rdi
 ; Free array of elements.
-	mov	rdi, [rdi + Vector.data]
-	call	free
+	mov		rdi, [rdi + Vector.data]
+	call		__free
 ; Free vector struct memory.
-	pop	rdi
-	call	free
+	pop		rdi
+	call		__free
 	ret
 
 ;; Ensures that one extra element can be added.
@@ -83,48 +86,49 @@ vectorDelete:
 ;; Takes:
 ;;	RDI: pointer to VECTOR.
 vectorEnsureCapacity:
-	mov	rax, [rdi + Vector.size]
-	cmp	rax, [rdi + Vector.capacity]
+	mov		rax, [rdi + Vector.size]
+	cmp		rax, [rdi + Vector.capacity]
 ; if SIZE < CAPACITY then nothing to do here.
-	jl	.done
+	jl		.done
 .enlarge:
-	push	rdi
+	push		rdi
 ; RDI stores new capacity, which is 2 times more than previous.
-	mov	rdi, [rdi + Vector.capacity]
-	shl	rdi, 1
-	mov	rsi, ELEM_SIZE
+	mov		rdi, [rdi + Vector.capacity]
+	shl		rdi, 1
+	mov		rsi, ELEM_SIZE
 ; Allocate memory for new array.
-	call	calloc
+	call		__calloc
 ; Save pointer to memory.
-	push	rax
+	push		rax
 ; stack: | *NEWDATA | *VECTOR | ...
 
 ; Copy elements from old array to newly created with memcpy.
 ; 1st parameter: dst
-	mov	rdi, rax
+	mov		rdi, rax
 ; 2nd parameter: src
-	mov	rax, [rsp + 8]
-	mov	rsi, [rax + Vector.data]
+	mov		rax, [rsp + 8]
+	mov		rsi, [rax + Vector.data]
 ; 3rd parameter: count
-	mov	rdx, [rax + Vector.capacity]
-	imul	rdx, ELEM_SIZE
+	mov		rdx, [rax + Vector.capacity]
+	imul		rdx, ELEM_SIZE
 
-	call	memcpy
+	call		__memcpy
 
-	mov	rax, [rsp + 8]
+	mov		rax, [rsp + 8]
 ; Delete old array.
-	mov	rdi, [rax + Vector.data]
-	call	free
+	mov		rdi, [rax + Vector.data]
+	call		__free
 
 ; Restore pointer to new array.
-	pop	rdx
+	pop		rdx
 ; And save it to vector.
-	pop	rdi
-	mov	[rdi + Vector.data], rdx
+	pop		rdi
+	mov		[rdi + Vector.data], rdx
 ; Update capacity.
-	shl	qword [rdi + Vector.capacity], 1
+	shl		qword [rdi + Vector.capacity], 1
 .done:
 	ret
+
 
 ;; unsigned vectorGet(Vector v, size_t index);
 ;;
@@ -135,17 +139,18 @@ vectorEnsureCapacity:
 ;; Returns:
 ;;	* RAX: INDEX'th element of VECTOR, or 0 if index is out of bounds.
 vectorGet:
-	cmp	rsi, 0
-	jl	.out_of_bounds
-	cmp	rsi, [rdi + Vector.size]
-	jge	.out_of_bounds
-
-	mov	rax, [rdi + Vector.data]
-	mov	rax, [rax + rsi * ELEM_SIZE]
+;; Return zero if index is out of bounds.
+	cmp		rsi, 0
+	jl		.out_of_bounds
+	cmp		rsi, [rdi + Vector.size]
+	jge		.out_of_bounds
+;; Return data[index].
+	mov		rax, [rdi + Vector.data]
+	mov		rax, [rax + rsi * ELEM_SIZE]
 
 	ret
 .out_of_bounds:
-	xor	rax, rax
+	xor		rax, rax
 	ret
 
 
@@ -157,18 +162,20 @@ vectorGet:
 ;; Returns:
 ;;	* RAX: last element of VECTOR.
 vectorBack:
-	mov	rsi, [rdi + Vector.size]
-	cmp	rsi, 0
-	jle	.out_of_bounds
-	dec	rsi
-
-	mov	rdi, [rdi + Vector.data]
-	mov	rax, [rdi + rsi * ELEM_SIZE]
+;; Return zero if index is out of bounds.
+	mov		rsi, [rdi + Vector.size]
+	cmp		rsi, 0
+	jle		.out_of_bounds
+	dec		rsi
+;; Return data[size - 1].
+	mov		rdi, [rdi + Vector.data]
+	mov		rax, [rdi + rsi * ELEM_SIZE]
 
 	ret
 .out_of_bounds:
-	xor	rax, rax
+	xor		rax, rax
 	ret
+
 
 ;; void vectorSet(Vector v, size_t index, unsigned element);
 ;;
@@ -178,17 +185,19 @@ vectorBack:
 ;;	* RSI: INDEX.
 ;;	* RDX: value of ELEMENT.
 vectorSet:
-	cmp	rsi, 0
-	jl	.out_of_bounds
-	cmp	rsi, [rdi + Vector.size]
-	jge	.out_of_bounds
-
-	mov	rax, [rdi + Vector.data]
-	mov	[rax + rsi * ELEM_SIZE], rdx
+;; Do nothing if index is out of bounds.
+	cmp		rsi, 0
+	jl		.out_of_bounds
+	cmp		rsi, [rdi + Vector.size]
+	jge		.out_of_bounds
+;; Set data[index] to be ELEMENT.
+	mov		rax, [rdi + Vector.data]
+	mov		[rax + rsi * ELEM_SIZE], rdx
 
 	ret
 .out_of_bounds
 	ret
+
 
 ;;size_t vectorSize(Vector v);
 ;;
@@ -198,8 +207,9 @@ vectorSet:
 ;; Returns:
 ;;	* RAX: size of VECTOR.
 vectorSize:
-	mov	rax, [rdi + Vector.size]
+	mov		rax, [rdi + Vector.size]
 	ret
+
 
 ;;size_t vectorCapacity(Vector v);
 ;;
@@ -209,7 +219,7 @@ vectorSize:
 ;; Returns:
 ;;	* RAX: capacity of VECTOR.
 vectorCapacity:
-	mov	rax, [rdi + Vector.capacity]
+	mov		rax, [rdi + Vector.capacity]
 	ret
 
 
@@ -222,17 +232,18 @@ vectorCapacity:
 ;;	* RAX: 1 if VECTOR is empty,
 ;;	       0 otherwise
 vectorEmpty:
-	cmp	qword [rdi + Vector.size], 0
-	je	.true
+	cmp		qword [rdi + Vector.size], 0
+	je		.true
 
 .false:
-	mov	rax, 0
-	jmp	.done
+	mov		rax, 0
+	jmp		.done
 .true:
-	mov	rax, 1
-	jmp	.done
+	mov		rax, 1
+	jmp		.done
 .done:
 	ret
+
 
 ;; void vectorPushBack(Vector v, unsigned element);
 ;;
@@ -242,17 +253,18 @@ vectorEmpty:
 ;;	* RDI: pointer to VECTOR.
 ;;	* RSI: value of ELEMENT.
 vectorPushBack:
-	push	rdi
-	push	rsi
-	call	vectorEnsureCapacity
-	pop	rsi
-	pop	rdi
-
-	mov	rax, [rdi + Vector.data]
-	mov	rcx, [rdi + Vector.size]
-	mov	[rax + rcx * ELEM_SIZE], rsi
-	inc	rcx
-	mov	[rdi + Vector.size], rcx
+;; Check if vector can hold extra element, and expand it if not.
+	push		rdi
+	push		rsi
+	call		vectorEnsureCapacity
+	pop		rsi
+	pop		rdi
+;; Put element at the end and increment size.
+	mov		rax, [rdi + Vector.data]
+	mov		rcx, [rdi + Vector.size]
+	mov		[rax + rcx * ELEM_SIZE], rsi
+	inc		rcx
+	mov		[rdi + Vector.size], rcx
 
 	ret
 
@@ -263,12 +275,13 @@ vectorPushBack:
 ;; Takes:
 ;;	* RDI: pointer to VECTOR.
 vectorPopBack:
-	mov	rsi, [rdi + Vector.size]
-	cmp	rsi, 0
-	jle	.out_of_bounds
-
-	dec	rsi
-	mov	[rdi + Vector.size], rsi
+;; Do nothing if vector is empty.
+	mov		rsi, [rdi + Vector.size]
+	cmp		rsi, 0
+	jle		.out_of_bounds
+;; Decrement size.
+	dec		rsi
+	mov		[rdi + Vector.size], rsi
 
 ;; TODO: shrink vector if it's size is less than capacity / 4.
 
@@ -290,7 +303,7 @@ vectorCopy:
 ;; Allocate memory for data.
 	mov		rdi, [rdi + Vector.capacity]
 	mov		rsi, ELEM_SIZE
-	call		calloc
+	call		__calloc
 	push		rax
 ;; Copy data with memcpy
 ; 1st parameter: dst
@@ -302,17 +315,17 @@ vectorCopy:
 	mov		rdx, [rax + Vector.capacity]
 	imul		rdx, ELEM_SIZE
 
-	call		memcpy
+	call		__memcpy
 
 ;; Allocate memory for Bigint struct.
 	mov		rdi, 1
 	mov		rsi, Vector_size
-	call		calloc
+	call		__calloc
 ; stack: *newData | *oldVector
 
 	pop		rdx
 	pop		rdi
-
+;; Fill fields.
 	mov		rcx, [rdi + Vector.size]
 	mov		[rax + Vector.size], rcx
 
