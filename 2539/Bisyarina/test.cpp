@@ -329,8 +329,10 @@ int main() {
 	BigInt bi3 = biFromInt(-123ll);
 	biAdd(bi1, bi2);
 	biSub(bi1, bi2);
+	char s[5];
 	cout << biCmp(bi2, bi3); //== 0);
-
+	biToString(bi3, s, 10);
+	cout << s;
 	biDelete(bi1);
 	biDelete(bi2);
 	biDelete(bi3);
