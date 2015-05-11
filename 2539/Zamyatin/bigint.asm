@@ -21,6 +21,18 @@ DIGIT 	equ 	1000000000
 ; int*: data
 ; one digit - 10^9
 
+myFree:
+	push 	0
+	mov 	rax, rsp
+	and 	rax, -32
+	sub 	rax, rsp
+	add 	rsp, rax
+	mov 	[rsp], rax
+	call 	free
+	pop 	rdi
+	sub 	rsp, rdi
+	ret
+
 
 checkString:
 	cmp 	byte [rdi], '-'
@@ -109,7 +121,18 @@ biDivRem:
 allocate:
 	sub 	rsp, 16
 	mov 	[rsp], rdi ; store bigint
+	
+	push 	0
+	mov 	rax, rsp
+	and 	rax, -32
+	sub 	rax, rsp
+	add 	rsp, rax
+	mov 	[rsp], rax
 	call 	malloc
+	pop 	rdi
+	sub 	rsp, rdi
+
+
 	mov 	rdi, [rsp] ; take bigint
 	add 	rsp, 16
 	.loop: ; fill zeroes
@@ -126,10 +149,10 @@ biFromInt:
 	sub 	rsp, 16
 	mov  	[rsp + 8], rdi
 	mov 	rdi, 16
-	call 	malloc
+	call 	allocate
 	mov 	[rsp], rax
 	mov 	rdi, 16
-	call 	malloc
+	call 	allocate
 	mov 	rdi, 0
 	mov 	[rax], rdi
 	mov 	[rax + 8], rdi
@@ -184,9 +207,9 @@ biDelete:
 	sub 	rsp, 16
 	mov 	[rsp], rdi
 	mov 	rdi, [rdi + 8]
-	call 	free
+	call 	myFree
 	mov 	rdi, [rsp]
-	call 	free
+	call 	myFree
 	add 	rsp, 16
 	ret
 ;=============
@@ -456,7 +479,7 @@ biSubAbs:
 		pop 	r10
 		pop 	r12
 		pop 	r13
-		call 	free
+		call 	myFree
 		ret
 ;=============
 ; add two bigints. answer is x, where x = |a| + |b|
@@ -548,7 +571,7 @@ biAddAbs:
 		inc 	r12
 	.ook:
 	pop 	rdi
-	call 	free
+	call 	myFree
 	pop 	rdi
 	mov	 	dword [rdi + 4], r12d
 	pop 	r12
@@ -679,7 +702,7 @@ biMulShort:
 	mov 	dword [rcx], r11d
 	pop 	rdi
 	push 	r11
-	call 	free
+	call 	myFree
 	pop 	r11
 	pop 	rdi
 	cmp 	r11d, 0
@@ -739,7 +762,7 @@ biCopy:
 	mov 	eax, dword [rdi + 4]
 	shl 	eax, 2
 	mov 	rdi, rax
-	call 	malloc
+	call 	allocate
 	pop 	rsi
 	pop 	rdi
 	mov 	[rsi + 8], rax
@@ -835,9 +858,9 @@ biMul:
 	mov 	rsi, [r13 + 8]
 	mov 	[rdi + 8], rsi
 	mov	 	rdi, r9
-	call 	free
+	call 	myFree
 	pop 	rdi 
-	call 	free
+	call 	myFree
 	pop 	r13
 	pop 	r12
 	pop 	r10
