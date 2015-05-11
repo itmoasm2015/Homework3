@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
 #include <cmath>
 #include <bigint.h>
 
@@ -11,6 +12,7 @@ using namespace std;
 // Asm imports.
 extern "C" {
     BigInt biFromBigInt(BigInt bi);
+    uint64_t biDivShort(BigInt bi, uint64_t k);
 }
 
 
@@ -31,10 +33,6 @@ extern "C" {
 #define END()           return __result;
 
 int n_prev = 0;
-
-uint64_t get_digit(BigInt bi, unsigned digit) {
-    return ((uint64_t*)(*(int*)((char*)bi + 1)))[2 + digit];
-}
 
 bool bigint_short_creation(int n) {
     BEGIN();
@@ -130,6 +128,7 @@ bool bigint_long_creation(int n) {
     char big_number[] = "93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000";
     BigInt bi1 = biFromString(big_number);
     BigInt bi2 = biFromString("1");
+    BigInt bi3 = biFromInt(n);
 
     for (int i = 1; i <= 100; i++) {
         BigInt biHelper = biFromInt(i);
@@ -139,8 +138,18 @@ bool bigint_long_creation(int n) {
 
     EXPECT(biCmp(bi1, bi2) == 0);
 
+    for (int i = 0; i < 100; i++) {
+        biAdd(bi1, bi3);
+    }
+    for (int i = 0; i < 100; i++) {
+        biSub(bi1, bi3);
+    }
+    
+    EXPECT(biCmp(bi1, bi2) == 0);
+
     biDelete(bi1);
     biDelete(bi2);
+    biDelete(bi3);
 
     END();
 }
@@ -177,6 +186,173 @@ bool bigint_long_power_two(int n) {
     biDelete(bi1Base);
     biDelete(bi2);
     biDelete(bi2Base);
+
+    END();
+}
+
+bool bigint_short_division(int n) {
+    BEGIN();
+
+    int iterations = floor(sqrt(abs(1.0f * n)));
+    BigInt result = biFromString("1");
+
+    for (int i = 1; i <= iterations; i++) {
+        BigInt biHelper = biFromInt(i);
+        BigInt biPrev = biFromBigInt(result);
+        biMul(result, biHelper);
+
+        BigInt biDivved = biFromBigInt(result);
+        BigInt biRemExpected = biFromInt(i - 1);
+        biAdd(biDivved, biRemExpected);
+        uint64_t rem = biDivShort(biDivved, i);
+        BigInt biRemActual = biFromInt(rem);
+        
+        EXPECT(biCmp(biDivved, biPrev) == 0);
+        EXPECT(biCmp(biRemExpected, biRemActual) == 0);
+
+        biDelete(biHelper);
+        biDelete(biPrev);
+        biDelete(biDivved);
+        biDelete(biRemExpected);
+        biDelete(biRemActual);
+    }
+
+    biDelete(result);
+
+    END();
+}
+
+bool bigint_to_string_simple(int n) {
+    BEGIN();
+
+    BigInt bi1 = biFromInt(n);
+    BigInt bi2 = biFromInt(n);
+    
+    // one digit conversion
+    {
+        char bigint_buf[16];
+        char sprintf_buf[16];
+        biToString(bi1, bigint_buf, sizeof(bigint_buf));
+
+        sprintf(sprintf_buf, "%d", n);
+
+        EXPECT(strcmp(bigint_buf, sprintf_buf) == 0);
+    }
+
+    // limit = 0 or 1
+    {
+        char buf[2];
+        
+        biToString(bi1, buf, 0);
+        EXPECT(buf[0] == 0);
+        
+        biToString(bi1, buf, 1);
+        EXPECT(buf[0] == 0);
+    }
+
+    // various limits
+    {
+        char buf[4096];
+
+        for (int i = 1; i < 10; i++) {
+            biMul(bi2, bi1);
+        }
+
+        biToString(bi2, buf, sizeof(buf));
+        size_t len = strlen(buf);
+
+        for (size_t i = 1; i < sizeof(buf); i++) {
+            biToString(bi2, buf, i);
+
+            size_t partial_len = min(len + 1, i);
+            EXPECT(strlen(buf) == partial_len - 1);
+            EXPECT(buf[partial_len - 1] == 0);
+        }
+    }
+
+    biDelete(bi1);
+    biDelete(bi2);
+
+    END();
+}
+
+bool bigint_to_string_hard(int n) {
+    BEGIN();
+
+    int N = floor(sqrt(abs(1.0f * n))) + 5;
+    char * s = (char *) malloc(N + 1);
+    char * ss = (char *) malloc(N + 1);
+    
+    // to_string(from_string(s)) == s
+    // part 1: randomly generated strings
+    {
+
+        int first = rand() % 9;
+        s[0] = first < 5 ? '1' + first : '-';
+        s[1] = '1' + rand() % 9;
+        for (int i = 2; i < N; i++) {
+            s[i] = '0' + rand() % 10;
+        }
+        s[N] = 0;
+
+        BigInt bi1 = biFromString(s);
+        biToString(bi1, ss, N + 1);
+        
+        EXPECT(strcmp(s, ss) == 0);
+
+        biDelete(bi1);
+    }
+
+    // to_string(from_string(s)) == s
+    // part 2: special cases
+    {
+        // 10^N - 1
+        {
+            BigInt bi1 = biFromInt(1);
+            BigInt one = biFromInt(1);
+            BigInt ten = biFromInt(10);
+
+            for (int i = 0; i < N; i++) {
+                biMul(bi1, ten);
+            }
+            biSub(bi1, one);
+            biToString(bi1, ss, N + 1);
+
+            for (int i = 0; i < N; i++) {
+                EXPECT(ss[i] == '9');
+            }
+            EXPECT(ss[N] == 0);
+
+            biDelete(bi1);
+            biDelete(one);
+            biDelete(ten);
+        }
+
+        // 111...1
+        {
+            BigInt bi1 = biFromInt(0);
+            BigInt one = biFromInt(1);
+            BigInt ten = biFromInt(10);
+
+            for (int i = 0; i < N; i++) {
+                biMul(bi1, ten);
+                biAdd(bi1, one);
+            }
+            biToString(bi1, ss, N + 1);
+
+            for (int i = 0; i < N; i++) {
+                EXPECT(ss[i] == '1');
+            }
+            EXPECT(ss[N] == 0);
+
+            biDelete(bi1);
+            biDelete(one);
+            biDelete(ten);
+        }
+    }
+
+    free(s);
+    free(ss);
 
     END();
 }
@@ -315,6 +491,38 @@ bool bigint_various_tests(int n) {
         biDelete(bi3);
     }
 
+    // test #2
+    // sign of -0
+    {
+        BigInt bi1 = biFromString("-0");
+        BigInt bi2 = biFromString("-1");
+
+        EXPECT(biSign(bi1) == 0);
+        EXPECT(biSign(bi2) <  0);
+
+        biDelete(bi1);
+        biDelete(bi2);
+    }
+
+    // test #3
+    // 10^N - 1 for small N
+    for (int N = 3; N < 50; N++) {
+        BigInt bi1 = biFromInt(1);
+        BigInt one = biFromInt(1);
+        BigInt ten = biFromInt(10);
+
+        for (int i = 0; i < 19; i++) {
+            biMul(bi1, ten);
+        }
+        biSub(bi1, one);
+
+        EXPECT(biSign(bi1) > 0);
+
+        biDelete(bi1);
+        biDelete(one);
+        biDelete(ten);
+    }
+
     END();
 }
 
@@ -334,6 +542,11 @@ int main() {
         
         TEST(t + salt, bigint_long_creation);
         TEST(t + salt, bigint_long_power_two);
+
+        TEST(t + salt, bigint_short_division);
+        
+        TEST(t + salt, bigint_to_string_simple);
+        TEST(t + salt, bigint_to_string_hard);
 
         TEST(t + salt, bigint_various_tests);
         TEST(t + salt, bigint_from_mail);

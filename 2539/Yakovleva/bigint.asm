@@ -38,6 +38,19 @@ endstruc
 	push r15
 %endmacro
 
+%macro saveOther 0
+	push rax
+	push rcx
+	push rdx
+	push rdi
+	push rsi
+	push r8
+	push r9
+	push r10
+	push r11
+%endmacro
+
+
 %macro returnRegisters 0
 	pop r15			; return saved registers on positions
 	pop r14
@@ -47,9 +60,35 @@ endstruc
 	pop rbp
 %endmacro
 
+%macro returnOther 0
+	pop r11
+	pop r10
+	pop r9
+	pop r8
+	pop rsi
+	pop rdi
+	pop rdx
+	pop rcx
+	pop rax
+%endmacro
+
 %macro createNumber 1		; create number
+	push rdi
+	push rsi
+	push r9
+	push r10
+	push r11
+	push rcx
+	push rbx
 	mov rdi, %1
 	call malloc
+	pop rbx
+	pop rcx
+	pop r11
+	pop r10
+	pop r9
+	pop rsi
+	pop rdi
 %endmacro
 
 %macro swapNumbers 2		; swap two numbers
@@ -58,18 +97,61 @@ endstruc
 	mov %2, [tmp]
 %endmacro
 
-%macro copyBigInt 2		; copy bigInt : sign, digit, size, number
-	push r15
-	mov r15, [%2 + bigInt.sign]
-	mov [%1 + bigInt.sign], r15
-	mov r15, [%2 + bigInt.size]
-	mov [%1 + bigInt.size], r15
-	mov r15, [%2 + bigInt.digit]
-	mov [%1 + bigInt.digit], r15
-	mov r15, [%2 + bigInt.num]
-	mov [%1 + bigInt.num], r15
-	pop r15
+%macro swapBigInt 2
+	push rcx
+	push rbx
+	push rax
+	createNumber 32
+	mov r14, rax
+	mov rbx, r14
+	mov rcx, %2
+	call copyBigInt
+	mov rbx, %2
+	mov rcx, %1
+	call copyBigInt
+	mov rbx, %1
+	mov rcx, r14
+	call copyBigInt	
+	pop rax
+	pop rbx
+	pop rcx
 %endmacro
+
+; RBX -- first to
+; RCX -- second from
+copyBigInt:		; copy bigInt : sign, digit, size, number
+	saveOther
+	mov r15, [rcx + bigInt.sign]
+	mov [rbx + bigInt.sign], r15
+	mov r15, [rcx + bigInt.size]
+	mov [rbx + bigInt.size], r15
+	mov r15, [rcx + bigInt.digit]
+	mov [rbx + bigInt.digit], r15
+;	mov r15, [rcx + bigInt.num]
+;	mov [rbx + bigInt.num], r15
+	mov r15, [rcx + bigInt.size]
+	mov rdi, [rbx + bigInt.num]
+	imul r15, 8
+	createNumber r15
+	mov [rbx + bigInt.num], rax
+	mov r9, [rbx + bigInt.num]
+	mov r10, [rcx + bigInt.num]
+	saveOther
+	call free
+	returnOther
+	mov r15, 0
+.loop:
+	cmp r15, [rcx + bigInt.size]
+	jz .end_loop
+	mov rax, [r10]
+	mov [r9], rax
+	add r9, 8
+	add r10, 8
+	add r15, 1
+	jmp .loop
+.end_loop:
+	returnOther
+	ret
 
 negBigInt:		; number = -number if minus == 1
 	cmp qword[minus], 1
@@ -128,6 +210,10 @@ biFromString:
 	saveRegisters
 	mov rbx, rdi
 	mov qword[lenn], 0
+	cmp byte[rbx], '-'
+	jnz .start_lenn
+	add rbx, 1
+	add qword[lenn], 1
 .start_lenn:		; find count of digits and check right string
 	cmp byte[rbx], 0	; MINUS!!!
 	jz .end_lenn
@@ -306,7 +392,13 @@ biAdd:
 	jz .endd
 	cmp qword[rdi + bigInt.sign], 0
 	jnz .not_zero
-	copyBigInt rdi, rsi
+	push rcx
+	push rbx
+	mov rbx, rdi
+	mov rcx, rsi
+	call copyBigInt
+	pop rbx
+	pop rcx
 	jmp .endd
 .not_zero:
 	push rdi
@@ -318,14 +410,18 @@ biAdd:
 	cmp qword[rsi + bigInt.sign], 0
 	jl .set_positive
 	mov qword[rdi + bigInt.sign], 1	; -a + b = b - a, a and b -- absolutely values
-	mov rbx, rsi
-	mov rsi, rdi
-	mov rdi, rbx
+	push rsi
+	swapBigInt rdi, rsi
 	jmp .go_sub
 .set_positive:
 	mov qword[rsi + bigInt.sign], 1	; a + (-b) = a - b, a and b -- absolutely values
+	push rsi
 .go_sub:
 	call biSub
+	pop r14
+	pop rsi
+	pop r9
+	mov rsi, r14
 	returnRegisters
 	ret
 .sum:
@@ -341,9 +437,7 @@ biAdd:
 	add qword[lenn], 1
 	mov r11, [lenn]
 	imul r11, 8
-	push r9
 	createNumber r11	; create number with size = lenn + 1
-	pop r9
 	mov r13, rax
 	push r13
 	mov r11, 0	; remind
@@ -355,8 +449,16 @@ biAdd:
 	cmp r12, [lenn]
 	jz .end_sum
 	mov rcx, [r9]
+	cmp r12, qword[rsi + bigInt.size]
+	jl .ok1
+	mov rcx, 0
+.ok1:
 	mov [r13], rcx
 	mov rcx, [r10]
+	cmp r12, qword[rdi + bigInt.size]
+	jl .ok2
+	mov rcx, 0
+.ok2:
 	add [r13], rcx	; [r13] = rcx + r11 = [r9] + [r10]
 	add [r13], r11
 	mov rdx, 0
@@ -377,11 +479,13 @@ biAdd:
 	mov rcx, [r9 + bigInt.num]	; save r13 -- pointer to result
 	mov [r9 + bigInt.num], r13
 	mov rdi, rcx
-	push r9
-	call free	; delete previous number
-	pop r9
+;	push r9
+;	call free	; delete previous number
+;	pop r9
 	call cut_zeros	; delete forward zeros
 .endd:
+	mov rdi, r9
+	mov rsi, r10
 	returnRegisters
 	ret
 
@@ -395,8 +499,9 @@ biSub:
 	mov qword[minus], 0
 	call biCmp	; compare two numbers
 	cmp rax, 0	; if first is bigger go to define sign
-	jge .agrb
-	swapNumbers rdi, rsi	; else swap numbers
+	jg .agrb
+	jz .equ
+	swapBigInt rdi, rsi	; else swap numbers
 	mov qword[minus], 1
 .agrb:
 	mov rbx, [rdi + bigInt.sign]
@@ -414,7 +519,13 @@ biSub:
 .point2:
 	cmp qword[rdi + bigInt.sign], 0
 	jnz .point3
-	copyBigInt rdi, rsi	; a == 0, result = -b 
+	push rbx
+	push rcx
+	mov rbx, rdi
+	mov rcx, rsi
+	call copyBigInt		; a == 0, result = -b 
+	pop rcx
+	pop rbx
 	neg qword[rdi + bigInt.sign]
 	jmp .ret
 .point3: 
@@ -437,8 +548,12 @@ biSub:
 	returnRegisters
 	ret
 .go_sum:	; go to sum a and b
+	push qword[minus]
 	call biAdd
+	pop qword[minus]
+	mov rcx, [rdi + bigInt.sign]
 	call negBigInt
+	mov rcx, [rdi + bigInt.sign]
 	pop r9
 	pop r10
 	returnRegisters
@@ -450,11 +565,7 @@ biSub:
 	mov qword[lenn], r11
 	add qword[lenn], 1
 	imul r11, 8
-	push r9
-	push rsi
 	createNumber r11	; create result number with size = r11
-	pop rsi
-	pop r9
 	mov r13, rax		; r13 -- pointer to result number
 	push r13
 	mov r11, 0	; remind
@@ -488,7 +599,9 @@ biSub:
 	mov rcx, [r9 + bigInt.num]
 	mov [r9 + bigInt.num], r13	; write new number
 	mov rdi, rcx		; delete previous number
+	push r9
 	call free
+	pop r9
 	mov rcx, [lenn]
 	mov [r9 + bigInt.size], rcx	; write new length
 	mov rdi, r9
@@ -496,7 +609,12 @@ biSub:
 	call cut_zeros		; cut forwards zeros
 	returnRegisters
 	ret
-
+.equ:		; if a == b then a - b = 0
+	pop rsi
+	pop rdi
+	mov qword[rdi + bigInt.sign], 0
+	returnRegisters
+	ret
 ;dst *= src
 ;RDI = dst
 ;RSI = src
@@ -526,13 +644,7 @@ biMul:
 	add qword[lenn], 1
 	mov r11, [lenn]		; result size = size of a + size of b + 1
 	imul r11, 8
-	push rdi
-	push r9
-	push rsi
 	createNumber r11	; create result number
-	pop rsi
-	pop r9
-	pop rdi
 	mov r13, rax
 	mov r14, 0 	; current number in a
 .loopA:

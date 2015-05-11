@@ -485,3 +485,31 @@ TEST(extra, mul_wtf) {
 
 	ASSERT_EQ(cmp, 0);
 }
+
+TEST(extra, construct) {
+	BigInt a = biFromString("2");
+	BigInt b = biFromString("000000000000000000002");
+
+	int cmp = biCmp(a, b);
+	biDelete(a);
+	biDelete(b);
+
+	ASSERT_EQ(cmp, 0);
+}
+
+TEST(extra, fail_mul) {
+	BigInt bi1 = biFromInt(0xffffffffffffll);
+	BigInt bi2 = biFromInt(0x123456789abcll);
+	BigInt bi3 = biFromString("5634002667680754350229513540");
+	BigInt bi4 = biFromString("112770188065645873042730879462335281972720");
+	biMul(bi1, bi2);
+	ASSERT_EQ(biCmp(bi1, bi3), 0);
+	biMul(bi1, bi2);
+	ASSERT_EQ(biCmp(bi1, bi4), 0);
+	BigInt bi5 = biFromInt(-1ll);
+	biMul(bi1, bi5);
+	ASSERT_LE(biSign(bi1), 0);
+	biMul(bi1, bi4);
+	bi5 = biFromString("-12717115316361138893215167268288118108744759009945360365688272198554511014824198400");
+	ASSERT_EQ(biCmp(bi1, bi5), 0); // <--- Failed here.
+}

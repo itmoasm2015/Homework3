@@ -149,11 +149,20 @@ void stress(int cnt_test = 10, int cnt_op = 1000, int max_num_len = 1000)
 
 
 int main() {
-    if (1) {
+    if (0) {
         srand(time(NULL));
         stress(100, 100000, buf_size);
         cout << "GOOD! " << endl;
     } else {
+        BigInt a = biFromInt(3);
+        BigInt b = biFromString("41234123412341234123412341234");
+        BigInt* b_q = new BigInt;
+        BigInt* b_r = new BigInt;
+        biDivRem(b_q, b_r, a, b);
+
+        biMul(*b_q, b);              
+        biAdd(*b_q, *b_r);
+        assert(biCmp(*b_q, a) == 0);
     }
 
     return 0;
