@@ -836,6 +836,34 @@ biSub:
 
 ;;; void biMulShort(BigInt dst, unsigned long int src);
 biMulShort:
+        ;; extend size of dst by 1
+        push    rdi
+        push    rsi
+        mov     esi, dword[rdi+bigint.size]
+        inc     esi
+        call    biExpand
+        pop     rsi
+        pop     rdi
+
+        ;; perform multiplication
+        mov     r9, [rdi+bigint.data]
+        xor     r8, r8          ; saving carry here (that's in rdx after mul)
+        xor     rcx, rcx
+        clc
+        .loop
+        mov     rax, [r9]
+        mul     rsi
+        add     rax, r8         ; add carry
+        mov     r8, rdx
+        mov     [r9], rax
+        add     r9, 8
+        inc     ecx
+        cmp     ecx, [rdi+bigint.size]
+        jl      .loop
+
+        ;; normalize
+        call    biCutTrailingZeroes
+
         ret
 
 ;;; void biMul(BigInt dst, BigInt src);
