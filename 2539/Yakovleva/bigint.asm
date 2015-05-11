@@ -72,7 +72,8 @@ endstruc
 	pop rax
 %endmacro
 
-%macro createNumber 1		; create number
+; RDI -- size
+createNumber:		; create number
 	push rdi
 	push rsi
 	push r9
@@ -80,8 +81,15 @@ endstruc
 	push r11
 	push rcx
 	push rbx
-	mov rdi, %1
+	cmp rsp, 15
+	jnz .call
 	call malloc
+	jmp .ok
+.call:
+	sub rsp, 8
+	call malloc
+	add rsp, 8
+.ok:
 	pop rbx
 	pop rcx
 	pop r11
@@ -89,7 +97,22 @@ endstruc
 	pop r9
 	pop rsi
 	pop rdi
-%endmacro
+	ret
+
+callFree:
+	saveOther
+	cmp rsp, 15
+	jnz .call
+	call free
+	jmp .ok
+.call:
+	push rdi
+	call free
+	pop rdi
+.ok:
+	returnOther
+	ret
+	
 
 %macro swapNumbers 2		; swap two numbers
 	mov [tmp], %1
@@ -101,7 +124,10 @@ endstruc
 	push rcx
 	push rbx
 	push rax
-	createNumber 32
+	push rdi
+	mov rdi, 32
+	call createNumber
+	pop rdi
 	mov r14, rax
 	mov rbx, r14
 	mov rcx, %2
@@ -132,13 +158,14 @@ copyBigInt:		; copy bigInt : sign, digit, size, number
 	mov r15, [rcx + bigInt.size]
 	mov rdi, [rbx + bigInt.num]
 	imul r15, 8
-	createNumber r15
+	push rdi
+	mov rdi, r15
+	call createNumber
+	pop rdi
 	mov [rbx + bigInt.num], rax
 	mov r9, [rbx + bigInt.num]
 	mov r10, [rcx + bigInt.num]
-	saveOther
-	call free
-	returnOther
+	call callFree
 	mov r15, 0
 .loop:
 	cmp r15, [rcx + bigInt.size]
@@ -168,11 +195,15 @@ negBigInt:		; number = -number if minus == 1
 biFromInt:
 	saveRegisters
 	mov rbx, rdi
-	createNumber 24		; create Number, 24 = 3 * 8 = max length of number with BASE = 10^9
+	push rdi
+	mov rdi, 24
+	call createNumber 		; create Number, 24 = 3 * 8 = max length of number with BASE = 10^9
 	mov rcx, rax
 	push rcx
-	createNumber 32		; create BigInt, 32 = 4 * 8, we have 4 fields
+	mov rdi, 32
+	call createNumber		; create BigInt, 32 = 4 * 8, we have 4 fields
 	pop rcx
+	pop rdi
 	mov [rax + bigInt.num], rcx	; remember pointer to number
 	mov qword[rax + bigInt.size], 0
 	mov qword[rax + bigInt.sign], 1		; try to determine sign of number rbx
@@ -233,11 +264,15 @@ biFromString:
 	add rax, 1
 	mov r12, rax
 	imul rax, 8
-	createNumber rax	; create number, number size = (len / 8 - 1) * 8
+	push rdi
+	mov rdi, rax
+	call createNumber	; create number, number size = (len / 8 - 1) * 8
 	mov rcx, rax
 	push rcx
-	createNumber 32		; create BigInt structure
+	mov rdi, 32
+	call createNumber		; create BigInt structure
 	pop rcx
+	pop rdi
 	mov [rax + bigInt.num], rcx
 	mov qword[rax + bigInt.size], r12
 	mov r12, [lenn]
@@ -370,9 +405,9 @@ biDelete:
 	saveRegisters
 	mov rbx, rdi
 	mov rdi, [rbx + bigInt.num]
-	call free	; free memory of number
+	call callFree	; free memory of number
 	mov rdi, rbx
-	call free	; free memory of bigInt structure
+	call callFree	; free memory of bigInt structure
 	returnRegisters
 	ret
 
@@ -437,7 +472,10 @@ biAdd:
 	add qword[lenn], 1
 	mov r11, [lenn]
 	imul r11, 8
-	createNumber r11	; create number with size = lenn + 1
+	push rdi
+	mov rdi, r11
+	call createNumber	; create number with size = lenn + 1
+	pop rdi
 	mov r13, rax
 	push r13
 	mov r11, 0	; remind
@@ -565,7 +603,10 @@ biSub:
 	mov qword[lenn], r11
 	add qword[lenn], 1
 	imul r11, 8
-	createNumber r11	; create result number with size = r11
+	push rdi
+	mov rdi, r11
+	call createNumber	; create result number with size = r11
+	pop rdi
 	mov r13, rax		; r13 -- pointer to result number
 	push r13
 	mov r11, 0	; remind
@@ -600,7 +641,7 @@ biSub:
 	mov [r9 + bigInt.num], r13	; write new number
 	mov rdi, rcx		; delete previous number
 	push r9
-	call free
+	call callFree
 	pop r9
 	mov rcx, [lenn]
 	mov [r9 + bigInt.size], rcx	; write new length
@@ -644,7 +685,10 @@ biMul:
 	add qword[lenn], 1
 	mov r11, [lenn]		; result size = size of a + size of b + 1
 	imul r11, 8
-	createNumber r11	; create result number
+	push rdi
+	mov rdi, r11
+	call createNumber	; create result number
+	pop rdi
 	mov r13, rax
 	mov r14, 0 	; current number in a
 .loopA:
@@ -697,7 +741,7 @@ biMul:
 	mov [rdi + bigInt.num], r13	; save result multiply number
 	push rdi
 	mov rdi, rcx		; delete previuos number
-	call free
+	call callFree
 	pop rdi
 	mov rcx, [lenn]		; save size of result number
 	mov [rdi + bigInt.size], rcx
