@@ -281,8 +281,9 @@ biSign:
 ;;	* RSI: pointer to destination buffer.
 ;;	* RDX: max number of chars.
 biToString:
+	mpush		rbx
 ;; These macros are used only in this function, so don't move it to macros file.
-
+;;
 ;; Writes byte %3 to [%1 + %2].
 %macro write_byte 3
 	mov		byte [%1 + %2], %3
@@ -429,8 +430,7 @@ biToString:
 .done:
 ;; Write terminator.
 	write_byte 	rsi, rcx, 0
-	mpop		rdi, rsi, rdx
-
+	mpop		rdi, rsi, rdx, rbx
 	ret
 
 
@@ -609,7 +609,7 @@ biMul:
 
 .done:
 	mpush		rdi
-	call _biTrimZeros
+	call		_biTrimZeros
 	mpop		rdi
 	ret
 
