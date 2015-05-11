@@ -71,7 +71,7 @@ void test_mul_by_two_large(const int iterations = 1, bool verbose = false) {
       size_t msb(pow + 12);
       biMulBy2(foo);
       assert (foo != nullptr);
-//      if (verbose) dupm(foo);
+//      if (verbose) dump(foo);
       assert (foo->size == (2 + msb + 63) / 64);
       /* TODO: check foo->data[foo->size - 1] and foo->data[foo->size - 2] */
     }

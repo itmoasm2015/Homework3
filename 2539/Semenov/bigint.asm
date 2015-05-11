@@ -182,6 +182,25 @@ biGrowCapacity:
         .return:
             ret 
 
+; void biEnsureCapacity(BigInt x, size_t capacity);
+; x in RDI
+; capacity in RSI
+biEnsureCapacity:
+            cmp rsi, [rdi + CAPACITY]
+            jbe .return
+
+            mov r8, [rdi + CAPACITY]
+        .loop:
+            shl r8, 1
+            cmp r8, rsi
+            jb .loop
+            ; now R8 >= capacity
+            mov rsi, r8
+            call biGrowCapacity
+
+        .return
+            ret
+
 
 ; void biMulBy2(BigInt x)
 ; multiplies x by 2
@@ -193,17 +212,14 @@ biMulBy2:
             overflowWarning r8
             jz .main_part
             ; if overflow risk exists we have to grow up size of BigInt
-            cmp rsi, [rdi + CAPACITY]
-            jb .capacity_ensured
             push rdi
-            mov rsi, [rdi + CAPACITY]
-            shl rsi, 1 ; new capcity
-            call biGrowCapacity
+            inc rsi ; x->capacity has to be not less then x->size + 1
+            call biEnsureCapacity
             pop rdi
             mov rdx, [rdi + DATA]
             mov rsi, [rdi + SIZE]
 
-        .capacity_ensured:
+;        .capacity_ensured:
             inc rsi
             mov [rdi + SIZE], rsi
             mov qword [rdx + 8 * rsi - 8], 0
@@ -250,6 +266,15 @@ biAdd:
             ret
 
         .general_case:
+
+            cmp r8, r10
+            ja .r8_greater_then_r10
+            je .r8_equals_r10
+            ; so dst->size < src->size
+
+        .r8_equals_r10:
+        .r8_greater_then_r10:
+
             ret
 
 biSub:      ret
