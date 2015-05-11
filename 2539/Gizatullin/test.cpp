@@ -8,11 +8,14 @@
 #include <iostream>
 #include <random>
 
+#define LL long long
+
 using namespace std;
 using namespace boost::multiprecision;
 
 const int NUM_SIZE = 100500;
-const int TEST_NUMBER = 1000;
+const int TEST_NUMBER = 3000;
+
 std::random_device rd;
 std::mt19937 gen(rd());
 
@@ -23,9 +26,9 @@ mpz_int randBig() {
     return ((dis(gen) % 2 == 1) ? -1 : 1) * dis(gen);
 }
 
-long long randInt() {
-    std::uniform_int_distribution<long long> dis(0, 1LL << 60);
-    long long res = dis(gen);
+LL randInt() {
+    std::uniform_int_distribution<LL> dis(0, 1LL << 60);
+    LL res = dis(gen);
     res = dis(gen) % 2 == 1 ? -res : res;
     return res;
 }
@@ -44,19 +47,19 @@ int test_cmp() {
     biSub(bi1, bi2);
     assert(biCmp(bi2, bi3) == 0);
     for (int lp = 0; lp < TEST_NUMBER; lp++) {
-        long long i1 = randInt();
-        long long i2 = randInt();
+        LL i1 = randInt();
+        LL i2 = randInt();
         BigInt b1 = biFromInt(i1);
         BigInt b2 = biFromInt(i2);
         if (biCmp(b1, b1) != 0) {
             printf("test: %d failure, equals %lld\n", lp + 1, i1);
             return 0;
         }
-        long long g1 = randInt();
-        long long g2 = randInt();
+        LL g1 = randInt();
+        LL g2 = randInt();
         g2 += g1;
         if (g1 < g2) {
-            long long tmp = g1;
+            LL tmp = g1;
             g1 = g2;
             g2 = tmp;
         }
@@ -125,7 +128,7 @@ int test_add(bool adding) {
     char str[NUM_SIZE];
     size_t str_size = NUM_SIZE;
     mpz_int mi1 = 1;
-    for (int i = 0; i < 1024; i++, mi1 *=2) {}
+    for (int i = 0; i < 1024; i++, mi1 <<= 1) {}
     mpz_int mi2 = mi1;
     BigInt b1 = biFromString(mi1.str().c_str());
     BigInt b2 = biFromString(mi2.str().c_str());
@@ -149,7 +152,7 @@ int test_add(bool adding) {
         biToString(b1, str, str_size);
         if (strcmp(str, var3.str().c_str()) != 0) {
             cout << "First: " << var << "\n" << "Second: " << var2 << "\n";
-            printf("test: %d failure \nMy: %s\nGM: %s\n", lp + 1, str, var3.str().c_str());
+            printf("test: %d failure \nMine: %s\nGM: %s\n", lp + 1, str, var3.str().c_str());
             return 0;
         }
         biDelete(b1);
@@ -161,25 +164,25 @@ int test_add(bool adding) {
 }
 
 int test_mul() {
-    printf("====== TESTING %s ======\n", "MULTIPLY");
+    printf("====== TESTING MULTIPLY ======\n");
     char str[NUM_SIZE];
     size_t str_size = NUM_SIZE;
-    long long allGmp = 0;
-    long long allMine = 0;
+    LL allGmp = 0;
+    LL allMine = 0;
     for (int lp = 0; lp < TEST_NUMBER; lp++) {
         mpz_int var = randBig();
         mpz_int var2 = randBig();
         BigInt b1 = biFromString(var.str().c_str());
         BigInt b2 = biFromString(var2.str().c_str());
         mpz_int var3;
-        long long tGmp = clock();
+        LL tGmp = clock();
         var3 = var * var2;
         tGmp = (clock() - tGmp);
-        long long tMy = clock();
+        LL tMine = clock();
         biMul(b1, b2);
-        tMy = (clock() - tMy);
+        tMine = (clock() - tMine);
         allGmp += tGmp;
-        allMine += tMy;
+        allMine += tMine;
         biToString(b1, str, str_size);
         if (strcmp(str, var3.str().c_str()) != 0){
             cout << "First: " << var << "\n" << "Second: " << var2 << "\n";
@@ -189,7 +192,6 @@ int test_mul() {
         }
         biDelete(b1);
         biDelete(b2);
-        
     }
     //printf("time, GMP: %lld\ntime, mine : %lld\n", allGmp, allMine);
     printf("Verdict: OK\n");
@@ -197,7 +199,7 @@ int test_mul() {
 }
 
 int test_divide() {
-    printf("====== TESTING %s ======\n", "DIVISION");
+    printf("====== TESTING DIVISION ======\n");
     char str[NUM_SIZE];
     char str2[NUM_SIZE];
     size_t str_size = NUM_SIZE;
@@ -235,7 +237,7 @@ int test_divide() {
             printf("test: %d failure \nMy: %s\nGM: %s\n", lp + 1, str, var3.str().c_str());
             biToString(remainder, str, str_size);
             var3 = var%var2;
-            printf("GMP Rem: %s\nRemainder: %s\n", var3.str().c_str(), str);
+            printf("GMP Remainder: %s\nRemainder: %s\n", var3.str().c_str(), str);
             return 0;
         }
         biDelete(b1);
@@ -246,13 +248,13 @@ int test_divide() {
 }
 
 int main() {
-    int res = 0;
     srand(time(NULL));
-    res += test_str();
+    int res = test_str();
     res += test_cmp();
     res += test_add(true);
     res += test_add(false);
     res += test_mul();
     res += test_divide();
-    printf("====== ALL: %s\n", res == 6 ? "OK" : "NO");
+    printf("====== ALL: %s\n", res == 6 ? "OK" : "FAILURE");
+    return 0;
 }

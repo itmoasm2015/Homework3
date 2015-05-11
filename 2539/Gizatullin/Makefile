@@ -4,7 +4,7 @@ all: libhw.a tester
 tester: test
 	./test
 
-test: libhw.a test.o
+test: test.o
 	g++ -o test $(C_FLAGS) test.o -lhw -lgmp
 
 test.o: test.cpp
