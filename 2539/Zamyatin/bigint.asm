@@ -35,6 +35,7 @@ myFree:
 
 
 checkString:
+	mov 	rsi, 0
 	cmp 	byte [rdi], '-'
 	jne 	.checkPlusSign
 		inc 	rdi
@@ -52,8 +53,11 @@ checkString:
 		cmp 	byte[rdi], '9'
 		jg 		.nok
 		inc 	rdi
+		inc 	rsi
 		jmp 	.loop
 	.ok:
+		cmp 	rsi, 0
+		je  	.nok
 		mov 	rax, 1
 		ret
 	.nok:
