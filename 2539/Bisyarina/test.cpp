@@ -332,7 +332,7 @@ int main() {
 	char s[5];
 	cout << biCmp(bi2, bi3); //== 0);
 	biToString(bi3, s, 10);
-	cout << s;
+	cout << s << endl;
 	biDelete(bi1);
 	biDelete(bi2);
 	biDelete(bi3);
@@ -350,6 +350,11 @@ int main() {
 	} else {
 		cout << "From string fail " << "22-2" << endl;;
 	}
-	
+	t = biFromString("");
+	if (t == 0) {
+		cout << "From string OK\n";
+	} else {
+		cout << "From string fail " << "" << endl;;
+	}
 	return 0;
 }
