@@ -149,11 +149,13 @@ void stress(int cnt_test = 10, int cnt_op = 1000, int max_num_len = 1000)
 
 
 int main() {
-    if (1) {
+    if (0) {
         srand(time(NULL));
         stress(100, 100000, buf_size);
         cout << "GOOD! " << endl;
     } else {
+        BigInt a = biFromInt(-1000000000000ll);
+        cout << biSign(a) << endl;
     }
 
     return 0;
