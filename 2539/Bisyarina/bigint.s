@@ -284,6 +284,11 @@ biFromString:
         alignStack16
         call strlen
         remAlignStack16
+        test rax, rax
+        jnz .continue
+        pop rdi
+        jmp .exit
+.continue:       
         ;; Allocate bigint
         push rax
         
