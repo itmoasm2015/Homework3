@@ -5,7 +5,7 @@ YASM=yasm
 YFLAGS=-f elf64 -g dwarf2
 AR=ar rcs
 
-all: test lib
+all: lib
 
 test: test.o vector.o bigint.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
