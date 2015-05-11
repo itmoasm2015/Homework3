@@ -282,7 +282,7 @@ biCmp:
 		mov 	rax, 0
 		ret
 ;=============
-; makes string. don't put zero at end of string. you should care about zero at the end.
+; makes string. puts zero at the end
 biToString:
 	cmp 	rdx, 0
 	jne  	.ok
