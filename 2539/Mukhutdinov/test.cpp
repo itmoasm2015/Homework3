@@ -1,8 +1,26 @@
 #define BOOST_TEST_DYN_LINK
 #define BOOST_TEST_MODULE VectorTest
 #include <boost/test/unit_test.hpp>
+#include <gmpxx.h>
+#include <cstdlib>
+#include <string>
+#include <iostream>
+#include <time.h>
 #include "vector.h"
 #include <bigint.h>
+
+void randomNumberStr(char* buf, size_t charlen) {
+    size_t i = 0;
+    if (rand() % 2 == 1) {
+        buf[i] = '-';
+        i++;
+    }
+
+    for (; i < charlen; i++) {
+        buf[i] = rand() % 10 + '0';
+    }
+    buf[i] = 0;
+}
 
 BOOST_AUTO_TEST_CASE (VectorTest)
 {
@@ -98,10 +116,10 @@ BOOST_AUTO_TEST_CASE(BigintCreationAndOutput)
     biToString(big, buf, 4096);
     BOOST_CHECK_EQUAL(buf, "100000000000000000000000000005000000000000000000000000000000000000000000000000000");
 
-    BigInt big2 = biFromString("12312312312312312312312312312312312312312312312312312312312312312312312312312312");
+    BigInt big2 = biFromString("123123123123123123123123123123123123123123123123123123123123123123123123123123123");
     BOOST_CHECK_EQUAL(biCmp(big, big2), -1);
     biToString(big2, buf, 4096);
-    BOOST_CHECK_EQUAL(buf, "12312312312312312312312312312312312312312312312312312312312312312312312312312312");
+    BOOST_CHECK_EQUAL(buf, "123123123123123123123123123123123123123123123123123123123123123123123123123123123");
 
 
     BigInt b2_64 = biFromString("18446744073709551616");
@@ -140,6 +158,7 @@ BOOST_AUTO_TEST_CASE(BigintCreationAndOutput)
     biDelete(bi_s);
     biDelete(bi_s2);
 }
+
 BOOST_AUTO_TEST_CASE(biAddUnsignedSmall)
 {
     char buf[4096];
@@ -179,6 +198,70 @@ BOOST_AUTO_TEST_CASE(biAddUnsignedBig)
     biDelete(b2);
 }
 
+BOOST_AUTO_TEST_CASE(biAddSignedSmall)
+{
+    char buf[4096];
+    BigInt b1 = biFromInt(123412412512);
+    BigInt b2 = biFromInt(-213124143);
+    biAdd(b1, b2);
+    biToString(b1, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "123199288369");
+
+    BigInt b3 = biFromInt(-932344323444);
+    biAdd(b1, b3);
+    biToString(b1, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "-809145035075");
+
+    biDelete(b1);
+    biDelete(b2);
+    biDelete(b3);
+}
+
+BOOST_AUTO_TEST_CASE(biAddSignedBig)
+{
+    char buf[4096];
+    BigInt b1 = biFromString("5000000000000000000000000000000000000000000000000000000000000000");
+    BigInt b2 = biFromString("-10000000000000000000000000000000000000000000000000000000000000000");
+    biAdd(b1, b2);
+    biToString(b1, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "-5000000000000000000000000000000000000000000000000000000000000000");
+
+    biDelete(b1);
+    biDelete(b2);
+}
+
+BOOST_AUTO_TEST_CASE(biSubSignedSmall)
+{
+    char buf[4096];
+    BigInt b1 = biFromInt(-100500);
+    BigInt b2 = biFromInt(234);
+    biSub(b1, b2);
+    biToString(b1, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "-100734");
+
+    BigInt b3 = biFromInt(100234);
+    biSub(b2, b3);
+    biToString(b2, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "-100000");
+
+    biDelete(b1);
+    biDelete(b2);
+    biDelete(b3);
+}
+
+BOOST_AUTO_TEST_CASE(biSubSignedBig)
+{
+    char buf[4096];
+    BigInt b1 = biFromString("5000000000000000000000000000000000000000000000000000000000000000");
+    BigInt b2 = biFromString("10000000000000000000000000000000000000000000000000000000000000000");
+    biSub(b1, b2);
+    biToString(b1, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "-5000000000000000000000000000000000000000000000000000000000000000");
+
+    biDelete(b1);
+    biDelete(b2);
+}
+
 BOOST_AUTO_TEST_CASE(biSubUnsignedSmall)
 {
     char buf[4096];
@@ -210,6 +293,9 @@ BOOST_AUTO_TEST_CASE(biSubUnsignedBig)
     biAdd(b2_512, one);
     biToString(b2_512, buf, sizeof buf);
     BOOST_CHECK_EQUAL(buf, "13407807929942597099574024998205846127479365820592393377723561443721764030073546976801874298166903427690031858186486050853753882811946569946433649006084096");
+
+    biSub(b1, b1);
+    BOOST_CHECK_EQUAL(biSign(b1), 0);
 
     biDelete(b1);
     biDelete(b2);
@@ -244,4 +330,55 @@ BOOST_AUTO_TEST_CASE(biMulSmall)
     biDelete(b3);
     biDelete(b4);
     biDelete(zero);
+}
+
+BOOST_AUTO_TEST_CASE(biMulBig)
+{
+    char buf[4096];
+    BigInt b1 = biFromString("3124398701234098741230498743910213434819341");
+    BigInt b2 = biFromString("412349123478698416234921384767378137468838483");
+    biMul(b1, b2);
+    biToString(b1, buf, sizeof buf);
+    BOOST_CHECK_EQUAL(buf, "1288343065851864343609008479977923980535989010480799990100385643000250783134636213499703");
+
+    biDelete(b1);
+    biDelete(b2);
+}
+
+BOOST_AUTO_TEST_CASE(XtremeRandomTest)
+{
+    char buf[4096];
+
+    srand (time(NULL));
+
+    for (int i = 0; i < 1000; i++) {
+        int len = rand() % 1000 + 2;
+        randomNumberStr(buf, len);
+        BigInt a_bi = biFromString(buf);
+        mpz_class a_mpz(buf, 10);
+
+        len = rand() % 1000 + 2;
+        randomNumberStr(buf, len);
+        BigInt b_bi = biFromString(buf);
+        mpz_class b_mpz(buf, 10);
+
+        biAdd(a_bi, b_bi);
+        biMul(b_bi, a_bi);
+        biSub(b_bi, a_bi);
+
+        a_mpz += b_mpz;
+        b_mpz *= a_mpz;
+        b_mpz -= a_mpz;
+
+        biToString(a_bi, buf, sizeof buf);
+        std::string s = a_mpz.get_str();
+        BOOST_CHECK_EQUAL(buf, s.c_str());
+
+        biToString(b_bi, buf, sizeof buf);
+        s = b_mpz.get_str();
+        BOOST_CHECK_EQUAL(buf, s.c_str());
+
+        biDelete(a_bi);
+        biDelete(b_bi);
+    }
 }
