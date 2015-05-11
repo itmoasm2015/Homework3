@@ -1,11 +1,11 @@
-CXXFLAGS=-g -Wall -Wextra
+CXXFLAGS=-g -Wall -Wextra 
 
 YASM_FLAGS=-f elf64 -g dwarf2
 
-all: test
+all: test 
 
-test: test.o libhw.a
-	g++ $(CXXFLAGS) -o test test.o libhw.o -lgmp
+test: test.o libhw.a 
+	g++ $(CXXFLAGS) -o test test.o libhw.o
 
 libhw.a: libhw.o
 	ar rcs libhw.a libhw.o
