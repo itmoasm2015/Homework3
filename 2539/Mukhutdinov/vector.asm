@@ -1,5 +1,9 @@
 ;;; vector.asm
 ;;; Operations on auto-resizing vectors of uint64_t
+;;;
+;;; A place for data is allocated separately from vector data structure itself
+;;; in order to prevent pointer invalidating after reallocation (which is essential
+;;; in such functions as biAdd, biSub and biMul)
 
 %include "macro.inc"
 %include "vector.inc"

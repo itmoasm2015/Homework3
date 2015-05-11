@@ -1,6 +1,14 @@
 ;;; bigint.asm
 ;;; Big Integers implementation.
-
+;;;
+;;; BigInt is implemented using auto-expanding vector from vector.asm.
+;;; It stores absolute value in vector's data as an array of uint64_t.
+;;; Sign is stored separately in extra field of vector structure: 0 - positive, 1 - negative.
+;;;
+;;; No leading zeroes are stored in bigint
+;;; Only one representation of zero is supported: vector of size 1 with 0 sign and 0 value in single cell.
+;;; This invariant is preserved by helper functions __clearTail and __validateZero
+              
 %include "macro.inc"
 %include "vector.inc"
 
@@ -168,20 +176,31 @@ biDelete:
 ;; @param  RDI dst  -- first summand
 ;; @param  RSI src  -- second summand
 biAdd:
-              CDECL_ENTER 0, 0
-
               mov   rax, [rdi + vector.sign]
-              mov   rbx, [rsi + vector.sign]
+              mov   rdx, [rsi + vector.sign]
 
-              cmp   rax, rbx
-              je    .unsigned_add   ; If signs are the same, then it's a simple addition
+              JCOND e, rax, rdx, .add ; If signs are the same, then it's a simple addition
 
+              ;; If signs are different, then this is actually a subtraction
+              ;; Compare absolute values to understand what should be dst, and what - src
+              mpush rdi, rsi
+              call  biCmpAbs
+              mpop  rdi, rsi
               
-              
-.unsigned_add: 
-              call  biAddUnsigned
+              JCOND ge, rax, 0, .sub ; If |a| > |b|, then it's a regular subtraction (a := a - b)
+
+              ;; If |a| < |b|, then it's a reverse subtraction (a := b - a)
+              ;; Also in this case we must set sign of SRC to DST
+              mov   qword [rdi + vector.sign], rdx
+              call  biSubRevUnsigned 
+              ret
+.sub:
+              call  biSubUnsigned
               call  __validateZero
-              CDECL_RET
+              ret
+.add: 
+              call  biAddUnsigned
+              ret   
 
 ;; @cdecl64
 ;; void biSub(BigInt dst, BigInt src);
@@ -191,12 +210,26 @@ biAdd:
 ;; @param  RDI dst  -- minuend
 ;; @param  RSI src  -- subtrahend
 biSub:
-              CDECL_ENTER 0, 0
-              ; TBD: only unsigned subtraction yet
-              call  biSubUnsigned
-              call  __validateZero  ; Fixes sign if result is zero
-              CDECL_RET
- 
+              mov   rax, [rdi + vector.sign]
+              mov   rdx, [rsi + vector.sign]
+
+              JCOND ne, rax, rdx, biAdd.add ; If signs are different, then it's actually an addition
+
+              ;; If signs are the same, then this is a subtraction
+              ;; Compare absolute values of dst and src to know if it's reversal
+              mpush rdi, rsi
+              call  biCmpAbs
+              mpop  rdi, rsi
+
+              JCOND ge, rax, 0, biAdd.sub ; If |a| > |b|, then it's a regular subtraction (a := a - b)
+
+              not   rdx             ; Invert RDX, where sign are stored (0 -> 1, 1 -> 0)
+              and   rdx, 1          ; and change the sign of dst (because it will change)
+              mov   qword [rdi + vector.sign], rdx
+              
+              call  biSubRevUnsigned ; Otherwise it's reverse (a := b - a)
+              ret
+              
 ;; @cdecl64
 ;; void biAddUnsigned(BigInt dst, BigInt src);
 ;;
@@ -262,7 +295,7 @@ biAddUnsigned:
 ;; void biSubUnsigned(BigInt dst, BigInt src);
 ;;
 ;; Subtracts src from dst, storing result in dst
-;; Assumes that dst and src are positive, and dst > src
+;; Assumes that dst and src are positive, and dst >= src
 ;;
 ;; @param  RDI dst  -- minuend
 ;; @param  RSI src  -- subtrahend
@@ -283,7 +316,6 @@ biSubUnsigned:
               je    .skip_src_copy  ; Don't take digit from SRC in this case
 
               mov   rax, [rsi]
-              add   rsi, 8
               dec   r8
 .skip_src_copy:
               popf                  ; Restore CF
@@ -291,6 +323,8 @@ biSubUnsigned:
               pushf                 ; and save it again
 
               lea   rdi, [rdi + 8]  ; Use LEA to save CF
+              lea   rsi, [rsi + 8]
+              
               dec   rcx
               jnz   .sub_loop       ; Subtract until wea re not at the end of DST
               jc    .sub_loop       ; or till we have carry
@@ -300,7 +334,54 @@ biSubUnsigned:
               call  __clearTail     ; Clear leading zeroes, if they exist
               ret
 
+;; @cdecl64
+;; void biRevSubUnsigned(BigInt dst, BigInt src);
+;;
+;; Reverse subtraction. Subtracts dst from src, storing result in dst
+;; Assumes that dst and src are positive, and dst <= src
+;;
+;; Mostly copypasted from biSubUnsigned, but I don't know an elegant way not to copypaste
+;; ASM code in such situations: a macro would be too large and too specific, wrapping in
+;; the more general function would be cumbersome too and taxing because of calls inside loop
+;;
+;; @param  RDI dst  -- subtrahend
+;; @param  RSI src  -- minuend
+biSubRevUnsigned:
+              push  rdi
+              mov   rcx, [rsi + vector.size]
 
+              mpush rsi, rcx        ; We must ensure that here we'll have enough space in DST
+              mov   rsi, rcx        ; so we resize it to the size of SRC
+              xor   rdx, rdx
+              call  vectorResize
+              mpop  rsi, rcx
+              
+              GET_DATA rdi, rdi
+              GET_DATA rsi, rsi
+              
+              clc                   ; Reset carry
+              pushf                 ; Save CF
+.sub_loop:
+              mov   rax, [rdi]
+              
+              popf                  ; Restore CF
+              mov   rdx, [rsi]      ; Subtract dst digit from src and place result in dst
+              sbb   rdx, rax
+              mov   [rdi], rdx
+              pushf                 ; and save it again
+
+              lea   rdi, [rdi + 8]  ; Use LEA to save CF
+              lea   rsi, [rsi + 8]  
+              
+              dec   rcx
+              jnz   .sub_loop       ; Subtract until wea re not at the end of DST
+              jc    .sub_loop       ; or till we have carry
+
+              popf                  ; Remove flags from stack
+              pop   rdi
+              call  __clearTail     ; Clear leading zeroes, if they exist
+              ret
+              
 ;; @cdecl64
 ;; void biMul(BigInt src, BigInt dst);
 ;;
@@ -343,16 +424,16 @@ biMul:
               xor   rdx, rdx        ; Reset carry
               xor   rbx, rbx        ; j = 0  -- RBX is the inner loop counter
 .inner:       
-              lea   r8, [r13 + rcx]
-              mov   r8, [r8 + rbx]  ; r8 = result[i + j]
+              lea   r8, [r13 + rcx*8]
+              mov   r8, [r8 + rbx*8]  ; r8 = result[i + j]
 
               xor   r9, r9
               JCOND ae, rbx, r15, .skip_src_copy ; If we have reached the end of src, assume 0 is its current digit
 
-              mov   r9, [rsi + rbx] ; Or copy actual digit otherwise
+              mov   r9, [rsi + rbx*8] ; Or copy actual digit otherwise
 .skip_src_copy:
               mov   r10, rdx        ; Store previous carry in R10
-              mov   rax, [rdi + rcx]
+              mov   rax, [rdi + rcx*8]
               mul   r9
 
               add   rax, r8         ; Add previously counted result to product
@@ -360,8 +441,8 @@ biMul:
               add   rax, r10        ; Add previous carry to product
               adc   rdx, 0
 
-              lea   r8, [r13 + rcx]
-              lea   r8, [r8 + rbx]  ; Point R8 to result[i + j]
+              lea   r8, [r13 + rcx*8]
+              lea   r8, [r8 + rbx*8] ; Point R8 to result[i + j]
 
               mov   [r8], rax       ; Store new result
 
@@ -515,29 +596,13 @@ biCmp:
               jg    .a_gt_b         ; and reversed
 
               ;; Here R12 stores the sign of a and b
-              test  r12, r12          ; Check if sign is zero, this means a and b are both zeroes
+              test  r12, r12        ; Check if sign is zero, this means a and b are both zeroes
               je    .equal
 
-              mov   rcx, [rdi + vector.size] ; Compare sizes now
-              ; mov   r14, [rsi + vector.size]
-
-              cmp   rcx, qword [rsi + vector.size]
-              jb    .a_abs_lt_b
-              ja    .a_abs_gt_b
-              
-              ;; Here RCX stores the size of a and b
-              GET_DATA rdi, rdi
-              GET_DATA rsi, rsi
-.compare_loop:
-              mov   rax, [rdi]
-              cmp   rax, [rsi]
-              jb    .a_abs_lt_b
-              ja    .a_abs_gt_b
-              add   rdi, 8
-              add   rsi, 8
-              dec   rcx
-              jnz   .compare_loop
-              
+              call  biCmpAbs        ; Compare absolute values 
+              cmp   rax, 0
+              jl    .a_abs_lt_b
+              jg    .a_abs_gt_b     
 .equal:       
               xor   rax, rax
               CDECL_RET
@@ -556,6 +621,48 @@ biCmp:
               mov   rax, 1
               CDECL_RET
               
+;; @cdecl64
+;; int biCmpAbs(BigInt a. BigInt b);
+;;
+;; Compares absolute values of 2 bigints
+;;
+;; @param  RDI a  -- first bigint
+;; @param  RSI b  -- second bigint
+;; @return RAX -1 if |a| < |b|, 0 if |a| = |b| and 1 if |a| > |b|
+biCmpAbs:
+              mov   rcx, [rdi + vector.size] ; Compare sizes now
+
+              cmp   rcx, qword [rsi + vector.size] ; If size of one bigint is bigger than other's, then the former is definitely bigger
+              jb    .a_lt_b
+              ja    .a_gt_b
+              
+              ;; Here RCX stores the size of a and b
+              GET_DATA rdi, rdi
+              GET_DATA rsi, rsi
+
+              dec   rcx
+              lea   rdi, [rdi + rcx*8] ; Point to the elder digits
+              lea   rsi, [rsi + rcx*8]
+              inc   rcx
+.compare_loop:
+              mov   rax, [rdi]      ; Compare digits from high to low
+              cmp   rax, [rsi]
+              jb    .a_lt_b         ; If digits are different, we know the answer
+              ja    .a_gt_b
+              sub   rdi, 8
+              sub   rsi, 8
+              dec   rcx
+              jnz   .compare_loop
+
+              xor   rax, rax
+              ret
+.a_lt_b:
+              mov   rax, -1
+              ret
+.a_gt_b:
+              mov   rax, 1
+              ret
+             
 
 ;; __addShort -- inner non-cdecl function
 ;;
