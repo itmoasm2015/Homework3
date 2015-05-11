@@ -42,6 +42,7 @@ checkString:
 		jmp 	.noSign
 	.checkPlusSign:
 	cmp 	byte [rdi], '+'
+		je 		.nok
 		jne 	.noSign
 		inc 	rdi
 	.noSign:
