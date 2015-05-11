@@ -656,6 +656,7 @@ biAddUnsigned:
 ;		RCX - length of RAX
 ;		R8 - resulting sign
 biSubUnsigned:
+	MPUSH r12, r13, r14, r15
 	mov r8, [rdi + length]
 	mov r9, [rsi + length]
 	cmp r8, r9					;if lengths are the same compare digits
@@ -740,6 +741,7 @@ biSubUnsigned:
 	xor rax, rax
 	MPOP rdi, rsi, r15
 	pop r14
+	MPOP r12, r13, r14, r15
 	ret
 
 .finish:
@@ -747,6 +749,7 @@ biSubUnsigned:
 	mov rax, rdx
 	MPOP rdi, rsi, r15
 	pop r14
+	MPOP r12, r13, r14, r15
 	ret
 
 
@@ -839,6 +842,7 @@ biSub:
 ;returns:	RAX - product
 ;		RCX - product digits' length
 biMulUnsigned:
+	MPUSH r12, r13, r14, r15
 	push rbx
 	mov r8, [rdi + length]
 	mov r9, [rsi + length]
@@ -902,6 +906,7 @@ biMulUnsigned:
 	mov rax, rbx
 	MPOP rdi, rsi
 	pop rbx
+	MPOP r12, r13, r14, r15
 	ret
 
 ;void biMul(BigInt lhs, BigInt rhs)
