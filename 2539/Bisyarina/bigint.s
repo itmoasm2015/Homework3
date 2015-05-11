@@ -1,9 +1,9 @@
+default rel
+
 section .text
 
-extern malloc
 extern calloc
 extern realloc
-extern memset
 extern free
 extern strlen
 
@@ -18,6 +18,25 @@ global biMul
 global biDivRem
 global biCmp
 
+;;; Bigint struct: uint64 size, uint65 pointer to data, int64 sign
+;;; Amount of allocated memory may be greater than size
+;;; Base is (2 << 64)
+;;; Least significant bits go first
+;;; There are no leading zeroes if bigint is not zero
+
+;;; Swaps pointers to data of two bigints and deletes the first
+%macro swapNfree 2
+        mov rax, [%1 + 8]
+        mov rcx, [%2 + 8]
+        mov [%2 + 8], rax
+        mov [%1 + 8], rcx
+        push rdi
+        push rsi
+        mov rdi, %1
+        call biDelete
+        pop rsi
+        pop rdi
+%endmacro
 
 ;;; Aligns stack by 16, saves difference to alignStack
 %macro alignStack16 0
@@ -36,6 +55,7 @@ global biCmp
 %endmacro
 
 ;;; Allocates memory for bigint structure with given length of data
+;;; RDI - length of data for bigint
 allocate:       
         push rdi
         push rsi
@@ -70,7 +90,8 @@ allocate:
         pop rdi
         ret
 
-
+;;; setSgin(bigint b, int64 a)
+;;; Sets sign of b to a
 %macro setSign 2
         push rdx
         push rax
@@ -83,8 +104,22 @@ allocate:
         pop rdx
 %endmacro
 
+;;; Checks if bigint data is zero and sets zero sign
+%macro setZeroIfZero 1
+        mov rax, [%1]
+        dec rax
+        mov rcx, [%1 + 8]
+        mov rax, [rcx + 8 * rax]
+        test rax, rax
+        jnz %%no_zero
+        setSign %1, 0
+%%no_zero:
+%endmacro
 
 
+;;; Adds  rsi to rdi
+;;; rdi -  bigint 
+;;; rsi - uint64
 addInt: 
         push rax
         push rcx
@@ -110,7 +145,7 @@ addInt:
         ;; Get size
         mov r8, [rax]
         mov rax, [rcx]
-        ;; Add to last int64 of bigint data an integer
+        ;; Add to last uint64 of bigint data an integer
         clc
         add rax, rsi
         mov [rcx], rax
@@ -134,22 +169,23 @@ addInt:
         clc
         add rax, 1
         jc .loop
-
 .exit:
         pop r8
         pop rdx
         pop rcx 
         pop rax
         ret
-;;; rdi
-;;; rsi
+
+;;; Multiplies rdi by rsi and stores result to rdi
+;;; rdi -  bigint 
+;;; rsi - uint64
+;;; O(n) where n is rdi size
 mulInt: 
         push rax
         push rcx
         push rdx
         push r8
         push r9
-
         ;; Check if int is zero
         test rsi, rsi
         jnz .mul
@@ -186,14 +222,12 @@ mulInt:
         ;; Add carry from sum
         add r8, 1
         jmp .loop
-
 .exit:
         cmp r9, 0
         jge .exitexit
         mov rax, [rdi]
         inc rax
         mov [rdi], rax
-
 .exitexit:
         pop r9
         pop r8
@@ -202,9 +236,11 @@ mulInt:
         pop rax
         ret
 
-
+;;; Creates bigint from int64
 ;;; rdi - int64
+;;; O(1)
 biFromInt:      
+        ;; Allocate with data size = 1
         push rdi
         mov qword rdi, 1
         call allocate
@@ -237,20 +273,24 @@ biFromInt:
         pop rax
         ret
 
-
-;;; rdi - string s
+;;; Creates bigint from string
+;;; RDI - pointer string s
+;;; O(m^2) where m is string length(mulInt and addInt for each char)
 biFromString:
+        push r13
         push r12
         push rdi
         ;; Get length of string
         alignStack16
         call strlen
         remAlignStack16
-        ;; Allocate
+        ;; Allocate bigint
         push rax
+        
+        ;; Calculate size of bigint's data
+        ;; Don't need uint64 for each symbol, but some extra space is ok
         add rax, 10
         xor rdx, rdx
-        ;; Don't need int64 for each symbol, but some extra space is ok
         mov qword r8, 10
         div r8
         mov rcx, rax
@@ -278,14 +318,14 @@ biFromString:
         mov qword r12, 1
 
         inc rdi
-.loop:                          ; possible to chunk by 19 figures
+.loop:
         inc rdi
-        ;; CHeck if end
+        ;; Check if end
         xor rax, rax
         mov al, [rdi]
         cmp al, 0
         je .finish
-
+        ;; Mul current result by 10
         push rsi
         push rdi
         mov rdi, rsi
@@ -294,9 +334,14 @@ biFromString:
         pop rdi
         pop rsi
 
+        ;; Add (current symbol - '0')
         sub al, '0'
         test al, al
         jz .loop
+        cmp al, 0
+        jl .exit_fail
+        cmp al, 9
+        jg .exit_fail
         push rdi
         push rsi
         mov rdi, rsi
@@ -307,6 +352,7 @@ biFromString:
         jmp .loop
 .finish:
         mov rax, rsi
+        ;; Set sign
         cmp r12, 1
         je .set_neg
         mov rcx, [rsi + 16]
@@ -319,31 +365,50 @@ biFromString:
         ;; If fail, but allocated - free memory
         mov rdi, rsi
         call biDelete
+        xor rax, rax
+        jmp .exit
 .set_neg:
         push rax
         setSign rsi, -1
+        push rdi
+        mov rdi, rax
+        setZeroIfZero rdi
+        pop rdi
         pop rax
 .exit:
         pop r12
+        pop r13
         ret
 
-
+;;; Frees memory assigned to bigint
+;;; RDI - bigint
+;;; O(1) + free complexity
 biDelete:
         push r13
-        alignStack16
         push rdi
+        alignStack16
         mov rdi, [rdi + 8]
         call free
+        remAlignStack16
         pop rdi
+        alignStack16
         call free
         remAlignStack16
         pop r13
         ret
 
+;;; Return sign of bigint
+;;; RDI - bigint
+;;; O(1)
 biSign:
         mov rax, [rdi + 16]
         ret
-
+      
+;;; Compare two BitInts.
+;;; returns sign(a - b)
+;;; RDI - first bigint
+;;; RSI - second bigint
+;;; O(n) where n is maximum of lengths
 biCmp:
         push rdi
         push rsi
@@ -384,12 +449,8 @@ biCmp:
 .compare:
         ;; Set loop counter
         mov rcx, [rdi]
-        push rcx
-        mov rcx, [rdi + 8]
-        mov rdi, rcx
-        mov rcx, [rsi + 8]
-        mov rsi, rcx
-        pop rcx
+        mov rdi, [rdi + 8]
+        mov rsi, [rsi + 8]
 .loop:
         ;; Check if finished
         test rcx, rcx
@@ -419,8 +480,10 @@ biCmp:
         ret
 
 
+;;; Reallocates bigints data to given size and fills added space with zeroes
 ;;; rdi - bigint
-;;; rsi - new size must be bigger than bigint in rdi size
+;;; rsi - new size of data. It must be bigger than bigint in rdi size
+;;; O(n + rsi) where n is rdi size + realloc complexity
 recalloc:        
         push r13
         push rsi
@@ -447,36 +510,147 @@ recalloc:
 
         push rdi
         ;; Calculating uninitialzed memory pointer after the bigint old data
-        alignStack16
         mov rax, [rdi]
-        mov rcx, [rdi]
         xor rdx, rdx
-        push rcx
         mov qword rcx, 8
         mul rcx
-        pop rcx
+
+        mov rcx, [rdi]
         mov rdi, [rdi + 8]
         add rdi, rax
-        
+        push rsi
         ;; Calculate additional memory size(after reallocation)
-        mov rax, rsi
-        sub rax, rcx
-        xor rdx, rdx
-        mov qword rcx, 8
-        mul rcx
-        mov rdx, rax
-        xor rsi, rsi
-        call memset
-        remAlignStack16
+        sub rsi, rcx
+        ;; Set added memory with zeroes
+        mov rcx, rsi
+        mov rsi, rdi
+        mov qword rax, 0
+        cld
+        repe stosq
+        pop rsi
         pop rdi
 .exit:
         pop r13
         ret
 
+;;; RDI - bigint to copy
+;;; Creates a new copy of bigint with new copy of data
+;;; Copies are independent
+;;; O(n) where n is rdi size
+biCopy:
+        push rdi
+        ;; Allocate bigint of rdi size
+        mov rdi, [rdi]
+        call allocate
+        pop rdi
+
+        push rdi
+        push rsi
+        push rax
+
+        mov rsi, rax
+        ;; Copy size
+        mov rax, [rdi]
+        mov [rsi], rax
+        ;; Copy sign
+        mov rax, [rdi + 16]
+        mov [rsi + 16], rax
+        ;; Set size and  pointers to their data
+        mov rcx, [rdi]
+        mov rdi, [rdi + 8]
+        mov rsi, [rsi + 8]
+.loop:
+        test rcx, rcx
+        jz .exit
+        dec rcx
+        ;; Copy uint64
+        mov rax, [rdi + 8 * rcx]
+        mov [rsi + 8 * rcx], rax
+        jmp .loop
+.exit:
+        pop rax
+        pop rsi
+        pop rdi
+        ret
+
+;;; RDI - destination
+;;; RSI - source
+;;; But sign(dst) == sign(src)
+;;; Add src to dst
+;;; O(n) where n is maximum of lengths of bigints
+biSimpleAdd:
+        push r12
+        ;; Get maximum of sizes
+        mov rcx, [rdi]
+        cmp rcx, [rsi]
+        cmovb rcx, [rsi]
+        push rcx
+        inc rcx
+        ;; Realloc rdi's data to max(sizes) + 1
+        push rsi
+        mov rsi, rcx
+        call recalloc
+        pop rsi
+        pop rcx
+        mov [rdi], rcx
+        ;; Set loop bound
+        mov r8, rcx
+        mov r12, [rsi]
+        ;; Save pinter to dst
+        mov r11, rdi
+        ;; Set pointers to data
+        mov rdi, [rdi + 8]
+        mov rsi, [rsi + 8]
+
+        xor r9, r9
+        xor r10, r10
+        xor rcx, rcx
+.loop:
+        ;; Check idx less than size
+        cmp rcx, r8
+        jl .looploop
+        ;; Check carry not zero
+        test r9, r9
+        jz .exit
+        ;; If carry not zero, and size is over
+        inc qword [r11]
+.looploop:
+        ;; Get uint64 in index rcx of rdi
+        mov rax, [rdi + rcx * 8]
+        mov rdx, 0
+        ;; If src length is over set to 0
+        cmp rcx, r12
+        jnl .loopBody
+        ;; Otherwise
+        ;; Get uint64 in index rcx of rsi
+        mov rdx, [rsi + rcx * 8]
+.loopBody:
+        add rax, rdx
+        ;; Save carry flag
+        adc r10, 0
+        ;; Add previous carry
+        add rax, r9
+        ;; Set carry 
+        adc r10, 0
+        ;; Save current carry
+        mov r9, r10
+        xor r10, r10
+        ;; Set result
+        mov [rdi + rcx * 8], rax
+        inc rcx
+        jmp .loop
+.exit:
+        pop r12
+        ret
 
 
+;;; RDI - destination
+;;; RSI - source
+;;; Add src to dst
+;;; O(n) where n is maximum of lengths of bigints
 biAdd:
         ;; Check if rdi and rsi are pointers to same bigint
+        ;; If so sum equal to rdi * 2
         cmp rdi, rsi
         jne .sum
         ;; Set size of buffer to size + 1
@@ -497,125 +671,83 @@ biAdd:
         mov rax, [rdi + 16]
         mov rcx, [rsi + 16]
         cmp rax, rcx
-        jne .diff_signs
-.just_sum:
-        ;; If signs are equal
-        ;; Get maximum of sizes
-        mov rcx, [rdi]
-        cmp rcx, [rsi]
-        cmovb rcx, [rsi]
-        push rcx
-        inc rcx
-        ;; Realloc rdi's data to max(sizes) + 1
-        push rsi
-        mov rsi, rcx
-        call recalloc
-        pop rsi
-        pop rcx
-        mov [rdi], rcx
-        ;; Set loop bound
-        mov r8, [rsi]
-        mov r11, rdi
-        ;; Set pointers to data
-        mov rdi, [rdi + 8]
-        mov rsi, [rsi + 8]
-
-        clc
-        xor r9, r9
-        xor r10, r10
-        xor rcx, rcx
-.loop:
-        ;; Checl length
-        cmp rcx, r8
-        jl .looploop
-        ;; Check carry flag
-        test r9, r9
-        jz .exit
-        inc qword [r11]
-        mov rax, [rdi + rcx * 8]
-        mov qword rdx, 1
-        add rax, rdx
-        ;; Save carry flag
-        adc r10, 0
-        ;; Add previous carry
-        add rax, r9
-        ;; Save carry flag
-        adc r10, 0
-        mov r9, r10
-        xor r10, r10
-        mov [rdi + rcx * 8], rax
-        inc rcx
-        test r9, r9
-        jnz .loop
-        jmp .exit
-.looploop:
-        mov rax, [rdi + rcx * 8]
-        mov rdx, [rsi + rcx * 8]
-        add rax, rdx
-        ;; Save carry flag
-        adc r10, 0
-        ;; Add previous carry
-        add rax, r9
-        ;; Save carry flag
-        adc r10, 0
-        mov r9, r10
-        xor r10, r10
-        mov [rdi + rcx * 8], rax
-        inc rcx
-        jmp .loop
+        je .simple_sum
 .diff_signs:
+        ;; Sum of bigints with different sizes is subtraction
+        ;; Check to find zeroes
         mov rax, [rdi + 16]
         mov rcx, [rsi + 16]
-        test rax, rax
-        jz .or_sign
         test rcx, rcx
-        jz .or_sign
-        
-
-.or_sign:        
+        jz .exit
+        test rax, rax
+        jnz .sub
+        ;; Set dst to the same sign as src and proceed to equal sign sum
         or rax, rcx
         mov [rdi + 16], rax
-        jmp .just_sum
+        jmp .simple_sum
+.sub:
+        ;; Here we have one negative and one positive bigint
+        ;; Other cases are already taken
+        ;; Check to determine which is positive
+        cmp rcx, 0
+        jg .swap
+        ;; If second is negative
+        ;; Invert its sign and compute sum
+        push rdi
+        push rsi
+        mov qword [rsi + 16], 1
+        call biSub
+        pop rsi
+        pop rdi
+        ;; Invert sign again
+        mov qword [rsi + 16], -1
+        jmp .exit
+.swap:
+        ;; If first is negative
+        ;; Copy rsi not to affect it
+        push rdi 
+        mov rdi, rsi
+        call biCopy
+        mov rdi, rax
+        pop rdi
+        ;; Compute copy_rsi - rdi
+        push rax
+        push rdi
+        push rsi
+        mov rsi, rdi
+        mov rdi, rax
+        ;; Invert rdi sign
+        mov qword [rsi + 16], 1
+        call biSub
+        pop rsi
+        pop rdi
+        pop rdx
+        ;; Copy result to rdi and free extra bigint
+        mov rcx, [rdx]
+        mov [rdi], rcx
+        mov rcx, [rdx + 16]
+        mov [rdi + 16], rcx
+        swapNfree rdx, rdi
+        jmp .exit
+.simple_sum:
+        ;; Just call equal sign sum
+        push rdi
+        push rsi
+        call biSimpleAdd
+        pop rsi
+        pop rdi
 .exit:
         ret
 
-biSub:  
-        ;; Check if rdi and rsi are pointers to same bigint
-        cmp rdi, rsi
-        jne .sub
-        mov qword [rdi], 1
-        mov rdi, [rdi + 8]
-        xor rax, rax
-        mov [rdi], rax
-        jmp .exit
-.sub:
-        
-        ;; Check if signs are equal
-        mov rax, [rdi + 16]
-        mov rcx, [rsi + 16]
-        cmp rax, rcx
-        jne .diff_signs
-.just_sub:
-        ;; TODO check a >= b
-        ;; If signs are equal
-        ;; Get maximum of sizes
-        mov rcx, [rdi]
-        cmp rcx, [rsi]
-        cmovb rcx, [rsi]
-        push rcx
-        inc rcx
-        ;; Realloc rdi's data to max(sizes) + 1
-        push rdi
-        push rsi
-        mov rdi, rsi
-        mov rsi, rcx
-        call recalloc
-        pop rsi
-        pop rdi
-        pop rcx
+;;; RDI - destination
+;;; RSI - source
+;;; But |dst| >= |src|, sign(dst) == sign(src)
+;;; Subtract dst by src and stores result in dst
+;;; O(n) where n is maximum of lengths of bigints
+biSimpleSub:    
         ;; Set loop bound
-        mov r8, [rsi]
-        mov r11, rdi
+        mov r8, [rdi]
+        mov r11, [rsi]
         ;; Set pointers to data
         push rsi
         push rdi
@@ -626,12 +758,20 @@ biSub:
         xor r10, r10
         xor rcx, rcx
 .loop:
-        ;; Checl length
+        ;; Check idx is less than length of dst
         cmp rcx, r8
         jnl .finish
 .looploop:
+        ;; Get uint64 in index rcx of rdi
         mov rax, [rdi + rcx * 8]
+        mov qword rdx, 0
+        ;; Check if idx is less than second bigint
+        ;; Size of src is always less or equal than size of dst
+        cmp rcx, r11
+        jnl .loopBody
+        ;; Get uint64 in index rcx of rsi
         mov rdx, [rsi + rcx * 8]
+.loopBody:
         sub rax, rdx
         ;; Save carry flag
         adc r10, 0
@@ -641,6 +781,7 @@ biSub:
         adc r10, 0
         mov r9, r10
         xor r10, r10
+        ;; Set to result
         mov [rdi + rcx * 8], rax
         inc rcx
         jmp .loop
@@ -650,6 +791,8 @@ biSub:
         dec rcx
         xor rdx, rdx
 .lead_z:
+        ;; Delete leading zeroes until size == 1
+        ;; Save their amount to rdx
         test rcx, rcx
         jz .pop_exit
         mov rax, [rdi + rcx * 8]
@@ -660,19 +803,129 @@ biSub:
         jmp .lead_z
 .pop_exit:
         pop rdi
+        ;; Subtract size by amount of leading zeroes
         mov rax, [rdi]
         sub rax, rdx
         mov [rdi], rax
+
+        setZeroIfZero rdi
+
+        
         pop rsi
 .exit:
         ret
 
+;;; RDI - destination
+;;; RSI - source
+;;; Subtract dst by src and stores result in dst
+;;; O(n) where n is maximum of lengths of bigints
+biSub:  
+        ;; Check if rdi and rsi are pointers to same bigint
+        cmp rdi, rsi
+        jne .sub
+        ;; If so, result is 0
+        mov qword [rdi], 1
+        mov rdi, [rdi + 8]
+        xor rax, rax
+        mov [rdi], rax
+        jmp .exit
+.sub:
+        ;; Check if signs are equal
+        mov rax, [rdi + 16]
+        mov rcx, [rsi + 16]
+        cmp rax, rcx
+        jne .diff_signs
+        ;; If signs are equal
+        ;; Get modules of bigints
+        mov qword [rdi + 16], 1
+        mov qword [rsi + 16], 1
+        ;; Compare modules of bigints
+        push rax
+        push rcx
+        push rdi
+        push rsi
+        call biCmp
+        mov rdx, rax
+        pop rsi
+        pop rdi
+        pop rcx
+        pop rax
+        ;; Return signs
+        mov [rdi + 16], rax
+        mov [rsi + 16], rcx
+        ;; Check result of comparing
+        cmp rdx, 0
+        jnl .simple_sub
+.firstisless:
+        ;; We don't want to affest rsi's bigint
+        ;; So we would copy it and compute rsi - rdi
+        ;; And invert sign
+        push rdi 
+        mov rdi, rsi
+        call biCopy
+        mov rdi, rax
+        pop rdi
+        ;; Result of copying is in rax
+        push rax
+        push rdi
+        push rsi
+        mov rsi, rdi
+        mov rdi, rax
+        call biSimpleSub
+        pop rsi
+        pop rdi
+        pop rdx
+        mov rcx, [rdx]
+        mov [rdi], rcx
+        mov rcx, [rdx + 16]
+        neg rcx
+        mov [rdi + 16], rcx
+        swapNfree rdx, rdi
+
+        jmp .exit
+.simple_sub:
+        ;; Just run simple subtraction
+        call biSimpleSub
+        jmp .exit
+
+.diff_signs:
+        ;; If signs are different subtraction is equal to sum
+        ;; Of two bigints of equal sign
+        mov rax, [rdi + 16]
+        mov rcx, [rsi + 16]
+        ;; If second bigint is 0 result already in rdi
+        test rcx, rcx
+        jz .exit
+        test rax, rax
+        jnz .add
+        neg rcx
+        mov [rdi + 16], rcx
+.add:
+        ;; Inverting rsi sign and running sum of equal sign bigint
+        push rdi
+        push rsi
+        mov rcx, [rsi + 16]
+        neg rcx
+        mov [rsi + 16], rcx
+        call biSimpleAdd
+        pop rsi
+        pop rdi
+        mov rcx, [rsi + 16]
+        neg rcx
+        mov [rsi + 16], rcx
+.exit:
+        ret
+
+;;; RDI - destination
+;;; RSI - source
+;;; Multiplies dst by src and stores result in dst
+;;; O(m * n) where m and n are lengths of bigints
 biMul:
         push r12
         push r13
         push r14
         push r15
-
+        ;; Alloc bigint for result with data size (rdi data size) + (rsi data size)
         mov rax, [rdi]
         mov rcx, [rsi]
         add rax, rcx
@@ -682,51 +935,69 @@ biMul:
         call allocate
         pop rsi
         pop rdi
+        ;; Save pointer to result bigint
         mov r12, rax
         push r12
+        ;; Get pointer to data
         mov r12, [r12 + 8]
 
-        xor r8, r8
-        xor r9, r9
+        xor r8, r8              ; first loop idx
+        xor r9, r9              ; second loop idx
+        ;; Get sizes of rdi and rsi bigints
         mov r10, [rdi]
         mov r11, [rsi]
+        ;; Get pointers to bigint's data
         push rdi
         push rsi
         mov rdi, [rdi + 8]
         mov rsi, [rsi + 8]
+        ;; Last index of multiplication result
         xor r15, r15
 .loopI:
+        ;; Check first idx < than length of first
         cmp r8, r10
         jnl .finish
+        ;; Set second idx to 0
         xor r9, r9
-        xor r13, r13            ;TODO push
-        xor r14, r14            ;TODO push
+        ;; Set carry 0
+        xor r13, r13
 .loopJ:
+        ;; Check second idx < than length of second or carry != 0
         cmp r9, r11
         jl .loopBody
+        ;; If carry is not 0, continue
         test r13, r13
         jnz .loopBody
+        ;; Otherwise inc loopI index
         inc r8
         jmp .loopI
 .loopBody:
         xor rdx, rdx
+        ;; Get uint64 in index r8 of rdi
         mov rax, [rdi + r8 * 8]
         mov qword rcx, 0
+        ;; If r9 is less than data size, set to 0
         cmp r9, r11
         jnl .loopBodyFinish
+        ;; Get uint64 in index r9 of rsi
         mov rcx, [rsi + r9 * 8]
 .loopBodyFinish:
+        ;; Multiply and save overflow
         mul rcx
         mov r14, rdx
 
+        ;; Add (r8 + r9) int64 of result
         mov r15, r9
         add r15, r8
         add rax, [r12 + r15 * 8]
+        ;; Save carry
         adc r14, 0
+        ;; Add previous carry
         add rax, r13
         adc r14, 0
+        ;; Save current carry
         mov r13, r14
-        xor r14, r14
+        ;; Save result to result bigint
         mov r15, r9
         add r15, r8
         mov [r12 + r15 * 8], rax
@@ -737,24 +1008,23 @@ biMul:
         pop rsi
         pop rdi
         pop r12
-        mov rax, [r12 + 8]
-        mov rcx, [rdi + 8]
-        mov [rdi + 8], rax
-        mov [r12 + 8], rcx
-        push rdi
-        push rsi
-        mov rdi, r12
-        call biDelete
-        pop rsi
-        pop rdi
+        ;; Swap datas of rdi ans r12(result of multiplication)
+        ;; It is neccessary to save result and free useless memory
+        swapNfree r12, rdi
+        
+        ;; Set rdi size to size of multiplication
         inc r15
         mov [rdi], r15
+
+        ;; Get new sign as multiplication of signs
         mov rax, [rdi + 16]
         mov rcx, [rsi + 16]
         xor rdx, rdx
         mul rcx
         mov [rdi + 16], rax
+        ;; If result size is 0, size may be invalid
         test rax, rax
+        ;; If so, set size = 1
         jnz .exit
         mov qword [rdi], 1
 .exit:
@@ -767,5 +1037,9 @@ biMul:
 biDivRem:
         ret
 
+;;; rsi - buffer to put answer
 biToString:
+        mov byte [rsi], 'N'
+        mov byte [rsi + 1], 'A'
+        mov byte [rsi + 2], 0
         ret
