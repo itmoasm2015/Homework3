@@ -203,6 +203,7 @@ vecExtend:
 	leave
 	ret
 
+
 ;;; vector* vecCopy(vector* vec)
 ;;; Copies passed vector.
 vecCopy:
@@ -210,14 +211,14 @@ vecCopy:
 
 	push rdi
 	push rdi
-	mov rdi, vector.size
+	mov rdi, vector_size
 	call malloc
 	pop rdi
 	pop rdi
 	mov rdx, [rdi + vector.size]
 	mov [rax + vector.size], rdx
 	mov rdx, [rdi + vector.capacity]
-	mov [rax + vector.size], rdx
+	mov [rax + vector.capacity], rdx
 
 	push rdi
 	push rax
@@ -227,15 +228,14 @@ vecCopy:
 	pop rcx
 	pop rsi
 
-	push rcx
+	mov [rcx + vector.data], rax
+
 	push rcx
 	mov rdi, rax
-	mov rdx, [rsi + vector.size]
-	shl rdx, 3
+	mov rcx, [rsi + vector.size]
 	mov rsi, [rsi + vector.data]
-	call memcpy
+	cld
+	rep movsq
 	pop rax
-	pop rax
-
 	leave
 	ret

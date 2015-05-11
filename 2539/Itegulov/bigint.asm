@@ -299,6 +299,7 @@ biCmp:
 	test rdx, rdx
 	jnz .nz
 
+	xor rax, rax
 	jmp .ret     ; zeros are equal
 
 .nz
@@ -378,6 +379,79 @@ biUSub:
 	mov rdi, [rsp]
 	call biShrink
 .ret
+	leave
+	ret
+
+;;; void biAdd(bigint* first, bigint* second);
+;;; first += second
+;;; Doesn't ignore sign of bigints.
+biAdd:
+	enter 0, 0
+
+	mov rdx, [rdi + bigint.sign]
+	cmp rdx, [rsi + bigint.sign]
+	jne .different_signs
+
+	call biUAdd         ; we can simply add bigints by abs value if their signs are equal
+
+	jmp .ret
+
+.different_signs
+	push rdi
+	push rsi
+	call biUCmp         ; if |first| >= |second|,
+	pop rsi
+	pop rdi
+
+	jl .lesser
+	
+	call biUSub         ; then just first -= second
+	jmp .ret
+
+.lesser
+
+	push rdi            ; else we need second -= first
+	push rsi
+	mov rdi, rsi
+	call biCopy         ; so we'll copy second
+	pop rsi
+	pop rdi
+	
+	push rdi
+	push rax
+	mov rsi, rdi
+	mov rdi, rax
+	call biUSub         ; and second_copy -= first
+	pop rax
+	pop rdi
+
+	push rdi
+	push rsi
+	mov rsi, rax        ; now we need first = second_copy
+	call biAssign
+	pop rsi
+	pop rdi
+
+	;mov rdi, rax
+	;call free
+
+.ret
+	leave
+	ret
+	
+biAssign:
+	enter 0, 0
+
+	mov rdx, [rsi + bigint.sign]
+	mov [rdi + bigint.sign], rdx
+
+	mov rdx, [rsi + bigint.vector]
+	mov rcx, [rdi + bigint.vector]
+	mov [rdi + bigint.vector], rdx
+
+	mov rdi, rcx
+	call vecFree
+
 	leave
 	ret
 
