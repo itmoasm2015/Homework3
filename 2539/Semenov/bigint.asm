@@ -1,7 +1,7 @@
 default rel
 
 extern malloc
-extern calloc
+;extern calloc
 extern free
 
 global biFromInt        ;; DONE
@@ -62,14 +62,14 @@ global biToString       ;; TODO
 ; capacity in RDI
 ; pointer to array in RAX
 %macro newArray 0
-;    mov rax, 8
-;    mul rdi
-;    mov rdi, rax ; RDI = sizeof(int64_t) * capacity
-;    callItWithAlignedStack malloc
-    push rsi
-    mov rsi, 8 ; RSI = sizeof(int64_t)
-    callItWithAlignedStack calloc
-    pop rsi
+    mov rax, 8
+    mul rdi
+    mov rdi, rax ; RDI = sizeof(int64_t) * capacity
+    callItWithAlignedStack malloc
+;    push rsi
+;    mov rsi, 8 ; RSI = sizeof(int64_t)
+;    callItWithAlignedStack calloc
+;    pop rsi
 %endmacro
 
 
@@ -206,7 +206,7 @@ biMulBy2:
         .capacity_ensured:
             inc rsi
             mov [rdi + SIZE], rsi
-            mov dword [rdx + 8 * rsi - 8], 0
+            mov qword [rdx + 8 * rsi - 8], 0
             mov r8, [rdx + 8 * rsi - 16]
             shr r8, 63 ; R8 is now most significant bit
             jz .main_part
@@ -232,9 +232,6 @@ biMulBy2:
             jnz .loop
 
             ret
-              .wtf:
-              xor rdi, rdi
-              ret
 
 
 ; void biAdd(BigInt dst, BigInt src);
