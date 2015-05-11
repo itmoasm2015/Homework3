@@ -12,7 +12,7 @@ global biGrowCapacity   ;; DONE
 global biDelete         ;; DONE
 
 global biMulBy2         ;; DONE 
-global biAdd            ;; IN PROCESS
+global biAdd            ;; DONE (TODO: test it better)
 global biSub            ;; TODO
 global biMul            ;; TODO
 global biCmp            ;; TODO
@@ -72,6 +72,20 @@ global biToString       ;; TODO
 ;    pop rsi
 %endmacro
 
+
+; %1, %2 -- BigInts
+; result:
+;  R8  = %1->size
+;  R9  = %1->data
+;  r10 = %2->size
+;  r11 = %2->data
+%macro fillR8__11 2
+    mov r8, [%1 + SIZE]
+    mov r9, [%1 + DATA]
+    mov r10, [%2 + SIZE]
+    mov r11, [%2 + DATA]
+%endmacro
+ 
 
 section .text
 
@@ -164,7 +178,7 @@ biGrowCapacity:
             mov rcx, [rdi + SIZE]
             mov rdx, [rdi + DATA] ; RDX = x->data
 
-            ;;; TODO: do it with SIMD
+            ;; TODO: do it with SIMD
         .cpy_loop: ; for RCX from x->size downto 1 do RAX[RCX - 1] = RDX[RCX - 1]
             mov r8, [rdx + 8 * rcx - 8]
             mov [rax + 8 * rcx - 8], r8
@@ -186,10 +200,10 @@ biGrowCapacity:
 ; x in RDI
 ; capacity in RSI
 biEnsureCapacity:
-            cmp rsi, [rdi + CAPACITY]
+            mov r8, [rdi + CAPACITY]
+            cmp rsi, r8
             jbe .return
 
-            mov r8, [rdi + CAPACITY]
         .loop:
             shl r8, 1
             cmp r8, rsi
@@ -219,7 +233,6 @@ biMulBy2:
             mov rdx, [rdi + DATA]
             mov rsi, [rdi + SIZE]
 
-;        .capacity_ensured:
             inc rsi
             mov [rdi + SIZE], rsi
             mov qword [rdx + 8 * rsi - 8], 0
@@ -255,26 +268,113 @@ biMulBy2:
 ; dst in RDI
 ; src in RSI
 biAdd:
-            mov r8, [rdi + SIZE]
-            mov r9, [rdi + DATA]
-            mov r10, [rsi + SIZE]
-            mov r11, [rsi + DATA]
-            test r10, r11
+            fillR8__11 rdi, rsi
+            cmp r9, r11
             jne .general_case
-            ; if r10 = r11 then src = dst and we can just multiply dst by 2
+            ; if r9 = r11 then src = dst and we can just multiply dst by 2
             call biMulBy2
             ret
 
         .general_case:
 
             cmp r8, r10
-            ja .r8_greater_then_r10
+            ja .r8_greater_than_r10
             je .r8_equals_r10
             ; so dst->size < src->size
+            mov rdx, r10 ; RDX -- needed size of dst
+            overflowWarning [r11 + 8 * r10 - 8] 
+            jz .good_size_in_rdx
+            inc rdx ; if overflow risk exists, we have to increase size of dst
+            jmp .good_size_in_rdx
 
         .r8_equals_r10:
-        .r8_greater_then_r10:
+            mov rdx, r8
+            overflowWarning [r9 + 8 * r8 - 8] ; most significant coefficient in dst
+            jz .check_src_for_overflow_warning
+            ; once again: if overflow risk exists, we have to increase size of dst
+            inc rdx
+            jmp .good_size_in_rdx
 
+          .check_src_for_overflow_warning:
+            ; RDX = R10
+            overflowWarning [r11 + 8 * r10 - 8] ; most significant coefficient in src
+            jz .good_size_in_rdx
+            inc rdx
+            jmp .good_size_in_rdx
+
+        .r8_greater_than_r10:
+;              ret
+            mov rdx, r8
+            overflowWarning [r9 + 8 * r8 - 8] ; mos singnigicant coefficient in dst
+            jnz .good_size_in_rdx
+            inc rdx
+
+        .good_size_in_rdx:
+            push rdx
+            push rdi
+            push rsi
+            mov rsi, rdx
+            call biEnsureCapacity ; biEnsureCapacity(dst, RDX)
+            pop rsi
+            pop rdi
+            fillR8__11 rdi, rsi
+            pop rdx
+            xor rax, rax ; we fill new elements in dst with RAX
+            cmp rax, [r9 + 8 * r8 - 8] ; compare 0 and most significant coefficient of dst
+            jle .right_value_in_rax
+            mov rax, -1
+          .right_value_in_rax:
+            cmp rdx, r8
+            je .ready
+            jb .wtf
+
+        .fill_loop: ; for R8 from dst->size up to RDX (new size): dst->data[R8] = RAX
+            mov [r9 + 8 * r8], rax
+            inc r8
+            cmp r8, rdx
+            jb .fill_loop
+
+            mov [rdi + SIZE], r8 ; update dst->size
+        .ready:
+            push rbx
+            ; dst->size >= src->size
+            ; and finally add src to dst
+            xor rbx, rbx ; RBX is carry bit
+            xor rcx, rcx
+        .add_loop ; for RCX from 0 up to src->size do
+            mov rax, [r9 + 8 * rcx]
+            add rax, rbx
+            mov rbx, 0 ; MOV doesn't change carry flag
+            adc rbx, 0
+            add rax, [r11 + 8 * rcx]
+            adc rbx, 0
+            mov [r9 + 8 * rcx], rax ; dst->data[RCX] += src->data[RCX] + carry_bit 
+
+            inc rcx
+            cmp rcx, r10
+            jb .add_loop
+
+        .add_carry_loop: ; while RCX < dst->size and carry flag is set
+            cmp rcx, r8
+            jae .return
+            test rbx, rbx 
+            jz .return 
+
+            mov rax, [r9 + 8 * rcx]
+            add rax, rbx 
+            mov rbx, 0
+            adc rbx, 0
+
+            inc rcx
+            jmp .add_carry_loop
+
+        .return:
+            pop rbx
+            ret
+
+        .wtf:
+            xor rdi, rdi
+            xor rsi, rsi
             ret
 
 biSub:      ret

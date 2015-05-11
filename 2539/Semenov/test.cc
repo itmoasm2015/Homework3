@@ -80,12 +80,30 @@ void test_mul_by_two_large(const int iterations = 1, bool verbose = false) {
   }
 }
 
+void test_add(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biAdd testing (%d iterations)\n", iterations);
+  // small only
+  for (int it = 0; it < iterations; ++it) {
+    int64_t first = (int64_t) rng() % (1LL << 60);
+    int64_t second = (int64_t) rng() % (1LL << 60);
+    BigIntMask *foo = (BigIntMask *) biFromInt(first);
+    BigIntMask *bar = (BigIntMask *) biFromInt(second);
+    biAdd(foo, bar);
+    assert (foo != nullptr && bar != nullptr);
+    assert (foo->size == 1 && bar->size == 1);
+    assert (foo->capacity == 1 && bar->capacity == 1);
+    assert (bar->data[0] == second);
+    assert (foo->data[0] == first + second);
+  }
+}
+
 int main() {
   test_constructor_and_destructor(100, true);
   test_sign(100, true);
   test_grow_capacity(100, true);
   test_mul_by_two(1000, true);
   test_mul_by_two_large(1000, true);
+  test_add(100, true);
   return 0;
 }
 
