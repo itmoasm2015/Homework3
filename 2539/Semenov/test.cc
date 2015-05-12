@@ -218,6 +218,84 @@ void test_sub(const int iterations = 1, bool verbose = false) {
   }
 }
 
+
+void test_mul(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biMul testing (%d iterations)\n", iterations);
+  // small only
+  for (int it = 0; it < iterations; ++it) {
+    int64_t first = (int64_t) rng() % (1 << 31);
+    int64_t second = (int64_t) rng() % (1 << 31);
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(first);
+    BigIntRepresentation *bar = (BigIntRepresentation *) biFromInt(second);
+    biMul(foo, bar);
+
+    BigIntRepresentation *baz = (BigIntRepresentation *) biFromInt(first * second);
+    
+    assert (foo != nullptr && bar != nullptr);
+    assert (bar->size == 1);
+    assert (foo->size == 1); 
+    assert (bar->data[0] == second);
+    assert (foo->data[0] == first * second);
+
+    assert (biCmp(foo, baz) == 0);
+    biDelete(foo);
+    biDelete(bar);
+    biDelete(baz);
+  }
+}
+
+void test_mul_large(const int iterations = 1, const int multipliers = 100, bool verbose = false) {
+  if (verbose) DEBUG("biMul large testing (%d iterations)\n", iterations);
+  // tests biSub, biSign, biInc and biCmp also
+  for (int it = 0; it < iterations; ++it) {
+    std::vector <BigIntRepresentation *> multiplier(multipliers);
+    for (int i = 0; i < multipliers; ++i) {
+      multiplier[i] = ((BigIntRepresentation *) biFromInt((int64_t) rng()));
+    }
+    BigIntRepresentation *first = (BigIntRepresentation *) biFromInt(0);
+    for (auto i : multiplier) {
+      biMul(first, i);
+    }
+    std::shuffle(multiplier.begin(), multiplier.end(), rng);
+    BigIntRepresentation *second = (BigIntRepresentation *) biFromInt(0);
+//    for (auto i : multiplier) {
+//      biMul(second, i);
+//    }
+    for (int i = 0; i + i < multipliers; ++i) {
+      biMul(second, multiplier[i]);
+    }
+    BigIntRepresentation *aux = (BigIntRepresentation *) biFromInt(0);
+    for (int i = multipliers / 2 + 1; i < multipliers; ++i) {
+      biMul(aux, multiplier[i]);
+    }
+    biMul(second, aux); // testing large products
+    assert (first != nullptr && second != nullptr);
+    assert (first->size == second->size);
+    for (int i = 0; i < (int) first->size; ++i) {
+      assert (first->data[i] == second->data[i]);
+    }
+    
+    assert (biCmp(first, second) == 0);
+
+    biInc(first);
+    assert (biCmp(first, second) > 0);
+    assert (biCmp(second, first) < 0);
+    biInc(second);
+    assert (biCmp(second, first) == 0);
+
+    biSub(first, second);
+    assert (biSign(first) == 0);
+    assert (first->size == 1);
+    assert (first->data[0] == 0);
+    
+    biDelete(first);
+    biDelete(second);
+    for (auto i : multiplier) {
+      biDelete(i);
+    }
+  }
+}
+
 int main() {
   test_inc_case(-4858338985614885836);
   test_constructor_and_destructor(100, true);
@@ -229,6 +307,8 @@ int main() {
   test_not(100, true);
   test_inc(100, true);
   test_sub(100, true);
+  test_mul(100, true);
+  test_mul_large(100, 10000, true);
   return 0;
 }
 

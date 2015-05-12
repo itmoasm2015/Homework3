@@ -1,13 +1,12 @@
 default rel
 
 extern malloc
-;extern calloc
+; extern calloc
 extern free
 
 global biFromInt        ;; DONE
 global biFromString     ;; TODO
 
-global biAllocate       ;; DONE
 global biDelete         ;; DONE
 
 global biMulBy2         ;; DONE 
@@ -15,13 +14,20 @@ global biAdd            ;; DONE (TODO: test it better)
 global biNot            ;; DONE
 global biInc            ;; DONE
 global biSub            ;; DONE (TODO: test it better)
-global biMul            ;; TODO
+global biMul            ;; DONE (TODO: test it better)
 global biCmp            ;; DONE
 global biSign           ;; DONE
 
 global biDivRem         ;; TODO
 
 global biToString       ;; TODO
+
+; private biAllocate        ;; DONE
+; private biMove            ;; DONE
+; private biEnsureCapacity  ;; DONE
+; private biGrowCapacity    ;; DONE
+
+; private biTrim            ;; TODO: method to trim size of vector to spare memory
 
 
 ;;; biginteger is represented in two's complement system
@@ -41,6 +47,9 @@ global biToString       ;; TODO
 
 
 ; set zero flag (ZF) iff no overflow condition exists
+;
+; * overflow condition exists iff left two bits 
+;   (two most significant bits) are different
 %macro overflowWarning 1
     push r12
     push r13
@@ -74,11 +83,16 @@ global biToString       ;; TODO
     mul rdi
     mov rdi, rax ; RDI = sizeof(int64_t) * capacity
     callItWithAlignedStack malloc
-;    push rsi
-;    mov rsi, 8 ; RSI = sizeof(int64_t)
-;    callItWithAlignedStack calloc
-;    pop rsi
 %endmacro
+
+
+; same as newArray macro, but filled with zeros
+; %macro newArrayWithZeros 0
+;     push rsi
+;     mov rsi, 8 ; RSI = sizeof(int64_t)
+;     callItWithAlignedStack calloc
+;     pop rsi
+; %endmacro
 
 
 ; %1, %2 -- BigInts
@@ -108,12 +122,12 @@ biAllocate:
             push r12
             push r13
 
-            mov r13, rdi ; memoize capacity
+            mov r13, rdi ; memorize capacity
 
             newArray ; RAX = BigInt->data
             test rax, rax
             je .fail
-            mov r12, rax ; memoize BigInt->data
+            mov r12, rax ; memorize BigInt->data
 
             mov rdi, 24 ; 24 = sizeof(*int64_t) + sizeof(size_t) + sizeof(size_t) 
             callItWithAlignedStack malloc ; allocates memory for BigInt
@@ -145,7 +159,7 @@ biAllocate:
 biFromInt: 
             push r12
 
-            mov r12, rdi ; memoize initial value
+            mov r12, rdi ; memorize initial value
             mov rdi, 1
             call biAllocate
 
@@ -479,7 +493,190 @@ biSub:
             ret
 
 
-biMul:      ret
+; void biMul(BigInt dst, BigInt src);
+; dst *= src
+; dst in RDI
+; src in RSI
+biMul:
+            push rdi
+            push rsi
+
+        %macro common_part 0
+            mov rdi, [rsp + 8] ; rdi = dst
+            mov rsi, [rsp] ; rsi = src
+            call biMulByPositiveMultiplier
+            pop rsi
+            pop rdi
+            test rax, rax
+            jz .return
+        %endmacro
+
+            mov rdi, rsi
+            call biSign
+            cmp rax, 0 ; sign(src) vs 0
+            jl .negative_multiplier
+
+            common_part
+
+            mov rsi, rax
+            call biMove
+            jmp .return
+
+        .negative_multiplier:
+            ; let's negate multiplier and multiplicand!
+            mov rdi, [rsp + 8] ; RDI = dst
+            call biNegate
+            mov rdi, [rsp] ; RDI = src
+            cmp rdi, [rsp + 8] ; src =? dst
+            je .skip_first_negating
+            call biNegate
+          .skip_first_negating:
+
+            common_part
+
+            push rax
+            push rsi
+            push rdi
+            
+            call biNegate ; returns dst to initial state
+            mov rdi, [rsp + 8]
+            cmp rdi, [rsp] ; src =?dst
+            je .skip_second_negating
+            call biNegate ; returns src to initial state
+          .skip_second_negating:
+
+            pop rdi
+            pop rsi
+            pop rsi ; in RSI product
+            call biMove 
+
+        .return:
+            ret
+
+
+; BigInt biMul(BigInt multiplicand, BigInt multiplier);
+; requirement: multiplier >= 0
+; multiplicand in RDI
+; multiplier in RSI
+; result in RAX
+biMulByPositiveMultiplier:
+            mov rax, [rdi + SIZE]
+            add rax, [rsi + SIZE]
+            ; size of product <= multiplier->size + multiplicand->size = RAX
+            ; memorize multiplicand and multiplier
+            push rdi 
+            push rsi
+
+            mov rdi, 1
+        .loop_to_find_capacity_for_new_vector:
+            shl rdi, 1 ; RDI *= 2
+            cmp rdi, rax
+            jb .loop_to_find_capacity_for_new_vector
+
+            ; now RDI is power of two and RDI >= RAX
+            push rdi ; memorize capacity of new vector
+            call biAllocate
+            pop rcx ; RCX = capacity of allocated (?) BigInt
+            pop rsi
+            pop rdi
+            test rax, rax
+            jz .return ; failed to create new BigInt
+
+            ; damn calling convention!
+            push rbp
+            push rbx
+            push r12
+            push r13
+            push r14
+            push r15
+
+            push rax ; memorize pointer to result
+
+            ; memset(result->data, 0, result->capacity)
+            push rdi
+            push rsi
+            mov rdi, [rax + DATA] 
+            xor rax, rax
+            rep stosq ; RCX = result->capacity 
+            pop rsi
+            pop rdi
+
+            mov rax, [rsp]
+            mov rbp, [rax + DATA] ; in RBP will be vector with product
+
+            fillR8__11 rdi, rsi
+
+            xor r14, r14; outer loop counter
+        .for_r14_from_0_to_size_of_multiplier:
+            mov r13, [r11 + 8 * r14] ; current multiplier
+            xor r12, r12 ; carry bit
+
+            xor r15, r15 ; inner loop counter
+            mov rbx, r14 ; position to update in product (RBP)
+            .for_r15_from_0_to_size_of_multiplicand:
+                mov rax, [r9 + 8 * r15] 
+                xor rdx, rdx
+                mul r13 ; RDX:RAX = multiplier->data[R14] * multiplicand->data[R15]
+                add rax, r12 ; RAX += carry
+                adc rdx, 0 ; RDX - next carry
+
+                add [rbp + 8 * rbx], rax ; result[R14 + R15] += RAX
+                adc rdx, 0
+
+                mov r12, rdx ; update carry
+
+                inc rbx
+                inc r15
+                cmp r15, r8
+                jb .for_r15_from_0_to_size_of_multiplicand
+
+            xor r15, r15 ; remainder (leading zeros or ones)
+            cmp r15, [r9 + 8 * r8 - 8] ; 0 vs most significant coeff of multiplicand
+            jle .actual_remainder
+            mov r15, -1
+          .actual_remainder:
+            
+            mov rcx, r8
+            add rcx, r10 ; RCX = size of result
+            .while_rbx_less_than_size_of_result:
+                mov rax, r15
+                xor rdx, rdx
+                mul r13
+                add rax, r12
+                adc rdx, 0 ; next carry
+
+                add [rbp + 8 * rbx], rax
+                adc rdx, 0
+
+                mov r12, rdx ; update carry
+
+                inc rbx
+                cmp rbx, rcx
+                jb .while_rbx_less_than_size_of_result
+
+            inc r14
+            cmp r14, r8
+            jb .for_r14_from_0_to_size_of_multiplier
+
+            ; fill fildes of result
+            pop rax ; pointer to result
+            mov [rax + SIZE], rbx
+
+            push rax
+            mov rdi, rax
+            call biNormalize
+            
+            pop rax
+            ; OMG :/
+            pop r15
+            pop r14
+            pop r13
+            pop r12
+            pop rbx
+            pop rbp
+
+        .return: 
+            ret
 
 
 ; int biCmp(BigInt fst, BigInt snd);
@@ -621,5 +818,31 @@ biNormalize:
 
         .return:
             mov [rdi + SIZE], r8
+            ret
+
+
+; void biMove(BigInt dst, BigInt src);
+; replace all data from dst with src
+; dst in RDI
+; src in RSI
+biMove:
+            ; at first we need to free memory
+            push rdi
+            push rsi
+            mov rdi, [rdi + DATA]
+            callItWithAlignedStack free ; free dst->data
+            pop rsi
+            pop rdi
+
+            ; and now just move from src to dst
+            mov rax, [rsi + DATA]
+            mov [rdi + DATA], rax
+
+            mov rax, [rsi + SIZE]
+            mov [rdi + SIZE], rax
+            
+            mov rax, [rsi + CAPACITY]
+            mov [rdi + CAPACITY], rax
+
             ret
 

@@ -28,12 +28,12 @@ struct BigIntRepresentation {
 
 void dump_(BigInt xx, FILE *stream = stderr) {
   BigIntRepresentation *x = (BigIntRepresentation *) xx;
-  fprintf(stream, "BigInt: size = %zd, capacity = %zd, elements:\n ", x->size, x->capacity);
+  fprintf(stream, "BigInt: size = %zd, capacity = %zd, elements:\n", x->size, x->capacity);
   for (int i = (int) x->size - 1; i >= 0; --i) {
     for (int bit = 63; bit >= 0; --bit) {
       fprintf(stream, "%lld", (x->data[i] >> bit & 1));
     }
-    fprintf(stream, "%c", ":\n"[i == 0]);
+    fprintf(stream, "%c\n", ":\u0000"[i == 0]);
   }
 }
 
