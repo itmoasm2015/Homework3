@@ -1,4 +1,5 @@
 ;;; This is a library that implements big integer interface
+default rel
         struc   bigint
 .sign   resd 1                  ; 0xffffffff for <0, 0x00000000 for ≥0
 .size   resd 1                  ; .size * 8 is size of .data
@@ -28,6 +29,7 @@ global biFromUInt
 global biDump
 global biSize
 global biExpand
+global biAddShort
 global biMulShort
 global biDivShort
 global biCutTrailingZeroes
@@ -199,36 +201,95 @@ biFromUInt:
 ;;; BigInt biFromString(char const *s)
 ;;; Create a BigInt from a decimal string representation.
 ;;; Returns NULL on incorrect string.
+;;; parses from right to left
 biFromString:
-        mov     r8, rdi
+        push    r12
+        push    r13
+        push    r14
+        push    r15
 
-        ;; allocate place for new structure
-        push    r8
-        mov     rdi, bigint_size
-        call    malloc
-        pop     r8
-        mov     r9, rax
+        ;; allocate new bigint (0)
+        push    rdi
+        mov     rdi, 0
+        call    biFromUInt
+        pop     rdi
+        mov     r12, rax
 
-        cmp     byte[r8], '-'
+        ;; set sign
+        cmp     byte[rdi], '-'
         jne     .nonneg
-        mov     dword[r9+bigint.sign], 0xffffffff
-        inc     r8
+        mov     dword[r12+bigint.sign], 0xffffffff
+        inc     rdi
         .nonneg
 
-        .loop
+        xor     rcx, rcx
+        ;; first iteration allows no \0
+        mov     cl, byte[rdi]
+        cmp     cl, '0'
+        jl      .fail
+        cmp     cl, '9'
+        jg      .fail
+        sub     cl, '0'
+        ;; +cl
+        push    rdi
+        mov     rdi, r12
+        mov     rsi, rcx
+        call    biAddShort
+        pop     rdi
+        ;; increment rdi
+        inc     rdi
 
-        mov     rax, r9
-        jmp .return
+        ;; >1 iterations of read
+        .loop
+        xor     rcx, rcx
+        mov     cl, [rdi]
+        cmp     cl, 0         ; exit if reached \0
+        je      .loop_end
+        cmp     cl, '0'
+        jl      .fail
+        cmp     cl, '9'
+        jg      .fail
+        sub     cl, '0'
+        ;; *10
+        push    rdi
+        push    rcx
+        mov     rdi, r12
+        mov     rsi, 10
+        call    biMulShort
+        pop     rcx
+        pop     rdi
+        ;; +cl
+        push    rdi
+        mov     rdi, r12
+        mov     rsi, rcx
+        call    biAddShort
+        pop     rdi
+        ;; increment rdi
+        inc     rdi
+        jmp     .loop
+        .loop_end
+
+        mov     rdi, r12
+        call    biCutTrailingZeroes
+        mov     rax, r12
+        jmp     .return
         .fail
         mov     rax, 0
         .return
+        pop     r15
+        pop     r14
+        pop     r13
+        pop     r12
         ret
 
 ;;; void biToString(BigInt bi, char *buffer, size_t limit)
 ;;; Generate a decimal string representation from a BigInt.
 ;;; Writes at most limit bytes to buffer.
 biToString:
-
+        mov     byte[rsi], 'N'
+        mov     byte[rsi+1], 'A'
+        mov     byte[rsi+2], 0
+        ret
 
 ;;; void biDelete(BigInt bi);
 ;;; Destroy a BigInt.
@@ -529,6 +590,41 @@ biExpand:
         .return
         ret
 
+;;; void biAddShort(BigInt dst, unsigned long int a);
+;;; dst += src
+biAddShort:
+        ;; allocate +1 length if needed
+        push    rdi
+        push    rsi
+        mov     esi, dword[rdi+bigint.size]
+        inc     esi
+        call    biExpand
+        pop     rsi
+        pop     rdi
+        mov     r8, rax
+
+        ;; r9 -- data
+        mov     r9, [rdi+bigint.data]
+
+        ;; adding
+        xor     rcx, rcx
+        clc
+        pushf
+        .loop
+        popf
+        adc     [r9], rsi
+        pushf
+        xor     rsi, rsi          ; we need rsi only on 0 iteration
+        add     r9, 8
+        inc     ecx
+        cmp     ecx, dword[rdi+bigint.size]
+        jl      .loop
+        popf
+
+        ;; normalizing
+        call    biCutTrailingZeroes
+        ret
+
 ;;; int biAddUnsigned(BigInt dst, BigInt src);
 ;;; ! dst ≠ src
 ;;; dst = |dst| + |src|
@@ -596,6 +692,8 @@ biAddUnsigned:
         call    biCutTrailingZeroes
 
         ret
+
+
 
 ;;; int biAdd(BigInt dst, BigInt src);
 ;;; dst += src
@@ -854,6 +952,7 @@ biMulShort:
         mov     rax, [r9]
         mul     rsi
         add     rax, r8         ; add carry
+        adc     rdx, 0
         mov     r8, rdx
         mov     [r9], rax
         add     r9, 8
@@ -869,6 +968,123 @@ biMulShort:
 ;;; void biMul(BigInt dst, BigInt src);
 ;;; dst *= src
 biMul:
+        push    r12
+        push    r13
+        push    r14
+        push    r15
+
+        ;; copy rdi to r8
+        push    rsi
+        push    rdi
+        mov     rdi, 0
+        call    biFromUInt
+        pop     rdi
+        pop     rsi
+        mov     r8, rax
+
+        ;; set sign of r8 (sign(a) XOR sign(b) as ≥0 is 0x0, <0 is -1)
+        mov     eax, dword[rsi+bigint.sign]
+        xor     eax, dword[rdi+bigint.sign]
+        mov     dword[r8+bigint.sign], eax
+
+        ;; expand r8 to src.length + dest.length + 1
+        push    rsi
+        push    rdi
+        push    r8
+        mov     esi, dword[rsi+bigint.size]
+        add     esi, dword[rdi+bigint.size]
+        inc     esi
+        mov     rdi, r8
+        call    biExpand
+        pop     r8
+        pop     rdi
+        pop     rsi
+
+        ;; expand src by 1
+        push    rsi
+        push    rdi
+        push    r8
+        mov     rdi, rsi
+        mov     esi, dword[rsi+bigint.size]
+        inc     esi
+        call    biExpand
+        pop     r8
+        pop     rdi
+        pop     rsi
+
+        ;; save data of three bigints
+        mov     r9,  [rdi+bigint.data]
+        mov     r10, [rsi+bigint.data]
+        mov     r11, [r8+bigint.data]
+
+        ;; preparing data for loop
+        xor     rcx, rcx        ; first loop iterator
+        xor     r12, r12        ; second loop iterator
+        xor     r13, r13        ; carry
+        mov     r15d, dword[rsi+bigint.size]
+        dec     r15d
+
+        ;; multiplying loop
+        .loop
+        mov     rax, [r9+8*rcx]
+        mul     qword[r10+8*r12]
+        add     rax, r13         ; add carry
+        adc     rdx, 0
+        mov     r14, rcx         ; calculate r11+8*rcx
+        shl     r14, 3
+        add     r14, r11
+        add     rax, [r14+8*r12]
+        adc     rdx, 0
+        mov     [r14+8*r12], rax ; write to r8
+        mov     r13, rdx         ; save carry
+        inc     r12d
+
+        cmp     r12d, r15d      ; r15d holds esi size - 1 (real size before expand)
+        jl      .loop
+        cmp     r13, 0
+        jne     .loop           ; end of inner loop
+
+        xor     r12d, r12d      ; xor second iterator and carry
+        xor     r13, r13
+        inc     ecx
+        cmp     ecx, dword[rdi+bigint.size]
+        jl      .loop           ; end of outer loop
+
+        ;; dst := r8
+        push    r8
+        push    rdi
+        push    rsi
+        mov     rsi, r8
+        call    biAssign
+        pop     rsi
+        pop     rdi
+        pop     r8
+
+        ;; delete r8
+        push    rdi
+        push    rsi
+        mov     rdi, r8
+        call    biDelete
+        pop     rsi
+        pop     rdi
+
+
+        ;; normalize rsi
+        push    rdi
+        mov     rdi, rsi
+        call    biCutTrailingZeroes
+        pop     rdi
+
+        ;; normalize rdi
+        mov     rax, rdi
+        push    rax
+        call    biCutTrailingZeroes
+        pop     rax
+
+        pop     r15
+        pop     r14
+        pop     r13
+        pop     r12
         ret
 
 biDivShort:
@@ -883,3 +1099,6 @@ biDivRem:
 
 fail:
         mov     dword[0], 0
+
+section .data
+        not_available:  db 'NA', 0
