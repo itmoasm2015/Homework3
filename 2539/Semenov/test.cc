@@ -23,6 +23,49 @@ void test_constructor_and_destructor(const int iterations = 1, bool verbose = fa
   }
 }
 
+void test_string_constructor(const int iterations = 1, const size_t length = 100, bool verbose = false) {
+  if (verbose) DEBUG("biFromString testin (%d iterations)\n", iterations);
+  for (int it = 0; it < iterations; ++it) {
+    char *string = new char[length + 1];
+    size_t i = 0;
+    if (rng() % 2) {
+      string[i++] = '-';
+    }
+    for (; i != length; ++i) {
+      string[i] = (char) (rng() % 10 + '0'); 
+    }
+    string[length] = 0;
+    BigIntRepresentation *num = (BigIntRepresentation *) biFromInt(0);
+    BigIntRepresentation *ten = (BigIntRepresentation *) biFromInt(10);
+    i = 0;
+    bool negative = false;
+    if (string[i] == '-') {
+      negative = true;
+      ++i;
+    }
+    while (string[i] != 0) {
+      assert ('0' <= string[i] && string[i] <= '9');
+      int digit = string[i] - '0';
+      BigIntRepresentation *dig = (BigIntRepresentation *) biFromInt(digit);
+      biMul(num, ten);
+      assert (ten->size == 1 && ten->data[0] == 10);
+      biAdd(num, dig);
+      biDelete(dig);
+      ++i;
+    }
+    if (negative) biNegate(num);
+    dump(num);
+    BigIntRepresentation *result = (BigIntRepresentation *) biFromString(string);
+    assert (result != nullptr);
+    dump(result);
+    assert (biCmp(result, num) == 0);
+    biDelete(result);
+    biDelete(num);
+    biDelete(ten);
+    delete[] string;
+  }
+}
+
 void test_sign(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("Sign testing (%d iterations)\n", iterations);
   for (int i = 0; i < iterations; ++i) {
@@ -299,6 +342,7 @@ void test_mul_large(const int iterations = 1, const int multipliers = 100, bool 
 int main() {
   test_inc_case(-4858338985614885836);
   test_constructor_and_destructor(100, true);
+//  test_string_constructor(100, 100, true);
   test_sign(100, true);
   test_mul_by_two(1000, true);
   test_mul_by_two_large(1000, true);

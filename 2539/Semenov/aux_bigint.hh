@@ -13,6 +13,7 @@ extern "C" {
 void biMulBy2(BigInt x);
 void biNot(BigInt x);
 void biInc(BigInt x);
+void biNegate(BigInt x);
 
 #ifdef __cplusplus
 }
