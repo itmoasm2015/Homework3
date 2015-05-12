@@ -37,6 +37,12 @@ void dump(BigInt a) {
     cout << endl;
 }
 
+void dump2(BigInt a) {
+    char buf[1000];
+    biToString(a, buf, 1000);
+    cout << buf<< endl;
+}
+
 void assertion(string s, bool res) {
     if (!res) {
         cerr << s << endl;
@@ -361,6 +367,49 @@ void test_to_string() {
     success;
 }
 
+void test_addition_signed_long() {
+    BigInt a = biFromString("-1231231231231231231232131231231231232");
+    BigInt b = biFromString("93939399339333333333333333333939939393993939393993");
+    biAdd(a, b);
+    BigInt res = biFromString("93939399339332102102102102102708707262762708162761");
+    assert(biCmp(a, res) == 0);
+    biDelete(a);
+    biDelete(b);
+    biDelete(res);
+    success;
+}
+
+void test_sub_signed_long() {
+    BigInt a = biFromString("9333333333333333333939939393993939393993");
+    BigInt b = biFromString("00111111101101010101001231231231231231231232131231231231232");
+    biSub(a, b);
+    BigInt res = biFromString("-111111101101010091667897897897897897291292737237291837239");
+    assert(biCmp(a, res) == 0);
+    biDelete(a);
+    biDelete(b);
+    biDelete(res);
+    success;
+}
+
+void test_cmp() {
+    for (int i = 0 ; i < 1000; i++) {
+        string str1 = "";
+        str1 += (char) (rand() % 9 + '1');
+        string str2 = "";
+        for (int j = 0; j < 100; j++) {
+            str1 += (char) (rand() % 10 + '0');
+            str2 += (char) (rand() % 10 + '0');
+            BigInt a = biFromString(str1.c_str());
+            BigInt b = biFromString(str2.c_str());
+            assert(biCmp(a, b) > 0);
+            assert(biCmp(b, a) < 0);
+            biDelete(a);
+            biDelete(b);
+        }
+    }
+    success;
+}
+
 int main() {
     test_copy();
     test_sign();
@@ -381,4 +430,7 @@ int main() {
     test_long_signed_mul();
     test_to_string_adequate();
     test_to_string();
+    test_addition_signed_long();
+    test_sub_signed_long();
+    test_cmp();
 }

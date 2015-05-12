@@ -6,8 +6,7 @@ default rel
 .data   resq 1                  ; unsigned long int*
         endstruc
 
-%define bigint_size 16
-%define trailing_removed_after 0
+%define bigint_size 16          ; size of structure above
 
 extern malloc
 extern free
@@ -65,8 +64,9 @@ biCutTrailingZeroes:
         inc     ecx
         jmp     .loop
 
+        ;; check if any trailing zeroes were removed
         .reallocate
-        cmp     ecx, trailing_removed_after
+        cmp     ecx, 0
         jle     .nullcheck
 
         ;; allocate array of new size
@@ -139,7 +139,7 @@ biFromInt:
         ;; set size
         mov     dword[r9+bigint.size], 1
 
-        ;; allocate memory for array
+        ;; allocate memory for .data
         push    r8
         push    r9
         mov     rdi, 8
@@ -147,7 +147,7 @@ biFromInt:
         pop     r9
         pop     r8
 
-        ;; fill it and put as a member into struc
+        ;; fill it and put to .data into struc
         mov     [rax], r8
         mov     [r9+bigint.data], rax
 
@@ -198,11 +198,9 @@ biFromUInt:
         pop     rax
         ret
 
-;;; NEEDS MUL AND ADD
 ;;; BigInt biFromString(char const *s)
 ;;; Create a BigInt from a decimal string representation.
 ;;; Returns NULL on incorrect string.
-;;; parses from right to left
 biFromString:
         push    rbx
         push    r12
@@ -210,7 +208,7 @@ biFromString:
         push    r14
         push    r15
 
-        ;; allocate new bigint (0)
+        ;; allocate new bigint (0) - BI
         push    rdi
         mov     rdi, 0
         call    biFromUInt
@@ -225,15 +223,16 @@ biFromString:
         inc     rdi
         .nonneg
 
+        ;; process first byte
         xor     rcx, rcx
         ;; first iteration allows no \0
         mov     cl, byte[rdi]
-        cmp     cl, '0'
+        cmp     cl, '0'         ; data check
         jl      .fail
         cmp     cl, '9'
         jg      .fail
         sub     cl, '0'
-        ;; +cl
+        ;; BI += cl
         push    rdi
         mov     rdi, r12
         mov     rsi, rcx
@@ -242,7 +241,7 @@ biFromString:
         ;; increment rdi
         inc     rdi
 
-        ;; >1 iterations of read
+        ;; process till the end of a string
         .loop
         xor     rcx, rcx
         mov     cl, [rdi]
@@ -253,7 +252,7 @@ biFromString:
         cmp     cl, '9'
         jg      .fail
         sub     cl, '0'
-        ;; *10
+        ;; BI *= 10
         push    rdi
         push    rcx
         mov     rdi, r12
@@ -261,7 +260,7 @@ biFromString:
         call    biMulShort
         pop     rcx
         pop     rdi
-        ;; +cl
+        ;; BI += cl
         push    rdi
         mov     rdi, r12
         mov     rsi, rcx
@@ -272,7 +271,8 @@ biFromString:
         jmp     .loop
         .loop_end
 
-        ;; set sign
+        ;; set sign (not setting in the start because of leading zeroes --
+        ;; if present, BI is set to 0 (BI += 0), and normalized to +0)
         mov     dword[r12+bigint.sign], ebx
 
         ;; normalize
@@ -332,11 +332,12 @@ biToString:
         push    rax
         inc     rcx
 
-        call    biIsZero
+        call    biIsZero        ; check if current number is not 0
         cmp     rax, 0x0
-        jne     .loop           ; end cycle
+        jne     .loop           ; end loop
 
         ;; while rcx != 0 || rdx != 0, pop bytes from stack and write them
+        ;; rcx -- number of chars pushed, rdx -- bytes allowed to write
         .loop_writeback
         cmp     rcx, 0
         je      .loop_writeback_end
@@ -368,7 +369,7 @@ biToString:
 biDelete:
         cmp     dword[rdi+bigint.size], 0 ; if size is 0, inner array was deleted
         je      .outer
-        ;; inner part
+        ;; inner part (.data)
         push    rdi
         mov     rdi, [rdi+bigint.data]
         call    free
@@ -386,7 +387,8 @@ biCopy:
         call    malloc
         ;; without this nop, rsp suddenly changes
         ;; from 0x7fffffffdf10 to 0x7fffffffdf48
-        ;; (I suspect gdb to have bugs or something)
+        ;; error of emacs-gdb
+        ;; left here just to remember (4.5 hours debugging spent)
         nop
         pop     rdi
         mov     r8, rax
@@ -430,6 +432,7 @@ biCopy:
 
 ;;; void biAssign(BigInt a, BigInt b);
 ;;; a := b
+;;; previous a .data is free'd
 biAssign:
         ;; free a.data
         push    rsi
@@ -474,12 +477,15 @@ biAssign:
         ret
 
 ;;; unsigned long int* biDump(BigInt x);
+;;; returns .data section
+;;; used to debug
 ;;; spoiled: rax
 biDump:
         mov     rax, [rdi+bigint.data]
         ret
 
 ;;; size_t biSize(BigInt x);
+;;; returns size
 ;;; spoiled: rax
 biSize:
         mov     eax, dword[rdi+bigint.size]
@@ -558,9 +564,10 @@ biCmp:
         ;; cmp by sign first
         mov     eax, dword[rdi+bigint.sign]
         cmp     eax, dword[rsi+bigint.sign]
-        jg      .gt
-        jl      .lt
+        ja      .gt
+        jb      .lt
 
+        ;; cmp unsigned if sign is equal
         call    biCmpUnsigned
         jmp     .return
 
@@ -582,21 +589,26 @@ biCmpUnsigned:
         ;; compare by length first
         mov     eax, dword[rdi+bigint.size]
         cmp     eax, dword[rsi+bigint.size]
-        jg      .gt
-        jl      .lt
+        ja      .gt
+        jb      .lt
 
-        ;; compare by-digit
+        ;; compare by-digit starting from higher bits
+        ;; kind of self-explanatory code
         xor     rcx, rcx
+        mov     ecx, eax        ; eax holds size now
+        dec     ecx
         mov     r8, [rdi+bigint.data]
         mov     r9, [rsi+bigint.data]
         .loop
         mov     rax, [r8+rcx*8]
         cmp     rax, [r9+rcx*8]
-        jg      .gt
-        jl      .lt
-        inc     ecx
-        cmp     ecx, dword[rsi+bigint.size]
-        jl      .loop
+        ja      .gt
+        jb      .lt
+        cmp     ecx, 0
+        je      .loop_end
+        dec     ecx
+        jmp     .loop
+        .loop_end
 
         jmp     .eq
 
@@ -620,6 +632,8 @@ biCmpUnsigned:
 biExpand:
         mov     r8, rdi
         mov     r9, rsi
+
+        ;; TODO remove this block
         cmp     r9d, dword[r8+bigint.size] ; fail if new size ≤ old size
         jle     fail
 
@@ -699,7 +713,8 @@ biAddShort:
         ;; r9 -- data
         mov     r9, [rdi+bigint.data]
 
-        ;; adding
+        ;; adding (naive solution);
+        ;; pushf/popf used to save carry from adc, as it gets spoiled by cmp
         xor     rcx, rcx
         clc
         pushf
@@ -911,7 +926,7 @@ biSubUnsigned:
         mov     r8, [rdi+bigint.data]
         mov     r9, [rsi+bigint.data]
 
-        ;; process subtracting
+        ;; process subtracting (naive solution with carry)
         clc
         xor     rcx, rcx
         pushf
@@ -1034,7 +1049,7 @@ biMulShort:
         pop     rsi
         pop     rdi
 
-        ;; perform multiplication
+        ;; perform multiplication (mul each digit with carry adding)
         mov     r9, [rdi+bigint.data]
         xor     r8, r8          ; saving carry here (that's in rdx after mul)
         xor     rcx, rcx
@@ -1042,7 +1057,7 @@ biMulShort:
         .loop
         mov     rax, [r9]
         mul     rsi
-        add     rax, r8         ; add carry
+        add     rax, r8         ; add carry to rax:rdx
         adc     rdx, 0
         mov     r8, rdx
         mov     [r9], rax
@@ -1158,7 +1173,6 @@ biMul:
         pop     rsi
         pop     rdi
 
-
         ;; normalize rsi
         push    rdi
         mov     rdi, rsi
@@ -1177,8 +1191,9 @@ biMul:
         pop     r12
         ret
 
-;;; unsigned long int biDuvShort(BigInt a, unsigned long int b);
+;;; unsigned long int biDivShort(BigInt a, unsigned long int b);
 ;;; a /= b, returns carry
+;;; algorithm from e-maxx
 biDivShort:
         xor     r8, r8          ; r8 holds carry
 
