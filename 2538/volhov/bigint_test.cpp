@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <vector>
 #include <string>
+#include <string.h>
 #include <iostream>
 #include <utility>
 #include <bigint.h>
@@ -334,11 +335,33 @@ void test_long_signed_mul() {
     success;
 }
 
+void test_to_string_adequate() {
+    BigInt a = biFromString("-000123123123123123123123123123123123089871293879182739");
+    char buf[20];
+    biToString(a, buf, 5); // this should simply not segfault
+    biDelete(a);
+    success;
+}
+
+void test_to_string() {
+    for (int i = 0; i < 10000; i++) {
+        string input = "";
+        if (rand() % 1) input += "-";
+        input += (char) (rand() % 9 + '1'); // first sign must be >0
+        int size = rand() % 200;
+        for (int i = 0 ; i < size; i++) {
+            input += (char) (rand() % 10 + '0');
+        }
+        BigInt a = biFromString(input.c_str());
+        char buf[1000];
+        biToString(a, buf, 1000);
+        assert(strcmp(input.c_str(), buf) == 0);
+        biDelete(a);
+    }
+    success;
+}
+
 int main() {
-    BigInt a = biFromString("12345678912345681234658123456812345678");
-    int carry = biDivShort(a, 10);
-    cout << carry << endl;
-    dump(a);
     test_copy();
     test_sign();
     test_expand();
@@ -356,4 +379,6 @@ int main() {
     test_signed_mul_zeroes();
     test_signed_mul();
     test_long_signed_mul();
+    test_to_string_adequate();
+    test_to_string();
 }

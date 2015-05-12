@@ -38,6 +38,7 @@ global biSubUnsigned
 global biNegate
 global biCmpUnsigned
 global biCopy
+global biIsZero
 
 ;;; void biCutTrailingZeroes(BigInt a)
 ;;; removes trailing zeroes (except the last one);
@@ -203,6 +204,7 @@ biFromUInt:
 ;;; Returns NULL on incorrect string.
 ;;; parses from right to left
 biFromString:
+        push    rbx
         push    r12
         push    r13
         push    r14
@@ -216,9 +218,10 @@ biFromString:
         mov     r12, rax
 
         ;; set sign
+        xor     rbx, rbx        ; the sign is ≥0 by default
         cmp     byte[rdi], '-'
         jne     .nonneg
-        mov     dword[r12+bigint.sign], 0xffffffff
+        mov     ebx, 0xffffffff ; save sign, will assign it later
         inc     rdi
         .nonneg
 
@@ -269,6 +272,10 @@ biFromString:
         jmp     .loop
         .loop_end
 
+        ;; set sign
+        mov     dword[r12+bigint.sign], ebx
+
+        ;; normalize
         mov     rdi, r12
         call    biCutTrailingZeroes
         mov     rax, r12
@@ -280,15 +287,80 @@ biFromString:
         pop     r14
         pop     r13
         pop     r12
+        pop     rbx
         ret
 
 ;;; void biToString(BigInt bi, char *buffer, size_t limit)
 ;;; Generate a decimal string representation from a BigInt.
 ;;; Writes at most limit bytes to buffer.
 biToString:
-        mov     byte[rsi], 'N'
-        mov     byte[rsi+1], 'A'
-        mov     byte[rsi+2], 0
+        ;; reserve place for last \0
+        dec     rdx
+        jz      .return
+
+        ;; layout minus; if there's no place left, exit
+        cmp     dword[r8+bigint.sign], 0xffffffff
+        jne     .non_neg
+        mov     byte[rsi], '-'
+        inc     rsi
+        dec     rdx
+        jz      .return
+        .non_neg
+
+        ;; create a copy of dest, to dest
+        push    rsi
+        push    rdx
+        call    biCopy
+        pop     rdx
+        pop     rsi
+        mov     rdi, rax
+
+        xor     rcx, rcx
+        ;; divide current on 10, get remainder, push it, increment rcx
+        .loop
+        push    rdi
+        push    rsi
+        push    rdx
+        push    rcx
+        mov     rsi, 10
+        call    biDivShort
+        pop     rcx
+        pop     rdx
+        pop     rsi
+        pop     rdi
+        add     al, '0'
+        push    rax
+        inc     rcx
+
+        call    biIsZero
+        cmp     rax, 0x0
+        jne     .loop           ; end cycle
+
+        ;; while rcx != 0 || rdx != 0, pop bytes from stack and write them
+        .loop_writeback
+        cmp     rcx, 0
+        je      .loop_writeback_end
+        cmp     rdx, 0
+        je      .loop_writeback_end
+        pop     rax
+        mov     byte[rsi], al
+        inc     rsi
+        dec     rdx
+        dec     rcx
+        jmp     .loop_writeback
+        .loop_writeback_end
+
+        ;; restore stack (if rdx == 0, but rcx != 0 -- we still have bytes pushed)
+        shl     rcx, 3          ; *8 for bytes
+        add     rsp, rcx
+
+        ;; delete copy of rdi
+        push    rsi
+        call    biDelete
+        pop     rsi
+
+        .return
+        mov     byte[rsi], 0
         ret
 
 ;;; void biDelete(BigInt bi);
@@ -411,6 +483,27 @@ biDump:
 ;;; spoiled: rax
 biSize:
         mov     eax, dword[rdi+bigint.size]
+        ret
+
+;;; size_t biIsZero(BigInt x);
+;;; returns 0xffffffff if not zero
+;;; else 0
+;;; spoiled: ∅
+biIsZero:
+        ;; size > 1 ⇒ not zero
+        cmp     dword[rdi+bigint.size], 1
+        jg      .nonzero
+        ;; size == 1, data[0] != 0 ⇒ not zero
+        push    r8
+        mov     r8d, dword[rdi+bigint.data]
+        cmp     qword[r8d], 0
+        pop     r8
+        jne     .nonzero
+
+        xor     rax, rax
+        ret
+        .nonzero
+        mov     rax, 0xffffffff
         ret
 
 ;;; void biNegate(BigInt x);
@@ -693,8 +786,6 @@ biAddUnsigned:
 
         ret
 
-
-
 ;;; int biAdd(BigInt dst, BigInt src);
 ;;; dst += src
 biAdd:
@@ -962,7 +1053,6 @@ biMulShort:
 
         ;; normalize
         call    biCutTrailingZeroes
-
         ret
 
 ;;; void biMul(BigInt dst, BigInt src);
@@ -1109,7 +1199,11 @@ biDivShort:
         dec     rcx
         jnz     .loop
 
+        ;; save carry and normalize dst
         mov     rax, r8
+        push    rax
+        call    biCutTrailingZeroes
+        pop     rax
         ret
 
 ;;; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
