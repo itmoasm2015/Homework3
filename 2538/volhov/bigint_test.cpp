@@ -22,6 +22,7 @@ extern "C" {
     void biSubUnsigned(BigInt a, BigInt b);
     void biAddShort(BigInt a, unsigned long int b);
     void biMulShort(BigInt a, unsigned long int b);
+    int biDivShort(BigInt a, unsigned long int b);
     void biNegate(BigInt a);
 }
 
@@ -334,6 +335,10 @@ void test_long_signed_mul() {
 }
 
 int main() {
+    BigInt a = biFromString("12345678912345681234658123456812345678");
+    int carry = biDivShort(a, 10);
+    cout << carry << endl;
+    dump(a);
     test_copy();
     test_sign();
     test_expand();

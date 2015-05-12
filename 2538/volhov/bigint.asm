@@ -1087,8 +1087,31 @@ biMul:
         pop     r12
         ret
 
+;;; unsigned long int biDuvShort(BigInt a, unsigned long int b);
+;;; a /= b, returns carry
 biDivShort:
+        xor     r8, r8          ; r8 holds carry
+
+        ;; iterate from rdi.size - 1 downto 0
+        xor     rcx, rcx
+        mov     ecx, dword[rdi+bigint.size]
+        dec     rcx
+        mov     r9, [rdi+bigint.data]
+        lea     r9, [r9+8*rcx]
+        inc     rcx
+        .loop
+        mov     rdx, r8
+        mov     rax, [r9]
+        div     rsi
+        mov     [r9], rax
+        mov     r8, rdx
+        sub     r9, 8
+        dec     rcx
+        jnz     .loop
+
+        mov     rax, r8
         ret
+
 ;;; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 ;;; Compute quotient and remainder by divising numerator by denominator.
 ;;; quotient * denominator + remainder = numerator
