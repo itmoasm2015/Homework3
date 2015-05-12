@@ -521,8 +521,8 @@ biCompareUnsigned:
 	mov r10, [r8 + rcx * 8 - 8]		; load most significant digits from each vector and compare them			
 	mov r11, [r9 + rcx * 8 - 8]		; since we assume length is the same this is enough
 	cmp r10, r11
-	jg .greater
-	jl .less
+	ja .greater
+	jb .less
 	loop .comparison_loop
 
 .equal:
