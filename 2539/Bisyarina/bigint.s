@@ -122,57 +122,53 @@ allocate:
 ;;; rsi - uint64
 addInt: 
         push rax
-        push rcx
-        push rdx
         push r8
+        push rdi
 
-        ;; Check if integer is positive
+        ;; Check if rsi is positive
         mov rax, rsi
         test rax, rax
         jz .add
-        ;; If positive set rsi bigint positive
+        ;; If so result of adding will be positive
         setSign rdi, 1
 .add:
+        ;; Check if size of rdi is 0
         mov rax, [rdi]
         test rax, rax
         jnz .addadd
-        mov qword rax, 1
-        mov [rdi], rax
+        ;; If so, increment size to 1
+        inc qword [rdi]
 .addadd:
-        ;; Get pointer to data
-        mov rax, rdi
-        mov rcx, [rax + 8]
-        ;; Get size
-        mov r8, [rax]
-        mov rax, [rcx]
-        ;; Add to last uint64 of bigint data an integer
-        clc
-        add rax, rsi
-        mov [rcx], rax
+        ;; Save pointer to rdi
+        mov r9, rdi
+        ;; Set size
+        mov r8, [rdi]
+        dec r8
+        ;; Set pointer to data
+        mov rdi, [rdi + 8]
+        ;; Add rsi to last uint64
+        add [rdi], rsi
+        ;; If carry not set result is correct
         jnc .exit
-        ;; While carry bit is true or intex less then size
 .loop:
-        ;; Check size
+        ;; Check counter not zero
         test r8, r8
         jnz .looploop
-        push rax
-        mov rax, [rdi]
-        inc rax
-        mov [rdi], rax
-        pop rax
+        ;; Set next uint64 to 1
+        add rdi, 8
+        mov qword [rdi], 1
+        ;; Increment size
+        inc qword [r9]
+        jmp .exit
 .looploop:
-        ;; Move pointer to current int64 of data
-        add rcx, 8
-        mov rax, [rcx]
+        add rdi, 8
         dec r8
-        ;; Add carry
-        clc
-        add rax, 1
+        ;; Add 1 to current uint64
+        add qword [rdi], 1
         jc .loop
 .exit:
+        pop rdi
         pop r8
-        pop rdx
-        pop rcx 
         pop rax
         ret
 
@@ -186,49 +182,48 @@ mulInt:
         push rdx
         push r8
         push r9
-        ;; Check if int is zero
+        push rdi
+
+        ;; Check if rsi is not zero
         test rsi, rsi
         jnz .mul
-        ;; Set sign zero if zero
+        ;; If so, set sign to zero
         setSign rdi, 0
 .mul:
-        ;; Init carry
+        mov r11, rdi
         xor r8, r8
-        mov rax, rdi
-        mov rcx, [rax + 8]
-        ;; Get size
-        mov r9, [rax]
+        ;; Set size
+        mov r9, [rdi]
+        ;; Set pointer to data
+        mov rdi, [rdi + 8]
 .loop:
-        ;; Check size
+        ;; Check counter not zero
         cmp r9, 0
         jg .looploop
+        ;; Check carry not zero
         test r8, r8
         jz .exit
+        inc qword [r11]
 .looploop:
         ;; Multiply
         xor rdx, rdx
-        mov rax, [rcx]
+        mov rax, [rdi]
         mul rsi
-        clc
-        ;; Add carry
+
+        mov r10, rdx
+        ;; Add old carry
         add rax, r8
-        mov [rcx], rax
-        ;; Save new carry
-        mov r8, rdx
+        adc r10, 0
+        ;; Save current carry
+        mov r8, r10
+        mov [rdi], rax
+        ;; Dec counters
         dec r9
-        add qword rcx, 8
-        jnc .loop
-.add:
-        ;; Add carry from sum
-        add r8, 1
+        add qword rdi, 8
+        test r8, r8
         jmp .loop
 .exit:
-        cmp r9, 0
-        jge .exitexit
-        mov rax, [rdi]
-        inc rax
-        mov [rdi], rax
-.exitexit:
+        pop rdi
         pop r9
         pop r8
         pop rdx
@@ -305,31 +300,35 @@ biFromString:
         pop rdi
         pop rcx
         pop rdi
+
         ;; Check allocation successfull
         test rax, rax
         jz .exit
-        ;; Save pointer no bigint
+
+        ;; Save pointer to bigint
         mov rsi, rax
+
         ;; Check if negaive
         xor r12, r12
         mov al, [rdi]
         dec rdi
         cmp al, '-'
+        mov rdx, rcx
         jne .loop
         ;; Check for "-"
         cmp rcx, 1
         je .exit_fail
         ;; Set negative
         mov qword r12, 1
-
         inc rdi
 .loop:
         inc rdi
         ;; Check if end
         xor rax, rax
         mov al, [rdi]
-        cmp al, 0
-        je .finish
+        test rax, rax
+        jz .finish
+
         ;; Mul current result by 10
         push rsi
         push rdi
@@ -342,11 +341,13 @@ biFromString:
         ;; Add (current symbol - '0')
         sub al, '0'
         test al, al
+
         jz .loop
         cmp al, 0
         jl .exit_fail
         cmp al, 9
         jg .exit_fail
+
         push rdi
         push rsi
         mov rdi, rsi
@@ -354,6 +355,8 @@ biFromString:
         call addInt 
         pop rsi
         pop rdi
+
+        dec rdx
         jmp .loop
 .finish:
         mov rax, rsi

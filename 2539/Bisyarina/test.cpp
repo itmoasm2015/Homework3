@@ -315,9 +315,8 @@ int main() {
 	m3 = biFromInt(1);
 	m4 = biFromInt(-1);
 	biSub(m1, m3);
-	biMul(m1, m4);
-	biAdd(m2, m1);
-	cout << biCmp(m2, m3);
+	biSub(m1, m4);
+	cout << biCmp(m1, m2);
 	
 	biDelete(m1);
 	biDelete(m2);

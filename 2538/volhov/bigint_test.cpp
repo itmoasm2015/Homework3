@@ -9,7 +9,7 @@
 
 using namespace std;
 
-#define success (cout << " [PASSED] " << __func__ << endl)
+#define success (cout << " \033[32m[PASSED]\033[0m " << __func__ << endl)
 
 extern "C" {
     unsigned long int* biDump(BigInt x);
@@ -20,7 +20,9 @@ extern "C" {
     void biCutTrailingZeroes(BigInt a);
     void biAddUnsigned(BigInt a, BigInt b);
     void biSubUnsigned(BigInt a, BigInt b);
+    void biAddShort(BigInt a, unsigned long int b);
     void biMulShort(BigInt a, unsigned long int b);
+    int biDivShort(BigInt a, unsigned long int b);
     void biNegate(BigInt a);
 }
 
@@ -122,7 +124,6 @@ void test_addition_unsigned() {
     }
     success;
 }
-
 
 //strange test
 void test_create_big_number(bool verbose = false) {
@@ -275,7 +276,69 @@ void test_mul_short() {
     success;
 }
 
+
+void test_from_string_visual() {
+    string s = "100";
+    for (int i = 0; i < 39; i++) {
+        BigInt a = biFromString(s.c_str());
+        dump(a);
+        s += "0";
+        biDelete(a);
+    }
+    //BigInt a = biFromString("12345678123456781234567812345678");
+    //dump(a);
+    //BigInt b = biFromString("81818181818181818181818181818181");
+    //dump(b);
+    //BigInt sum = biFromString("94163859941638599416385994163859");
+    //dump(sum);
+    //biAdd(a, b);
+    //assert(biCmp(a, sum) == 0);
+    //success;
+}
+
+void test_signed_mul_zeroes() {
+    BigInt a = biFromString("-10012341234123412341324132412341234123412341234123");
+    BigInt b = biFromString("0");
+    biMul(b, a);
+    BigInt res = biFromInt(0);
+    assert(biCmp(b, res) == 0);
+    biMul(a, b);
+    assert(biCmp(a, res) == 0);
+    biDelete(a);
+    biDelete(b);
+    biDelete(res);
+    success;
+}
+
+void test_signed_mul() {
+    BigInt a = biFromString("-10000000000000000000");
+    BigInt b = biFromString("5555555555555555555553333333");
+    biMul(a, b);
+    BigInt res = biFromString("-55555555555555555555533333330000000000000000000");
+    assert(biCmp(a, res) == 0);
+    biDelete(a);
+    biDelete(b);
+    biDelete(res);
+    success;
+}
+
+void test_long_signed_mul() {
+    BigInt a = biFromString("19194234123412383847149128479218374912");
+    BigInt b = biFromString("-228228228228228228412341234123412341234");
+    biMul(a, b);
+    BigInt res = biFromString("-4380666046184207728408784309748588993540755470196621944651726970242688721408");
+    assert(biCmp(a, res) == 0);
+    biDelete(a);
+    biDelete(b);
+    biDelete(res);
+    success;
+}
+
 int main() {
+    BigInt a = biFromString("12345678912345681234658123456812345678");
+    int carry = biDivShort(a, 10);
+    cout << carry << endl;
+    dump(a);
     test_copy();
     test_sign();
     test_expand();
@@ -289,4 +352,8 @@ int main() {
     test_sub_signed();
     test_add_signed();
     test_mul_short();
+    //test_from_string_visual();
+    test_signed_mul_zeroes();
+    test_signed_mul();
+    test_long_signed_mul();
 }
