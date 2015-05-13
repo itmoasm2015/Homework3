@@ -12,32 +12,32 @@ extern malloc
 extern free
 
 ;;; Required
-global biFromInt
-global biFromString
-global biToString
-global biDelete
-global biSign
-global biAdd
-global biSub
-global biMul
-global biDivRem
-global biCmp
+global biFromInt                ;ok
+global biFromString             ;ok
+global biToString               ;ok
+global biDelete                 ;ok
+global biSign                   ;ok
+global biAdd                    ;ok
+global biSub                    ;ok
+global biMul                    ;ok
+global biDivRem                 ;ok
+global biCmp                    ;ok
 
 ;;; Custom
-global biFromUInt
-global biDump
-global biSize
-global biExpand
-global biAddShort
-global biMulShort
-global biDivShort
-global biCutTrailingZeroes
-global biAddUnsigned
-global biSubUnsigned
-global biNegate
-global biCmpUnsigned
-global biCopy
-global biIsZero
+global biFromUInt               ;ok
+global biDump                   ;ok
+global biSize                   ;ok
+global biExpand                 ;ok
+global biAddShort               ;ok
+global biMulShort               ;ok
+global biDivShort               ;ok
+global biCutTrailingZeroes      ;ok
+global biAddUnsigned            ;ok
+global biSubUnsigned            ;ok
+global biNegate                 ;ok
+global biCmpUnsigned            ;ok
+global biCopy                   ;ok
+global biIsZero                 ;ok
 
 ;;; void biCutTrailingZeroes(BigInt a)
 ;;; removes trailing zeroes (except the last one);
@@ -74,7 +74,9 @@ biCutTrailingZeroes:
         push    r9
         mov     edi, dword[r8+bigint.size]
         shl     edi, 3
+        sub     rsp, 8          ; align
         call    malloc
+        add     rsp, 8
         pop     r9
         pop     r8
         mov     r10, rax
@@ -92,7 +94,9 @@ biCutTrailingZeroes:
         push    r8
         push    r10
         mov     rdi, [r8+bigint.data]
+        sub     rsp, 8
         call    free
+        add     rsp, 8
         pop     r10
         pop     r8
         mov     [r8+bigint.data], r10
@@ -143,7 +147,9 @@ biFromInt:
         push    r8
         push    r9
         mov     rdi, 8
+        sub     rsp, 8          ; align
         call    malloc
+        add     rsp, 8
         pop     r9
         pop     r8
 
@@ -181,7 +187,9 @@ biFromUInt:
         push    r8
         push    r9
         mov     rdi, 8
+        sub     rsp, 8
         call    malloc
+        add     rsp, 8
         pop     r9
         pop     r8
 
@@ -211,7 +219,9 @@ biFromString:
         ;; allocate new bigint (0) - BI
         push    rdi
         mov     rdi, 0
+        sub     rsp, 8          ; align
         call    biFromUInt
+        add     rsp, 8
         pop     rdi
         mov     r12, rax
 
@@ -236,7 +246,9 @@ biFromString:
         push    rdi
         mov     rdi, r12
         mov     rsi, rcx
+        sub     rsp, 8          ; align
         call    biAddShort
+        add     rsp, 8
         pop     rdi
         ;; increment rdi
         inc     rdi
@@ -264,7 +276,9 @@ biFromString:
         push    rdi
         mov     rdi, r12
         mov     rsi, rcx
+        sub     rsp, 8
         call    biAddShort
+        add     rsp, 8
         pop     rdi
         ;; increment rdi
         inc     rdi
@@ -310,7 +324,9 @@ biToString:
         ;; create a copy of dest, to dest
         push    rsi
         push    rdx
+        sub     rsp, 8          ; align
         call    biCopy
+        add     rsp, 8
         pop     rdx
         pop     rsi
         mov     rdi, rax
@@ -323,7 +339,9 @@ biToString:
         push    rdx
         push    rcx
         mov     rsi, 10
+        sub     rsp, 8          ; align
         call    biDivShort
+        add     rsp, 8
         pop     rcx
         pop     rdx
         pop     rsi
@@ -332,7 +350,10 @@ biToString:
         push    rax
         inc     rcx
 
+        sub     rsp, 8          ; align
         call    biIsZero        ; check if current number is not 0
+        add     rsp, 8
+
         cmp     rax, 0x0
         jne     .loop           ; end loop
 
@@ -375,7 +396,9 @@ biDelete:
         call    free
         pop     rdi
         .outer
+        sub     rsp, 8
         call    free
+        add     rsp, 8
         ret
 
 ;;; BigInt biCopy(BigInt a);
@@ -404,7 +427,9 @@ biCopy:
         xor     rdi, rdi
         mov     edi, dword[r8+bigint.size]
         shl     rdi, 3
+        sub     rsp, 8          ; align
         call    malloc
+        add     rsp, 8
         pop     r8
         pop     rdi
         mov     r10, rax
@@ -642,7 +667,9 @@ biExpand:
         push    r9
         mov     rdi, r9
         shl     rdi, 3
+        sub     rsp, 8          ; align
         call    malloc
+        add     rsp, 8
         pop     r9
         pop     r8
         mov     r10, rax
@@ -705,7 +732,9 @@ biAddShort:
         push    rsi
         mov     esi, dword[rdi+bigint.size]
         inc     esi
+        sub     rsp, 8          ; align
         call    biExpand
+        add     rsp, 8
         pop     rsi
         pop     rdi
         mov     r8, rax
@@ -730,7 +759,9 @@ biAddShort:
         popf
 
         ;; normalizing
+        sub     rsp, 8
         call    biCutTrailingZeroes
+        add     rsp, 8
         ret
 
 ;;; int biAddUnsigned(BigInt dst, BigInt src);
@@ -749,7 +780,9 @@ biAddUnsigned:
         mov     rdi, rsi
         mov     esi, dword[rax+bigint.size]
         inc     esi
+        sub     rsp, 8          ; align
         call    biExpand
+        add     rsp, 8
         pop     rsi
         pop     rdi
 
@@ -797,7 +830,9 @@ biAddUnsigned:
         call    biCutTrailingZeroes
         pop     rsi
         mov     rdi, rsi
+        sub     rsp, 8
         call    biCutTrailingZeroes
+        add     rsp, 8
 
         ret
 
@@ -829,7 +864,9 @@ biAdd:
         push    rdi
         push    rsi
         mov     rdi, rsi
+        sub     rsp, 8
         call    biNegate
+        add     rsp, 8
         pop     rsi
         pop     rdi
 
@@ -852,7 +889,9 @@ biAdd:
         ;; copy destination to r8
         push    rdi
         push    rsi
+        sub     rsp, 8          ; align
         call    biCopy
+        add     rsp, 8
         pop     rsi
         pop     rdi
         mov     r8, rax
@@ -860,7 +899,9 @@ biAdd:
         ;; assign rdi := rsi
         push    rdi
         push    r8
+        sub     rsp, 8          ; align
         call    biAssign
+        add     rsp, 8
         pop     r8
         pop     rdi
 
@@ -896,7 +937,9 @@ biSubUnsigned:
         ;; fail if |dst| < |src|
         push    rdi
         push    rsi
+        sub     rsp, 8          ; align
         call    biCmpUnsigned
+        add     rsp, 8
         pop     rsi
         pop     rdi
         cmp     rax, 0
@@ -914,7 +957,9 @@ biSubUnsigned:
         mov     rdi, rsi
         mov     esi, dword[rax+bigint.size]
         inc     esi
+        sub     rsp, 8
         call    biExpand
+        add     rsp, 8
         pop     rsi
         pop     rdi
 
@@ -947,7 +992,9 @@ biSubUnsigned:
         call    biCutTrailingZeroes
         pop     rsi
         mov     rdi, rsi
+        sub     rsp, 8
         call    biCutTrailingZeroes
+        add     rsp, 8
 
         ret
 
@@ -967,7 +1014,9 @@ biSub:
         .same_sign
         push    rsi
         push    rdi
+        sub     rsp, 8          ; align
         call    biCmpUnsigned
+        add     rsp, 8
         pop     rdi
         pop     rsi
         cmp     rax, 0
@@ -978,7 +1027,9 @@ biSub:
         ;; copy destination to r8
         push    rdi
         push    rsi
+        sub     rsp, 8          ; align
         call    biCopy
+        add     rsp, 8
         pop     rsi
         pop     rdi
         mov     r8, rax
@@ -986,7 +1037,9 @@ biSub:
         ;; assign rdi := rsi
         push    rdi
         push    r8
+        sub     rsp, 8          ; align
         call    biAssign
+        add     rsp, 8
         pop     r8
         pop     rdi
 
@@ -996,7 +1049,9 @@ biSub:
         ;; negate rdi
         push    rdi
         push    rsi
+        sub     rsp, 8          ; align
         call    biNegate
+        add     rsp, 8
         pop     rsi
         pop     rdi
 
@@ -1014,7 +1069,9 @@ biSub:
         ret
         ;; if sign is the same, just perform subtraction
         .same_sign_ge
+        sub     rsp, 8          ; align
         call    biSubUnsigned
+        add     rsp, 8
         ret
 
         ;; (-dst) - src; negate src, biAdd them (-dst + (-src)), restore src sign then
@@ -1024,7 +1081,9 @@ biSub:
         push    rdi
         push    rsi
         mov     rdi, rsi
+        sub     rsp, 8
         call    biNegate
+        add     rsp, 8
         pop     rsi
         pop     rdi
 
@@ -1035,7 +1094,9 @@ biSub:
 
         ;; negate src back
         mov     rdi, rsi
+        sub     rsp, 8          ; align
         call    biNegate
+        add     rsp, 8
         ret
 
 ;;; void biMulShort(BigInt dst, unsigned long int src);
@@ -1045,7 +1106,9 @@ biMulShort:
         push    rsi
         mov     esi, dword[rdi+bigint.size]
         inc     esi
+        sub     rsp, 8          ; align
         call    biExpand
+        add     rsp, 8
         pop     rsi
         pop     rdi
 
@@ -1067,7 +1130,9 @@ biMulShort:
         jl      .loop
 
         ;; normalize
+        sub     rsp, 8
         call    biCutTrailingZeroes
+        add     rsp, 8
         ret
 
 ;;; void biMul(BigInt dst, BigInt src);
@@ -1082,7 +1147,9 @@ biMul:
         push    rsi
         push    rdi
         mov     rdi, 0
+        sub     rsp, 8
         call    biFromUInt
+        add     rsp, 8
         pop     rdi
         pop     rsi
         mov     r8, rax
@@ -1169,7 +1236,9 @@ biMul:
         push    rdi
         push    rsi
         mov     rdi, r8
+        sub     rsp, 8          ; align
         call    biDelete
+        add     rsp, 8
         pop     rsi
         pop     rdi
 
