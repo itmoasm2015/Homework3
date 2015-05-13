@@ -417,9 +417,9 @@ int int_cmp(int a, int b) {
 }
 
 void test_cmp() {
-    for (int i = 0 ; i < 10000; i++) {
-        int ia = rand() % 100000 - 50000;
-        int ib = rand() % 100000 - 50000;
+    for (int i = 0 ; i < 1000000; i++) {
+        int ia = rand() % 10000 - 5000;
+        int ib = rand() % 10000 - 5000;
         BigInt a = biFromInt(ia);
         BigInt b = biFromInt(ib);
         assert(biCmp(a, b) == int_cmp(ia, ib));
@@ -427,6 +427,17 @@ void test_cmp() {
         biDelete(a);
         biDelete(b);
     }
+    for (int i = 0 ; i < 1000; i++) {
+        int ia = rand() % 1000000000 - 500000000;
+        int ib = rand() % 1000000000 - 500000000;
+        BigInt a = biFromInt(ia);
+        BigInt b = biFromInt(ib);
+        assert(biCmp(a, b) == int_cmp(ia, ib));
+        assert(biCmp(b, a) == int_cmp(ib, ia));
+        biDelete(a);
+        biDelete(b);
+    }
+
     success;
 }
 
