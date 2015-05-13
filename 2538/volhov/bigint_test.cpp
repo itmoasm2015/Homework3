@@ -391,7 +391,7 @@ void test_sub_signed_long() {
     success;
 }
 
-void test_cmp() {
+void test_str_cmp() {
     for (int i = 0 ; i < 1000; i++) {
         string str1 = "";
         str1 += (char) (rand() % 9 + '1');
@@ -406,6 +406,26 @@ void test_cmp() {
             biDelete(a);
             biDelete(b);
         }
+    }
+    success;
+}
+
+int int_cmp(int a, int b) {
+    if (a < b) return -1;
+    else if (a > b) return 1;
+    else return 0;
+}
+
+void test_cmp() {
+    for (int i = 0 ; i < 10000; i++) {
+        int ia = rand() % 100000 - 50000;
+        int ib = rand() % 100000 - 50000;
+        BigInt a = biFromInt(ia);
+        BigInt b = biFromInt(ib);
+        assert(biCmp(a, b) == int_cmp(ia, ib));
+        assert(biCmp(b, a) == int_cmp(ib, ia));
+        biDelete(a);
+        biDelete(b);
     }
     success;
 }
@@ -432,5 +452,6 @@ int main() {
     test_to_string();
     test_addition_signed_long();
     test_sub_signed_long();
+    test_str_cmp();
     test_cmp();
 }

@@ -313,7 +313,7 @@ biToString:
         jz      .return
 
         ;; layout minus; if there's no place left, exit
-        cmp     dword[r8+bigint.sign], 0xffffffff
+        cmp     dword[rdi+bigint.sign], 0xffffffff
         jne     .non_neg
         mov     byte[rsi], '-'
         inc     rsi
@@ -589,8 +589,17 @@ biCmp:
         ;; cmp by sign first
         mov     eax, dword[rdi+bigint.sign]
         cmp     eax, dword[rsi+bigint.sign]
-        ja      .gt
-        jb      .lt
+        jg      .gt
+        jl      .lt
+
+        ;; if both are negative, than swap
+        add     eax, dword[rsi+bigint.sign]
+        cmp     eax, 0xfffffffe
+        jne     .noswap
+        mov     rax, rdi
+        mov     rdi, rsi
+        mov     rsi, rax
+        .noswap
 
         ;; cmp unsigned if sign is equal
         call    biCmpUnsigned
