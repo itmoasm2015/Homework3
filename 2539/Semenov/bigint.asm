@@ -1,21 +1,25 @@
 default rel
 
+; extern _biDump
+
 extern malloc
 ; extern calloc
 extern free
 
 global biFromInt        ;; DONE
-global biFromString     ;; IN PROCESS
+global biFromString     ;; DONE
 
 global biDelete         ;; DONE
 
 global biMulBy2         ;; DONE 
-global biAdd            ;; DONE (TODO: test it better)
 global biNot            ;; DONE
 global biInc            ;; DONE
 global biNegate         ;; DONE
+
+global biAdd            ;; DONE (TODO: test it better)
 global biSub            ;; DONE (TODO: test it better)
 global biMul            ;; DONE (TODO: test it better)
+
 global biCmp            ;; DONE
 global biSign           ;; DONE
 
@@ -168,7 +172,7 @@ biFromInt:
 
             mov r8, [rax + DATA] ; R8 = BigInt->data
             mov [r8], r12 ; set to initial value
-            mov dword [rax + SIZE], 1
+            mov qword [rax + SIZE], 1
 
         .return:
             pop r12
@@ -183,73 +187,82 @@ biFromString:
             push r12 ; accumulator
             push r13 ; multiplier
             push r14 ; ad
-            push rdi
+            push r15 ; multiplier limit
+            push rbp ; current index in string
+            push rbx 
+            mov rbx, rdi ; RBX - pointer to string
+
+            mov rax, 1
+            mov rcx, 17
+            mov r15, 10
+         .grow_r15:
+            mul r15
+            dec rcx
+            jnz .grow_r15 
+            mov r15, rax ; multiplier limit = 10^17
+            ; TODO: move to constant
 
             mov rdi, 0
             call biFromInt
             test rax, rax
-            jz .fail
+            jz .return
 
-            mov r12, rax
-            pop rdi
+            mov r12, rax ; accumulator = 0 initially
+            mov r13, 1 ; multiplier
+            xor r14, r14 ; ad
 
-            %define INPUT_BASE 10
-            %define MAX_MUL 100000000000000000 ; INPUT_BASE^17
+;            %define INPUT_BASE 10
+;            %define MAX_MUL 100000000000000000 ; INPUT_BASE^17
 
-            mov rcx, 0 ; pointer to current position in string
-            sub rsp, 8
+            xor rbp, rbp ; pointer to current position in string
+            sub rsp, 8 ; allocate memory on stack for sign
             mov qword [rsp], 1 ; memorize sign
-            cmp word [rdi + rcx], '-'
+            mov al, [rbx + rbp]
+            cmp al, '-'
             jne .parse_loop
-            inc rcx ; skip sign character
+            inc rbp ; skip sign character
             mov qword [rsp], -1 ; update sign
-
 
             ; R12 -- accumulator (BigInt)
             ; R13 -- multiplier (qword)
             ; R14 -- ad (qword)
             ; as result accumulator = accumulator * multiplier + ad
-            ; saves RCX and RDI
         %macro update_result 0
-            push rcx
-            push rdi
-
             mov rdi, r13
             call biFromInt ; multiplier from int64_t to BigInt
             ; check not null
-            add rsp, 16
             test rax, rax
             jz .fail
-            sub rsp, 16
-
+            
             mov rdi, r12 ; accumulator
             mov rsi, rax ; multiplier
-            call biMulByPositiveMultiplier ; accumulator *= multiplier
+            push rax ; memorize multiplier (BigInt)
+            call biMul
+;            call biMulByPositiveMultiplier ; accumulator *= multiplier
+
+            pop rdi
+            call biDelete ; delete multiplier
 
             mov rdi, r14
             call biFromInt ; ad from int64_t to BigInt
             ; check not null
             test rax, rax
-            jnz %%allocated
-            add rsp, 16
-            mov rdi, r12
-            call biDelete
             jz .fail
-          %%allocated:
 
             mov rdi, r12 ; accumulator
             mov rsi, rax ; ad
+            push rax ; memorize ad (BigInt)
             call biAdd ; accumulator += ad
 
             pop rdi
-            pop rcx
+            call biDelete ; delete ad
         %endmacro
-            
+
         .parse_loop:
             xor rax, rax
-            mov al, [rdi + rcx] ; current character
-            test al, al
-            jz .end_of_loop
+            mov al, [rbx + rbp] ; current character
+            test rax, rax
+            jz .end_of_loop ; null-character
 
             cmp al, '0'
             jb .fail ; illegal digit
@@ -257,47 +270,48 @@ biFromString:
             ja .fail ; illegal digit
 
             sub al, '0'
-            
+
             xchg rax, r13
-            mov rdx, INPUT_BASE
-            mul rdx
+            mov r8, 10
+            mul r8
             xchg rax, r13 ; multiplier *= 10
 
             xchg rax, r14
-            mov rdx, INPUT_BASE
-            mul rdx
+            mov r8, 10
+            mul r8
             add r14, rax ; ad = ad * 10 + current_digit
 
-            cmp r13, MAX_MUL
+            cmp r13, r15 ; multiplier vs 10^17
             jb .continue_accumulating
 
-            update_result
-            mov r13, 1
-            xor r14, r14
-            xor rdx, rdx 
+            update_result ; accumulator = accumulator * multiplier + ad
+            mov r13, 1 ; multiplier = 1
+            xor r14, r14 ; ad = 0
 
           .continue_accumulating:
-            inc rcx
+            inc rbp
             jmp .parse_loop
 
         .end_of_loop:
 
-            cmp rcx, 1
+            cmp rbp, 1
             jb .fail ; empty string
             jne .last_update
 
             ; check if string = "-"
-            cmp word [rdi], '-'
+            cmp word [rbx], '-'
             je .fail
 
         .last_update:
             update_result
 
             mov rax, r12
-            pop rdx
-            cmp rdx, 0
+            pop r8 ; sign
+            cmp r8, 0
+            je .fail ; WTF?!
             jg .return
 
+            ; sign < 0, so we have to negate result
             push rax
             mov rdi, rax
             call biNegate
@@ -306,9 +320,14 @@ biFromString:
 
         .fail:
             pop rax ; remove sign from stack
+            mov rdi, r12
+            call biDelete ; free not calculated result
             xor rax, rax
 
         .return:
+            pop rbx
+            pop rbp
+            pop r15
             pop r14
             pop r13
             pop r12
@@ -987,4 +1006,3 @@ biMove:
             mov [rdi + CAPACITY], rax
 
             ret
-

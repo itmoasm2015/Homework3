@@ -38,5 +38,15 @@ void dump_(BigInt xx, FILE *stream = stderr) {
   }
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+void biDump(BigInt x) {
+  dump(x);
+}
+#ifdef __cplusplus
+}
+#endif
+
 #endif
 

@@ -3,7 +3,7 @@ CC = clang++
 OBJS = bigint.o
 INCLUDE = ../../include
 
-CFLAGS = -g -std=c++11 -Wall -Wextra -O2 -pedantic 
+CFLAGS = -std=c++11 -Wall -Wextra -O2 -pedantic 
 
 ifneq ($(CC), clang++)
 CFLAGS += -fsanitize=address -fsanitize=undefined
@@ -32,11 +32,14 @@ test: libhw.a test.cc
 libhw.a: $(OBJS)
 	ar rcs libhw.a $(OBJS)
 
-bigint.o: bigint.asm
+bigint.o: bigint.asm 
 	yasm -o bigint.o $(YASM_FLAGS) bigint.asm
 
 osx-wrapper.o: osx-wrapper.asm
 	yasm -o osx-wrapper.o $(YASM_FLAGS) osx-wrapper.asm
+
+libdump.so:
+	$(CC) $(CFLAGS) -I$(INCLUDE) -shared -o libdump.so -fPIC aux_bigint.hh
 
 clean:
 	rm -f libhw.a

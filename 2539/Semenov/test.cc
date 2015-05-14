@@ -54,10 +54,8 @@ void test_string_constructor(const int iterations = 1, const size_t length = 100
       ++i;
     }
     if (negative) biNegate(num);
-    dump(num);
     BigIntRepresentation *result = (BigIntRepresentation *) biFromString(string);
     assert (result != nullptr);
-    dump(result);
     assert (biCmp(result, num) == 0);
     biDelete(result);
     biDelete(num);
@@ -342,7 +340,7 @@ void test_mul_large(const int iterations = 1, const int multipliers = 100, bool 
 int main() {
   test_inc_case(-4858338985614885836);
   test_constructor_and_destructor(100, true);
-//  test_string_constructor(100, 100, true);
+  test_string_constructor(100, 4000, true);
   test_sign(100, true);
   test_mul_by_two(1000, true);
   test_mul_by_two_large(1000, true);
