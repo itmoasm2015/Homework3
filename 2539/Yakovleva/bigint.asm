@@ -82,19 +82,19 @@ createNumber:		; create number
 	push rcx
 	push rbx
 	push rdx
-	push rax
+	mov r11, rax
 	mov rdx, 0
 	mov rax, rsp
 	mov rcx, 16
 	div rcx
 	cmp rdx, 0
 	jnz .call
-	pop rax
+	mov rax, r11
 	call malloc
 	jmp .ok
 .call:
 	sub rsp, 8
-	pop rax
+	mov rax, r11
 	call malloc
 	add rsp, 8
 .ok:
@@ -259,7 +259,7 @@ biFromString:
 	add rbx, 1
 	add qword[lenn], 1
 .start_lenn:		; find count of digits and check right string
-	cmp byte[rbx], 0	; MINUS!!!
+	cmp byte[rbx], 0
 	jz .end_lenn
 	cmp byte[rbx], '0'
 	jl .fail
@@ -530,9 +530,7 @@ biAdd:
 	mov rcx, [r9 + bigInt.num]	; save r13 -- pointer to result
 	mov [r9 + bigInt.num], r13
 	mov rdi, rcx
-;	push r9
-;	call free	; delete previous number
-;	pop r9
+	call callFree	; delete previous number
 	call cut_zeros	; delete forward zeros
 .endd:
 	mov rdi, r9
@@ -654,7 +652,7 @@ biSub:
 	mov [r9 + bigInt.num], r13	; write new number
 	mov rdi, rcx		; delete previous number
 	push r9
-	call callFree
+;	call callFree
 	pop r9
 	mov rcx, [lenn]
 	mov [r9 + bigInt.size], rcx	; write new length
@@ -732,7 +730,7 @@ biMul:
 	add r13, [bb]
 	mov rcx, 0
 	cmp r15, [rsi + bigInt.size]
-	jz .aga
+	jge .aga
 	mov rcx, [r10]	; rcx = r9[aa] * r10[bb]
 	imul rcx, [r9]
 .aga:
@@ -754,7 +752,7 @@ biMul:
 	mov [rdi + bigInt.num], r13	; save result multiply number
 	push rdi
 	mov rdi, rcx		; delete previuos number
-	call callFree
+;	call callFree
 	pop rdi
 	mov rcx, [lenn]		; save size of result number
 	mov [rdi + bigInt.size], rcx
