@@ -499,7 +499,7 @@ biAdd:
 ; R13 -- pointer to result
 	cmp r12, [lenn]
 	jz .end_sum
-	mov rcx, [r9]
+	mov rcx, qword[r9]
 	cmp r12, qword[rsi + bigInt.size]
 	jl .ok1
 	mov rcx, 0
@@ -530,7 +530,7 @@ biAdd:
 	mov rcx, [r9 + bigInt.num]	; save r13 -- pointer to result
 	mov [r9 + bigInt.num], r13
 	mov rdi, rcx
-	call callFree	; delete previous number
+;	call callFree	; delete previous number
 	call cut_zeros	; delete forward zeros
 .endd:
 	mov rdi, r9
@@ -631,9 +631,9 @@ biSub:
 	add rcx, [r10]
 .setB:
 	mov r11, 0
-	mov r15, [r9]
-	mov [r13], r15		; r13[i] = r9[i]
-	cmp [r13], rcx
+	mov r15, qword[r9]
+	mov qword[r13], r15		; r13[i] = r9[i]
+	cmp qword[r13], rcx
 	jge .gr
 	add qword[r13], BASE	; if r13[i] < r10[i] then r13[i] += BASE, remind++
 	mov r11, 1	
@@ -651,9 +651,7 @@ biSub:
 	mov rcx, [r9 + bigInt.num]
 	mov [r9 + bigInt.num], r13	; write new number
 	mov rdi, rcx		; delete previous number
-	push r9
-;	call callFree
-	pop r9
+	call callFree
 	mov rcx, [lenn]
 	mov [r9 + bigInt.size], rcx	; write new length
 	mov rdi, r9
@@ -693,8 +691,8 @@ biMul:
 	mov [lenn], r11
 	mov r11, [rsi + bigInt.size]
 	add [lenn], r11
-	add qword[lenn], 1
-	mov r11, [lenn]		; result size = size of a + size of b + 1
+	add qword[lenn], 3
+	mov r11, [lenn]		; result size = size of a + size of b + 3
 	imul r11, 8
 	push rdi
 	mov rdi, r11
@@ -734,7 +732,8 @@ biMul:
 	mov rcx, [r10]	; rcx = r9[aa] * r10[bb]
 	imul rcx, [r9]
 .aga:
-	add rcx, [r13]
+	mov rax, qword[lenn]
+	add rcx, qword[r13]
 	add rcx, r11	; rcx += remind + r13[aa + bb]
 	mov rdx, 0
 	mov rax, rcx

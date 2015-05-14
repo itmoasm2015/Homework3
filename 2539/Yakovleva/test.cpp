@@ -100,15 +100,15 @@ bool testMul() {
 int main() {
 	srand(time(NULL));
 	printf("START TEST\n");
-//	if (testSum()) {
-//		if (testSub()) {
-//			testMul();
-//		}
-//	}
+	if (testSum()) {
+		if (testSub()) {
+			testMul();
+		}
+	}
 	//2^1024 -1 - (-1) = 2^1024
 	BigInt two = biFromInt((int64_t)1);
 	BigInt two2 = biFromInt((int64_t)2);
-	for (int i = 0; i < 600; i++) {
+	for (int i = 0; i < 1024; i++) {
 		biMul(two, two2);
 //		biToString(two, out, LEN_BUF);
 //		printf("%d = %s\n", i + 1, out);
@@ -125,8 +125,8 @@ int main() {
 	BigInt mone = biFromInt((int64_t)-1);
 	biSub(two, one);
 	biSub(two, mone);
-//	biToString(two, out, LEN_BUF);
-//	printf(" == %s\n", out);
+	biToString(two, out, LEN_BUF);
+	printf("res == %s\n", out);
 	printf("CMP %d\n", biCmp(ttwo, two));
 /*	char ss[100];
 	int i = 1;
