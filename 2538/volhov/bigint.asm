@@ -12,32 +12,32 @@ extern malloc
 extern free
 
 ;;; Required
-global biFromInt                ;ok
-global biFromString             ;ok
-global biToString               ;ok
-global biDelete                 ;ok
-global biSign                   ;ok
-global biAdd                    ;ok
-global biSub                    ;ok
-global biMul                    ;ok
-global biDivRem                 ;ok
-global biCmp                    ;ok
+global biFromInt
+global biFromString
+global biToString
+global biDelete
+global biSign
+global biAdd
+global biSub
+global biMul
+global biDivRem
+global biCmp
 
 ;;; Custom
-global biFromUInt               ;ok
-global biDump                   ;ok
-global biSize                   ;ok
-global biExpand                 ;ok
-global biAddShort               ;ok
-global biMulShort               ;ok
-global biDivShort               ;ok
-global biCutTrailingZeroes      ;ok
-global biAddUnsigned            ;ok
-global biSubUnsigned            ;ok
-global biNegate                 ;ok
-global biCmpUnsigned            ;ok
-global biCopy                   ;ok
-global biIsZero                 ;ok
+global biFromUInt
+global biDump
+global biSize
+global biExpand
+global biAddShort
+global biMulShort
+global biDivShort
+global biCutTrailingZeroes
+global biAddUnsigned
+global biSubUnsigned
+global biNegate
+global biCmpUnsigned
+global biCopy
+global biIsZero
 
 ;;; void biCutTrailingZeroes(BigInt a)
 ;;; removes trailing zeroes (except the last one);
@@ -157,13 +157,13 @@ biFromInt:
         mov     [rax], r8
         mov     [r9+bigint.data], rax
 
+        ;; Remove trailing zeroes if present
         mov     rax, r9
         push    rax
         mov     rdi, r9
-
-        ;; Remove trailing zeroes if present
         call    biCutTrailingZeroes
         pop     rax
+
         ret
 
 ;;; BigInt biFromUInt(unsigned long int);
@@ -197,13 +197,13 @@ biFromUInt:
         mov     [rax], r8
         mov     [r9+bigint.data], rax
 
+        ;; Remove trailing zeroes if present
         mov     rax, r9
         push    rax
         mov     rdi, r9
-
-        ;; Remove trailing zeroes if present
         call    biCutTrailingZeroes
         pop     rax
+
         ret
 
 ;;; BigInt biFromString(char const *s)
@@ -219,7 +219,7 @@ biFromString:
         ;; allocate new bigint (0) - BI
         push    rdi
         mov     rdi, 0
-        sub     rsp, 8          ; align
+        sub     rsp, 8          ; align x7 pushes
         call    biFromUInt
         add     rsp, 8
         pop     rdi
@@ -346,13 +346,13 @@ biToString:
         pop     rdx
         pop     rsi
         pop     rdi
+
         add     al, '0'
         push    rax
         inc     rcx
 
-        sub     rsp, 8          ; align
+        ;; biIsZero makes no calls to extern functions
         call    biIsZero        ; check if current number is not 0
-        add     rsp, 8
 
         cmp     rax, 0x0
         jne     .loop           ; end loop
@@ -463,7 +463,9 @@ biAssign:
         push    rsi
         push    rdi
         mov     rdi, [rdi+bigint.data]
+        sub     rsp, 8
         call    free
+        add     rsp, 8
         pop     rdi
         pop     rsi
 
@@ -473,7 +475,9 @@ biAssign:
         xor     rdi, rdi
         mov     edi, dword[rsi+bigint.size]
         shl     rdi, 3
+        sub     rsp, 8          ; align
         call    malloc
+        add     rsp, 8
         pop     rdi
         pop     rsi
         mov     r10, rax
@@ -858,7 +862,9 @@ biAdd:
         jmp     .different_sign
 
         .same_sign              ; if dst and src are the same sign, <sign(dst);|dst|+|src|> is what we need
+        sub     rsp, 8          ; align
         call    biAddUnsigned
+        add     rsp, 8
         ret
 
         ;; choose the type of addition: [(-dst) + src] or [dst + (-src)]
@@ -887,6 +893,8 @@ biAdd:
         ;; negate src back
         mov     rdi, rsi
         call    biNegate
+
+        ret
 
         ;; -dst + src
         ;; temp = dst
