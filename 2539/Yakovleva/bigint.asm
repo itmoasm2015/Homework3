@@ -30,6 +30,7 @@ struc bigInt
 endstruc
 
 %macro saveRegisters 0
+	enter 0, 0
 	push rbp		; save registers
 	push rbx
 	push r12
@@ -58,6 +59,7 @@ endstruc
 	pop r12
 	pop rbx
 	pop rbp
+	leave
 %endmacro
 
 %macro returnOther 0
@@ -154,6 +156,31 @@ callFree:
 	pop rax
 	pop rbx
 	pop rcx
+%endmacro
+
+%macro saveSecond 1
+	push rdi
+	mov rdi, 1
+	call biFromInt
+	mov %1, rax
+	mov rcx, rsi
+	mov rbx, %1
+	call copyBigInt
+	pop rdi
+%endmacro
+
+%macro returnSecond 2		; return second number
+	push rbx
+	push rcx
+	push rdi
+;	mov rdi, %1
+;	call biDelete
+	mov rbx, %1
+	mov rcx, %2
+	call copyBigInt
+	pop rdi
+	pop rcx
+	pop rbx
 %endmacro
 
 ; RBX -- first to
@@ -436,6 +463,7 @@ biSign:
 ;void biAdd(BigInt dst, BigInt src);
 biAdd:
 	saveRegisters
+	saveSecond qword[second]
 	cmp qword[rsi + bigInt.sign], 0
 	jz .endd
 	cmp qword[rdi + bigInt.sign], 0
@@ -470,6 +498,7 @@ biAdd:
 	pop rsi
 	pop r9
 	mov rsi, r14
+	returnSecond rsi, qword[second]
 	returnRegisters
 	ret
 .sum:
@@ -530,11 +559,12 @@ biAdd:
 	mov rcx, [r9 + bigInt.num]	; save r13 -- pointer to result
 	mov [r9 + bigInt.num], r13
 	mov rdi, rcx
-;	call callFree	; delete previous number
+	call callFree	; delete previous number
 	call cut_zeros	; delete forward zeros
 .endd:
 	mov rdi, r9
 	mov rsi, r10
+	returnSecond rsi, qword[second]
 	returnRegisters
 	ret
 
@@ -543,6 +573,7 @@ biAdd:
 ; RSI = src
 biSub:
 	saveRegisters
+	saveSecond qword[ssecond]
 	push rdi
 	push rsi
 	mov qword[minus], 0
@@ -557,7 +588,7 @@ biSub:
 	add rbx, [rsi + bigInt.sign]
 	cmp rbx, -2
 	jnz .point1
-	swapNumbers rdi, rsi	; a <= 0, b <= 0, SWAP????
+	swapBigInt rdi, rsi	; a <= 0, b <= 0, SWAP????
 	mov qword[rdi + bigInt.sign], 1
 	mov qword[rsi + bigInt.sign], 1 ; RSI CHANGE
 	jmp .sub
@@ -594,6 +625,7 @@ biSub:
 	call negBigInt
 	pop r9
 	pop r10
+	returnSecond r9, qword[ssecond]
 	returnRegisters
 	ret
 .go_sum:	; go to sum a and b
@@ -605,6 +637,7 @@ biSub:
 	mov rcx, [rdi + bigInt.sign]
 	pop r9
 	pop r10
+	returnSecond r9, qword[ssecond]
 	returnRegisters
 	ret
 .sub:
@@ -613,7 +646,8 @@ biSub:
 	mov r11, qword[rdi + bigInt.size]	; r11 = size of result number = size a + size b + 1
 	mov qword[lenn], r11
 	add qword[lenn], 1
-	imul r11, 8
+	add r11, 1
+	shl r11, 3
 	push rdi
 	mov rdi, r11
 	call createNumber	; create result number with size = r11
@@ -623,15 +657,19 @@ biSub:
 	mov r11, 0	; remind
 	mov r12, 0	; length
 .start_sub:
-	cmp r12, [lenn]	; if current length == lenn sub is ok
-	jz .end_sub
+	cmp r12, qword[lenn]	; if current length == lenn sub is ok
+	je .end_sub
 	mov rcx, r11
-	cmp [rsi + bigInt.size], r12
-	jle .setB
+	cmp r12, [rsi + bigInt.size]
+	jge .setB
 	add rcx, [r10]
 .setB:
 	mov r11, 0
+	mov r15, 0
+	cmp r12, [rdi + bigInt.size]
+	jge .setA	
 	mov r15, qword[r9]
+.setA:
 	mov qword[r13], r15		; r13[i] = r9[i]
 	cmp qword[r13], rcx
 	jge .gr
@@ -657,14 +695,17 @@ biSub:
 	mov rdi, r9
 	call negBigInt		; if need result = -result
 	call cut_zeros		; cut forwards zeros
+	returnSecond r10, qword[ssecond]
 	returnRegisters
 	ret
 .equ:		; if a == b then a - b = 0
 	pop rsi
 	pop rdi
 	mov qword[rdi + bigInt.sign], 0
+	returnSecond rsi, qword[ssecond]
 	returnRegisters
 	ret
+
 ;dst *= src
 ;RDI = dst
 ;RSI = src
@@ -864,4 +905,7 @@ sum: 		resq 1
 tmp:		resq 1
 minus:		resq 1
 aa:		resq 1
-bb: 		resq 1
+second:		resq 1
+ssecond:	resq 1
+bb:		resq 1
+
