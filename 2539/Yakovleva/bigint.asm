@@ -368,6 +368,8 @@ biToString:
 	mov rax, rdi
 	mov r9, rdx
 	mov qword[lenn], 0
+	cmp r9, 1
+	jle .end_print
 .print_sign:
 	cmp qword[rax + bigInt.sign], 1	; define sign and print it
 	jz .end_print_sign
@@ -412,6 +414,10 @@ biToString:
 	sub r10, 1
 	mov r11, qword[r15]
 	sub r15, 8
+	mov rbx, qword[lenn]
+	add rbx, 1
+	cmp rbx, r9
+	jge .end_print
 	mov rbx, r11
 .cur_num:	; take max digit, second max digit etc.
 		; print each of them
