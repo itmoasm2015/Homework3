@@ -504,9 +504,10 @@ biAdd:
 	pop rsi
 	pop r9
 	mov rsi, r14
+	cmp rdi, rsi
+	jz .ok
 	returnSecond rsi, qword[second]
-	returnRegisters
-	ret
+	jmp .ok
 .sum:
 	mov r9, qword[rsi + bigInt.num]
 	mov r10, qword[rdi + bigInt.num]
@@ -570,7 +571,10 @@ biAdd:
 .endd:
 	mov rdi, r9
 	mov rsi, r10
+	cmp rdi, rsi
+	jz .ok
 	returnSecond rsi, qword[second]
+.ok:
 	returnRegisters
 	ret
 
@@ -631,9 +635,10 @@ biSub:
 	call negBigInt
 	pop r9
 	pop r10
+	cmp r10, r9
+	jz .ok
 	returnSecond r9, qword[ssecond]
-	returnRegisters
-	ret
+	jmp .ok
 .go_sum:	; go to sum a and b
 	push qword[minus]
 	call biAdd
@@ -643,9 +648,10 @@ biSub:
 	mov rcx, [rdi + bigInt.sign]
 	pop r9
 	pop r10
+	cmp r9, r10
+	jz .ok
 	returnSecond r9, qword[ssecond]
-	returnRegisters
-	ret
+	jmp .ok
 .sub:
 	mov r9, qword[rdi + bigInt.num]		; first number a
 	mov r10, qword[rsi + bigInt.num]	; second number b
@@ -701,14 +707,18 @@ biSub:
 	mov rdi, r9
 	call negBigInt		; if need result = -result
 	call cut_zeros		; cut forwards zeros
+	cmp rdi, r10
+	jz .ok
 	returnSecond r10, qword[ssecond]
-	returnRegisters
-	ret
+	jmp .ok
 .equ:		; if a == b then a - b = 0
 	pop rsi
 	pop rdi
 	mov qword[rdi + bigInt.sign], 0
+	cmp rdi, rsi
+	jz .ok
 	returnSecond rsi, qword[ssecond]
+.ok:
 	returnRegisters
 	ret
 

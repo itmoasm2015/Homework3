@@ -124,6 +124,10 @@ int main() {
 //		}
 //	}
 	//2^1024 -1 - (-1) = 2^1024
+	BigInt tt = biFromInt(2);
+	biSub(tt, tt);
+	biToString(tt, out, 10);
+	printf("4 = %s\n", out);
 	BigInt x = biFromInt(-123);
 	biToString(x, out, 1);
 	printf("x = %s\n", out);
