@@ -30,6 +30,7 @@ struc bigInt
 endstruc
 
 %macro saveRegisters 0
+	enter 0, 0
 	push rbp		; save registers
 	push rbx
 	push r12
@@ -58,6 +59,7 @@ endstruc
 	pop r12
 	pop rbx
 	pop rbp
+	leave
 %endmacro
 
 %macro returnOther 0
@@ -154,6 +156,31 @@ callFree:
 	pop rax
 	pop rbx
 	pop rcx
+%endmacro
+
+%macro saveSecond 1
+	push rdi
+	mov rdi, 1
+	call biFromInt
+	mov %1, rax
+	mov rcx, rsi
+	mov rbx, %1
+	call copyBigInt
+	pop rdi
+%endmacro
+
+%macro returnSecond 2		; return second number
+	push rbx
+	push rcx
+	push rdi
+;	mov rdi, %1
+;	call biDelete
+	mov rbx, %1
+	mov rcx, %2
+	call copyBigInt
+	pop rdi
+	pop rcx
+	pop rbx
 %endmacro
 
 ; RBX -- first to
@@ -341,6 +368,8 @@ biToString:
 	mov rax, rdi
 	mov r9, rdx
 	mov qword[lenn], 0
+	cmp r9, 1
+	jle .end_print
 .print_sign:
 	cmp qword[rax + bigInt.sign], 1	; define sign and print it
 	jz .end_print_sign
@@ -385,6 +414,10 @@ biToString:
 	sub r10, 1
 	mov r11, qword[r15]
 	sub r15, 8
+	mov rbx, qword[lenn]
+	add rbx, 1
+	cmp rbx, r9
+	jge .end_print
 	mov rbx, r11
 .cur_num:	; take max digit, second max digit etc.
 		; print each of them
@@ -436,6 +469,7 @@ biSign:
 ;void biAdd(BigInt dst, BigInt src);
 biAdd:
 	saveRegisters
+	saveSecond qword[second]
 	cmp qword[rsi + bigInt.sign], 0
 	jz .endd
 	cmp qword[rdi + bigInt.sign], 0
@@ -470,8 +504,10 @@ biAdd:
 	pop rsi
 	pop r9
 	mov rsi, r14
-	returnRegisters
-	ret
+	cmp rdi, rsi
+	jz .ok
+	returnSecond rsi, qword[second]
+	jmp .ok
 .sum:
 	mov r9, qword[rsi + bigInt.num]
 	mov r10, qword[rdi + bigInt.num]
@@ -530,11 +566,15 @@ biAdd:
 	mov rcx, [r9 + bigInt.num]	; save r13 -- pointer to result
 	mov [r9 + bigInt.num], r13
 	mov rdi, rcx
-;	call callFree	; delete previous number
+	call callFree	; delete previous number
 	call cut_zeros	; delete forward zeros
 .endd:
 	mov rdi, r9
 	mov rsi, r10
+	cmp rdi, rsi
+	jz .ok
+	returnSecond rsi, qword[second]
+.ok:
 	returnRegisters
 	ret
 
@@ -543,6 +583,7 @@ biAdd:
 ; RSI = src
 biSub:
 	saveRegisters
+	saveSecond qword[ssecond]
 	push rdi
 	push rsi
 	mov qword[minus], 0
@@ -557,7 +598,7 @@ biSub:
 	add rbx, [rsi + bigInt.sign]
 	cmp rbx, -2
 	jnz .point1
-	swapNumbers rdi, rsi	; a <= 0, b <= 0, SWAP????
+	swapBigInt rdi, rsi	; a <= 0, b <= 0, SWAP????
 	mov qword[rdi + bigInt.sign], 1
 	mov qword[rsi + bigInt.sign], 1 ; RSI CHANGE
 	jmp .sub
@@ -594,8 +635,10 @@ biSub:
 	call negBigInt
 	pop r9
 	pop r10
-	returnRegisters
-	ret
+	cmp r10, r9
+	jz .ok
+	returnSecond r9, qword[ssecond]
+	jmp .ok
 .go_sum:	; go to sum a and b
 	push qword[minus]
 	call biAdd
@@ -605,15 +648,18 @@ biSub:
 	mov rcx, [rdi + bigInt.sign]
 	pop r9
 	pop r10
-	returnRegisters
-	ret
+	cmp r9, r10
+	jz .ok
+	returnSecond r9, qword[ssecond]
+	jmp .ok
 .sub:
 	mov r9, qword[rdi + bigInt.num]		; first number a
 	mov r10, qword[rsi + bigInt.num]	; second number b
 	mov r11, qword[rdi + bigInt.size]	; r11 = size of result number = size a + size b + 1
 	mov qword[lenn], r11
 	add qword[lenn], 1
-	imul r11, 8
+	add r11, 1
+	shl r11, 3
 	push rdi
 	mov rdi, r11
 	call createNumber	; create result number with size = r11
@@ -623,15 +669,19 @@ biSub:
 	mov r11, 0	; remind
 	mov r12, 0	; length
 .start_sub:
-	cmp r12, [lenn]	; if current length == lenn sub is ok
-	jz .end_sub
+	cmp r12, qword[lenn]	; if current length == lenn sub is ok
+	je .end_sub
 	mov rcx, r11
-	cmp [rsi + bigInt.size], r12
-	jle .setB
+	cmp r12, [rsi + bigInt.size]
+	jge .setB
 	add rcx, [r10]
 .setB:
 	mov r11, 0
+	mov r15, 0
+	cmp r12, [rdi + bigInt.size]
+	jge .setA	
 	mov r15, qword[r9]
+.setA:
 	mov qword[r13], r15		; r13[i] = r9[i]
 	cmp qword[r13], rcx
 	jge .gr
@@ -657,14 +707,21 @@ biSub:
 	mov rdi, r9
 	call negBigInt		; if need result = -result
 	call cut_zeros		; cut forwards zeros
-	returnRegisters
-	ret
+	cmp rdi, r10
+	jz .ok
+	returnSecond r10, qword[ssecond]
+	jmp .ok
 .equ:		; if a == b then a - b = 0
 	pop rsi
 	pop rdi
 	mov qword[rdi + bigInt.sign], 0
+	cmp rdi, rsi
+	jz .ok
+	returnSecond rsi, qword[ssecond]
+.ok:
 	returnRegisters
 	ret
+
 ;dst *= src
 ;RDI = dst
 ;RSI = src
@@ -864,4 +921,7 @@ sum: 		resq 1
 tmp:		resq 1
 minus:		resq 1
 aa:		resq 1
-bb: 		resq 1
+second:		resq 1
+ssecond:	resq 1
+bb:		resq 1
+

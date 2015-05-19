@@ -8,6 +8,7 @@ const int MAX_INT = 1000;
 const int LEN_BUF = 10000000;
 const int BASE = 1000000000;
 char out[LEN_BUF];
+char out1[LEN_BUF];
 
 bool testSum() {
 	for (int i = -MAX_INT; i < MAX_INT; i++) {
@@ -97,15 +98,47 @@ bool testMul() {
 	return true;
 }
 
+bool testCmp() {
+	for (int i = 0; i < 100000; i++) {
+		BigInt a = biFromInt((int64_t)-((long long)(i * BASE + i + 1)));
+		BigInt b = biFromInt((int64_t)-((long long)(i * BASE + i + 1)));
+		int cmp = biCmp(a, b);
+		biToString(a, out, LEN_BUF);
+		biToString(b, out1, LEN_BUF);
+		if (cmp != 0) {
+			printf("FAIL %d, a = %s, b = %s\n", cmp, out, out1);				return false;
+		} else {
+			printf("OK %d, a = %s, b = %s\n", cmp, out, out1);
+		}
+	}
+	return true;
+}
+
 int main() {
 	srand(time(NULL));
 	printf("START TEST\n");
-	if (testSum()) {
-		if (testSub()) {
-			testMul();
-		}
-	}
+//	testCmp();
+//	if (testSum()) {
+//		if (testSub()) {
+//			testMul();
+//		}
+//	}
 	//2^1024 -1 - (-1) = 2^1024
+	BigInt tt = biFromInt(2);
+	biSub(tt, tt);
+	biToString(tt, out, 10);
+	printf("4 = %s\n", out);
+	BigInt x = biFromInt(-123);
+	biToString(x, out, 1);
+	printf("x = %s\n", out);
+	BigInt a = biFromInt(2ll);
+	BigInt b = biFromInt(-123ll);
+	BigInt c = biFromInt(-123ll);
+	biAdd(a, b);
+	int cmp = biCmp(b, c);
+	biToString(b, out, LEN_BUF);
+	biToString(c, out1, LEN_BUF);
+	printf("%d, b = %s, c = %s\n", cmp, out, out1);
 	BigInt two = biFromInt((int64_t)1);
 	BigInt two2 = biFromInt((int64_t)2);
 	for (int i = 0; i < 1024; i++) {
@@ -123,8 +156,10 @@ int main() {
 	printf("2^1024 * 1 = %s\n", out);
 	BigInt one = biFromInt((int64_t)1);
 	BigInt mone = biFromInt((int64_t)-1);
-	biSub(two, one);
-	biSub(two, mone);
+	biAdd(two, one);
+	biToString(two, out, LEN_BUF);
+	printf("res1 = %s\n", out);
+	biAdd(two, mone);
 	biToString(two, out, LEN_BUF);
 	printf("res == %s\n", out);
 	printf("CMP %d\n", biCmp(ttwo, two));
