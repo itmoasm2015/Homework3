@@ -339,9 +339,7 @@ biToString:
         push    rdx
         push    rcx
         mov     rsi, 10
-        sub     rsp, 8          ; align
         call    biDivShort
-        add     rsp, 8
         pop     rcx
         pop     rdx
         pop     rsi
@@ -1300,10 +1298,27 @@ biDivShort:
         dec     rcx
         jnz     .loop
 
-        ;; save carry and normalize dst
+        ;; align stack
+        mov     rax, rsp
+        xor     rdx, rdx
+        mov     rcx, 16
+        div     rcx
+        cmp     rdx, 0
+        jz      .extra_align
+
         mov     rax, r8
         push    rax
         call    biCutTrailingZeroes
+        pop     rax
+        ret
+
+        .extra_align
+        ;; save carry and normalize dst
+        mov     rax, r8
+        push    rax
+        sub     rsp, 8
+        call    biCutTrailingZeroes
+        add     rsp, 8
         pop     rax
         ret
 
