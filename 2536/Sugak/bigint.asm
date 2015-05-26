@@ -242,16 +242,16 @@ MPUSH rdi, rsi
 
 	mov     r8, [rdi + digits]
 	mov     rcx, [rdi + length]
-	biCopy r8,  r11, rcx   				; allocate one empty digit, and copy rest from result
+	biCopy r8,  r11, rcx				; allocate one empty digit, and copy rest from result
 
 	MPOP rdi, rsi
 
-	MPUSH r11, rsi, rdi
+	MPUSH r11, rsi, rdi, rax
 	mov     rdi, [rdi + digits]   
 	call    aligned_free 				; deallocate old digits
-	MPOP r11, rsi, rdi
+	MPOP r11, rsi, rdi, rax
 
-	mov     [rdi + digits], r11			; update digits   
+	mov     [rdi + digits], rax			; update digits   
 	mov     r11, [rdi + length]  
 
 	inc     r11					; increase length
@@ -425,6 +425,7 @@ biFromString:
 	push rax
 	mov rdi, rax
 	call biNormalize					; remove redundat zeros, if any
+	mov rax, rdi
 	pop rax
 	ret
 
@@ -772,7 +773,7 @@ biAdd:
 	biCopy [rsi + digits], r9, r9		; if lhs is zero, result == rhs, simply copy it's digits and field to rhs
 
 	mov [rdi + digits], rax
-	mov r8, [rdi + sign]
+	mov r8, [rsi + sign]
 	mov [rdi + sign], r8
 	mov [rdi + length], r9
 	jmp .finish
