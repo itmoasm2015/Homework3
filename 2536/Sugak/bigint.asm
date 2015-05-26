@@ -20,15 +20,15 @@ section .text
 ;Sign is either -1 or +1 for negative and positive numbers respectively.
 ;Length is the amount of digits stored (at some point some of which can be redundant leading zeros).
 struc BigInt
-sign: 		resq	1
-length:		resq 	1
-digits: 		resq	1
+sign:     resq  1
+length:   resq  1
+digits:     resq  1
 endstruc
 
 ;Macros to push & pop multiple registers at once
 %macro MPUSH 1-*
 %rep %0
-	push %1
+  push %1
 %rotate 1
 %endrep
 %endmacro
@@ -36,13 +36,13 @@ endstruc
 %macro MPOP 1-*
 %rep %0
 %rotate -1
-	pop %1
+  pop %1
 %endrep
 %endmacro
 
 ;Sets 3rd argument to be maximum of first and second.
 %macro max 3
-	mov %3, %1
+  mov %3, %1
   cmp %2, %1
   cmovg %3, %2
 %endmacro
@@ -603,360 +603,360 @@ biAddUnsigned:
 
   max r8, r9, rcx
   inc rcx                               ;we need to allocate max(lhs.length + rhs.length) + 1 for resulting array
-            	                          ;since sum of digits can overflow 2^64 limit
-	MPUSH r8, r9, rcx, rdi, rsi
-	mov rdi, rcx
-	mov rsi, 8
-	call aligned_calloc				            ;allocate array fo result
-	MPOP r8, r9, rcx, rdi, rsi
+                                        ;since sum of digits can overflow 2^64 limit
+  MPUSH r8, r9, rcx, rdi, rsi
+  mov rdi, rcx
+  mov rsi, 8
+  call aligned_calloc                   ;allocate array fo result
+  MPOP r8, r9, rcx, rdi, rsi
 
-	xor r10, r10			                    ;last iteration carry
-	xor r11, r11				                  ;current index
+  xor r10, r10                          ;last iteration carry
+  xor r11, r11                          ;current index
 
 .first_array:
-	xor r12, r12				                  ;current resulting digit
-	xor r13, r13				                  ;current iteration carry
+  xor r12, r12                          ;current resulting digit
+  xor r13, r13                          ;current iteration carry
 
-	cmp r11, r8				                    ;if index >= lhs.length try to add digit from rhs
-	jge .second_array
+  cmp r11, r8                           ;if index >= lhs.length try to add digit from rhs
+  jge .second_array
 
-	mov r12, [rdi + r11 * 8]		          ;R12 <- current digit from lhs
+  mov r12, [rdi + r11 * 8]              ;R12 <- current digit from lhs
 
 .second_array:
-	cmp r11, r9				                    ;if index >= rhs.length try to add carry
-	jge .carry
+  cmp r11, r9                           ;if index >= rhs.length try to add carry
+  jge .carry
 
-	add r12, [rsi + r11 * 8]			        ;R12 <- digit from lhs + digit from rhs
-	adc r13, 0				                    ;R13 <- carry
+  add r12, [rsi + r11 * 8]              ;R12 <- digit from lhs + digit from rhs
+  adc r13, 0                            ;R13 <- carry
 
 .carry:
-	adc r12, r10				;
-	adc r13, 0
-	mov [rax + r11 * 8],  r12
-	mov r10, r13
+  adc r12, r10        ;
+  adc r13, 0
+  mov [rax + r11 * 8],  r12
+  mov r10, r13
 
-	inc r11
-	cmp r11, rcx
-	jl .first_array
-	jmp .length
+  inc r11
+  cmp r11, rcx
+  jl .first_array
+  jmp .length
 
 .length:
-	mov r8, [rax + rcx * 8 - 8]
-	test r8, r8
-	jne .finish
-	dec rcx
+  mov r8, [rax + rcx * 8 - 8]
+  test r8, r8
+  jne .finish
+  dec rcx
 
 .finish;
-	MPOP rdi, rsi, r12, r13
-	ret
+  MPOP rdi, rsi, r12, r13
+  ret
 
 ;Subtracts one BigInt from another, as if the both were positive
-;takes:		RDI - lhs
-;		RSI - rhs
-;returns:	RAX - resulting array of digits
-;		RCX - length of RAX
-;		R8 - resulting sign
+;takes:   RDI - lhs
+;   RSI - rhs
+;returns: RAX - resulting array of digits
+;   RCX - length of RAX
+;   R8 - resulting sign
 biSubUnsigned:
-	MPUSH r12, r13, r14, r15
-	mov r8, [rdi + length]
-	mov r9, [rsi + length]
-	cmp r8, r9					                  ;if lengths are the same compare digits
-	je .compare
+  MPUSH r12, r13, r14, r15
+  mov r8, [rdi + length]
+  mov r9, [rsi + length]
+  cmp r8, r9                            ;if lengths are the same compare digits
+  je .compare
 
-	mov rcx, -1
-	cmovl qword rax, rcx
-	mov rcx, 1
-	cmovg qword rax, rcx
-	jmp .end_compare				              ;one array is longer, no need to compare digits, (rax is used to determine resulting sign)
+  mov rcx, -1
+  cmovl qword rax, rcx
+  mov rcx, 1
+  cmovg qword rax, rcx
+  jmp .end_compare                      ;one array is longer, no need to compare digits, (rax is used to determine resulting sign)
 
 .compare:
-	MPUSH rdi, rsi, rcx
-	call biCompareUnsigned			          ;compare digits
-	MPOP rdi, rsi, rcx
+  MPUSH rdi, rsi, rcx
+  call biCompareUnsigned                ;compare digits
+  MPOP rdi, rsi, rcx
 
 .end_compare;
-	push r14
-	mov r14, [rdi + sign]
+  push r14
+  mov r14, [rdi + sign]
 
-	mov r8, [rdi + length]
-	mov r9, [rsi + length]
+  mov r8, [rdi + length]
+  mov r9, [rsi + length]
 
-	MPUSH rdi, rsi, r15
-	mov rdi, [rdi + digits]
-	mov rsi, [rsi + digits]
+  MPUSH rdi, rsi, r15
+  mov rdi, [rdi + digits]
+  mov rsi, [rsi + digits]
 
 
-	test rax, rax					                ;if arrays are equal return 0
-	je .zero
+  test rax, rax                         ;if arrays are equal return 0
+  je .zero
 
-	max r8, r9, rcx
-	cmp rax, 1
-	cmove rax, r14
-	je .pre_sub_loop
+  max r8, r9, rcx
+  cmp rax, 1
+  cmove rax, r14
+  je .pre_sub_loop
 
-.swap:							                    ;for conviniece of use process bigger array first
-	imul r14, -1
-	mov rax ,r14
-	xchg rdi, rsi
-	xchg r8, r9
-	mov rax, r14
+.swap:                                  ;for conviniece of use process bigger array first
+  imul r14, -1
+  mov rax ,r14
+  xchg rdi, rsi
+  xchg r8, r9
+  mov rax, r14
 
 .pre_sub_loop:
-	MPUSH r8, r9, rdi, rsi, rcx, rax
-	mov rdi, rcx
-	mov rsi, 8
-	call aligned_calloc				            ;allocate array for result
-	mov rdx, rax
-	MPOP r8, r9, rdi, rsi, rcx, rax
+  MPUSH r8, r9, rdi, rsi, rcx, rax
+  mov rdi, rcx
+  mov rsi, 8
+  call aligned_calloc                   ;allocate array for result
+  mov rdx, rax
+  MPOP r8, r9, rdi, rsi, rcx, rax
 
-	xor r10, r10					                ;current index
-	xor r11, r11					                ;last iteration borrow
+  xor r10, r10                          ;current index
+  xor r11, r11                          ;last iteration borrow
 
 .sub_loop:
-	xor r14, r14					                ;current borrow
+  xor r14, r14                          ;current borrow
 
-	mov r12, [rdi + r10 * 8]			        ;R12 <- first array digit
-	cmp r10, r9					                  ;check if index < second array length
-	jge .sub_borrow_loop
+  mov r12, [rdi + r10 * 8]              ;R12 <- first array digit
+  cmp r10, r9                           ;check if index < second array length
+  jge .sub_borrow_loop
 
-	mov r13, [rsi + r10 * 8]			        ;R13 <- second array digit
-	sub r12, r13					                ;R12 -= R13
-	adc r14, 0					                  ;R14 <- borrow
+  mov r13, [rsi + r10 * 8]              ;R13 <- second array digit
+  sub r12, r13                          ;R12 -= R13
+  adc r14, 0                            ;R14 <- borrow
 
 .sub_borrow_loop:
-	sub r12, r11					                ;R13 -= borrow
-	adc r14, 0					                  ;update borrow
+  sub r12, r11                          ;R13 -= borrow
+  adc r14, 0                            ;update borrow
 
-	mov [rdx + r10 * 8], r12			        ;load result digit
+  mov [rdx + r10 * 8], r12              ;load result digit
 
-	mov r11, r14					                ;update last iteration borrow
-	inc r10						                    ;increase index
+  mov r11, r14                          ;update last iteration borrow
+  inc r10                               ;increase index
 
-	cmp r10, rcx					                ;check total length against current index, and finish if necessary
-	jne .sub_loop
-	jmp .finish
+  cmp r10, rcx                          ;check total length against current index, and finish if necessary
+  jne .sub_loop
+  jmp .finish
 
-.zero:							                    ;return 0
-	mov qword r8, 1
-	xor rcx, rcx
-	xor rax, rax
-	MPOP rdi, rsi, r15
-	pop r14
-	MPOP r12, r13, r14, r15
-	ret
+.zero:                                  ;return 0
+  mov qword r8, 1
+  xor rcx, rcx
+  xor rax, rax
+  MPOP rdi, rsi, r15
+  pop r14
+  MPOP r12, r13, r14, r15
+  ret
 
 .finish:
-	mov r8, rax
-	mov rax, rdx
-	MPOP rdi, rsi, r15
-	pop r14
-	MPOP r12, r13, r14, r15
-	ret
+  mov r8, rax
+  mov rax, rdx
+  MPOP rdi, rsi, r15
+  pop r14
+  MPOP r12, r13, r14, r15
+  ret
 
 
 ;Sums two BigInts
 ;void biAdd(BigInt lhs, BigInt rhs);
-;takes:		RDI - lhs
-;		RSI - rhs
-;returns:	---
+;takes:   RDI - lhs
+;   RSI - rhs
+;returns: ---
 biAdd:
-	mov r8, [rdi + length]
-	mov r9, [rsi + length]
+  mov r8, [rdi + length]
+  mov r9, [rsi + length]
 
-	test r9, r9				                    ;If rhs is zero, result == lhs
-	je .finish
+  test r9, r9                           ;If rhs is zero, result == lhs
+  je .finish
 
 .nonzero_rhs:
-	test r8, r8
-	jne .nonzero_lhs
+  test r8, r8
+  jne .nonzero_lhs
 
-	biCopy [rsi + digits], r9, r9		      ;if lhs is zero, result == rhs, simply copy it's digits and field to rhs
+  biCopy [rsi + digits], r9, r9         ;if lhs is zero, result == rhs, simply copy it's digits and field to rhs
 
-	mov [rdi + digits], rax
-	mov r8, [rsi + sign]
-	mov [rdi + sign], r8
-	mov [rdi + length], r9
-	jmp .finish
+  mov [rdi + digits], rax
+  mov r8, [rsi + sign]
+  mov [rdi + sign], r8
+  mov [rdi + length], r9
+  jmp .finish
 
-.nonzero_lhs:					                  ;both lhs and rhs are non null, check signs
-	 					                            ; and proceed based on their equality/inequality
-	mov r8, [rdi + sign]
-	mov r9, [rsi + sign]
-	cmp r8, r9
-	je .same_sign
+.nonzero_lhs:                           ;both lhs and rhs are non null, check signs
+                                        ; and proceed based on their equality/inequality
+  mov r8, [rdi + sign]
+  mov r9, [rsi + sign]
+  cmp r8, r9
+  je .same_sign
 
-.different_sign:					              ;signs are different subtract digits
-	call biSubUnsigned
-	MPUSH rdi, rsi, rax, rcx, r8
-	mov rdi, [rdi + digits]
-	call aligned_free			                ;deallocate old digits
-	MPOP rdi, rsi, rax, rcx, r8
+.different_sign:                        ;signs are different subtract digits
+  call biSubUnsigned
+  MPUSH rdi, rsi, rax, rcx, r8
+  mov rdi, [rdi + digits]
+  call aligned_free                     ;deallocate old digits
+  MPOP rdi, rsi, rax, rcx, r8
 
-	mov [rdi + digits], rax			          ;lhs.digits  = result of subtraction
-	mov [rdi + length], rcx			          ;size and sign are calculated by biSubUnsigned
-	mov [rdi + sign], r8
-	jmp .finish
+  mov [rdi + digits], rax               ;lhs.digits  = result of subtraction
+  mov [rdi + length], rcx               ;size and sign are calculated by biSubUnsigned
+  mov [rdi + sign], r8
+  jmp .finish
 
-.same_sign:					                    ;signs are the same, call biAddUnsigned
-	call biAddUnsigned
-	MPUSH rdi, rsi, rax, rcx
-	mov rdi, [rdi + digits]
-	call aligned_free			                ;deallocate old digits
-	MPOP rdi, rsi, rax, rcx
-	mov [rdi + digits], rax			          ;set new size and digits
-	mov [rdi + length], rcx
+.same_sign:                             ;signs are the same, call biAddUnsigned
+  call biAddUnsigned
+  MPUSH rdi, rsi, rax, rcx
+  mov rdi, [rdi + digits]
+  call aligned_free                     ;deallocate old digits
+  MPOP rdi, rsi, rax, rcx
+  mov [rdi + digits], rax               ;set new size and digits
+  mov [rdi + length], rcx
 
 .finish:
-	call biNormalize				              ;remove posible leading zeros
-	ret
+  call biNormalize                      ;remove posible leading zeros
+  ret
 
 ;void biSub(BigInt lhs, BigInt rhs);
 ;Subtracts one BigInt from another
-;takes:		RDI - lhs
-;		RSI - rhs
-;returns:	---
+;takes:   RDI - lhs
+;   RSI - rhs
+;returns: ---
 biSub:
-	mov r8, [rdi + length]
-	mov r9, [rsi + length]
+  mov r8, [rdi + length]
+  mov r9, [rsi + length]
 
-	test r9, r9				                    ;if rhs == 0 => result = lhs
-	je .finish
+  test r9, r9                           ;if rhs == 0 => result = lhs
+  je .finish
 
-	mov r8, [rsi + sign]
-	imul r8, -1				                    ;flip rhs sign
-	mov [rsi + sign], r8
+  mov r8, [rsi + sign]
+  imul r8, -1                           ;flip rhs sign
+  mov [rsi + sign], r8
 
-	push rsi
-	call biAdd 				                    ;biAdd(lhs, -rhs)
-	pop rsi
+  push rsi
+  call biAdd                            ;biAdd(lhs, -rhs)
+  pop rsi
 
-	mov r8, [rsi + sign]
-	imul r8, -1				                    ;restore original rhs sign
-	mov [rsi + sign], r8
+  mov r8, [rsi + sign]
+  imul r8, -1                           ;restore original rhs sign
+  mov [rsi + sign], r8
 
 .finish:
-	ret
+  ret
 
 ;Multiplies two BigInts as if the both are positive
-;takes:		RDI - lhs
-;		RSI - rhs
-;returns:	RAX - product
-;		RCX - product digits' length
+;takes:   RDI - lhs
+;   RSI - rhs
+;returns: RAX - product
+;   RCX - product digits' length
 biMulUnsigned:
-	MPUSH r12, r13, r14, r15
-	push rbx
-	mov r8, [rdi + length]
-	mov r9, [rsi + length]
-	mov rcx, r8
-	add rcx, r9				                    ;RCX <- lhs.size + rhs.size
+  MPUSH r12, r13, r14, r15
+  push rbx
+  mov r8, [rdi + length]
+  mov r9, [rsi + length]
+  mov rcx, r8
+  add rcx, r9                           ;RCX <- lhs.size + rhs.size
 
-	MPUSH rdi, rsi
-	mov rdi, [rdi + digits]
-	mov rsi, [rsi + digits]
+  MPUSH rdi, rsi
+  mov rdi, [rdi + digits]
+  mov rsi, [rsi + digits]
 
 
-	MPUSH r8, r9, rcx, rdi, rsi
-	mov rdi, rcx
-	mov rsi, 8
-	call aligned_calloc			              ;allocate resulting array with size = lhs.size + rhs.size
-	mov rbx, rax
-	MPOP r8, r9, rcx, rdi, rsi
+  MPUSH r8, r9, rcx, rdi, rsi
+  mov rdi, rcx
+  mov rsi, 8
+  call aligned_calloc                   ;allocate resulting array with size = lhs.size + rhs.size
+  mov rbx, rax
+  MPOP r8, r9, rcx, rdi, rsi
 
-	xor r10, r10				                  ;first index (i)
+  xor r10, r10                          ;first index (i)
 
 .for_i:
-	xor r11, r11				                  ;second index (j)
-	xor r12, r12				                  ;last iteration carry
+  xor r11, r11                          ;second index (j)
+  xor r12, r12                          ;last iteration carry
 
 .for_j:
-	xor rdx, rdx				                  ;RDX:RAX - current iteration carry
-	mov rax, r12
-	cmp r11, r9				                    ;if j >= rhs.length update result digit
-	jge .put_result
+  xor rdx, rdx                          ;RDX:RAX - current iteration carry
+  mov rax, r12
+  cmp r11, r9                           ;if j >= rhs.length update result digit
+  jge .put_result
 
-	mov rax, [rdi + r10 * 8]		          ;RAX <- digit from lhs
-	mov r14, [rsi + r11 * 8]		          ;R14 <- digit from rhs
-	mul r14				                        ;RAX *= R14
+  mov rax, [rdi + r10 * 8]              ;RAX <- digit from lhs
+  mov r14, [rsi + r11 * 8]              ;R14 <- digit from rhs
+  mul r14                               ;RAX *= R14
 
-	add rax, r12				                  ;RAX += last iteration carry
-	adc rdx, 0				                    ;RDC <- new carry
+  add rax, r12                          ;RAX += last iteration carry
+  adc rdx, 0                            ;RDC <- new carry
 
 .put_result:
-	mov r15, r10				                  ;R15 <- i
+  mov r15, r10                          ;R15 <- i
 
-	add r15, r11				                  ;R15 <- i + j
-	add rax, [rbx+ r15 * 8]
-	adc rdx, 0				                    ;update carry
+  add r15, r11                          ;R15 <- i + j
+  add rax, [rbx+ r15 * 8]
+  adc rdx, 0                            ;update carry
 
-	mov [rbx + r15 * 8], rax		          ;Put RAX to results array
-	mov r12, rdx				                  ;Put new carry to R12
-	inc r11					                      ;increment second index
+  mov [rbx + r15 * 8], rax              ;Put RAX to results array
+  mov r12, rdx                          ;Put new carry to R12
+  inc r11                               ;increment second index
 
-	cmp r11, r9				                    ;if second index < rhs.length continue looping
-	jl .for_j
+  cmp r11, r9                           ;if second index < rhs.length continue looping
+  jl .for_j
 
-	test r12, r12				                  ;if carry is not nill, continue looping
-	jne .for_j
+  test r12, r12                         ;if carry is not nill, continue looping
+  jne .for_j
 
-	inc r10					                      ;increment first index
-	cmp r10, r8				                    ;if first index < lhs.length continue outer loop
-	jl .for_i
+  inc r10                               ;increment first index
+  cmp r10, r8                           ;if first index < lhs.length continue outer loop
+  jl .for_i
 
-	mov r8, r10				                    ;R8 <- result size, RAX - contains resulting digits
-	add r8, r11
-	mov rax, rbx
-	MPOP rdi, rsi
-	pop rbx
-	MPOP r12, r13, r14, r15
-	ret
+  mov r8, r10                           ;R8 <- result size, RAX - contains resulting digits
+  add r8, r11
+  mov rax, rbx
+  MPOP rdi, rsi
+  pop rbx
+  MPOP r12, r13, r14, r15
+  ret
 
 ;void biMul(BigInt lhs, BigInt rhs)
 ;Multiplies two BigInts
-;takes:		RDI - lhs
-;		RSI - rhs
-;returns:	---
+;takes:   RDI - lhs
+;   RSI - rhs
+;returns: ---
 biMul:
-	mov r8, [rdi + length]
-	mov r9, [rsi + length]
+  mov r8, [rdi + length]
+  mov r9, [rsi + length]
 
-	test r9, r9				                    ;rhs == 0 => Set lhs to be zero
-	je .zero
+  test r9, r9                           ;rhs == 0 => Set lhs to be zero
+  je .zero
 
-	test r8, r8			                    	;lhs == 0 => Nothing needs to be done, return
-	jne .non_nil
-	ret
+  test r8, r8                           ;lhs == 0 => Nothing needs to be done, return
+  jne .non_nil
+  ret
 
 .non_nil:
-	call biMulUnsigned			              ;Multiply digits
-	MPUSH rdi, rsi, rcx, rax
-	mov rdi, [rdi + digits]
-	call aligned_free			                ;deallocate old lhs.digits
-	MPOP rdi, rsi, rcx, rax
+  call biMulUnsigned                    ;Multiply digits
+  MPUSH rdi, rsi, rcx, rax
+  mov rdi, [rdi + digits]
+  call aligned_free                     ;deallocate old lhs.digits
+  MPOP rdi, rsi, rcx, rax
 
-	mov [rdi + digits], rax		          	;Set digits to the product of biMulUnsigned
-	mov [rdi + length], rcx			          ;length is calculated by biMulUnsigned too
-	mov r8, [rdi + sign]
-	mov r9, [rsi + sign]
-	imul r8, r9				                    ;lhs.sign = lhs.sign * rhs.sign
-	mov [rdi + sign], r8
-	call biNormalize				              ;remove leading zeros
-	ret
+  mov [rdi + digits], rax               ;Set digits to the product of biMulUnsigned
+  mov [rdi + length], rcx               ;length is calculated by biMulUnsigned too
+  mov r8, [rdi + sign]
+  mov r9, [rsi + sign]
+  imul r8, r9                           ;lhs.sign = lhs.sign * rhs.sign
+  mov [rdi + sign], r8
+  call biNormalize                      ;remove leading zeros
+  ret
 
 .zero:
-	test r8, r8
-	je .finish
-	push rdi
-	mov rdi, [rdi + digits]
-	call aligned_free			                ;deallocate digits
-	pop rdi
+  test r8, r8
+  je .finish
+  push rdi
+  mov rdi, [rdi + digits]
+  call aligned_free                     ;deallocate digits
+  pop rdi
 
-	mov qword [rdi + length], 0		        ;set length to 0
-	mov qword [rdi + sign], 1		          ;set sign to 1
+  mov qword [rdi + length], 0           ;set length to 0
+  mov qword [rdi + sign], 1             ;set sign to 1
 
 .finish:
-	ret
+  ret
 
 biDivRem:
-	xor rdi, rdi
-	xor rsi, rsi
-	ret
+  xor rdi, rdi
+  xor rsi, rsi
+  ret
