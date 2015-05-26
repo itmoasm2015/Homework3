@@ -110,6 +110,7 @@ createNumber:		; create number
 	pop rdi
 	ret
 
+; clear memory
 callFree:
 	saveOther
 	mov rax, rsp
@@ -281,9 +282,13 @@ biFromString:
 	saveRegisters
 	mov rbx, rdi
 	mov qword[lenn], 0
+	cmp byte[rbx], 0
+	jz .fail
 	cmp byte[rbx], '-'
 	jnz .start_lenn
 	add rbx, 1
+	cmp byte[rbx], 0
+	jz .fail
 	add qword[lenn], 1
 .start_lenn:		; find count of digits and check right string
 	cmp byte[rbx], 0
@@ -298,7 +303,7 @@ biFromString:
 .end_lenn:
 	mov rbx, rdi
 	mov rax, [lenn]	
-	mov r9, 8 
+	mov r9, 9 
 	mov rdx, 0
 	div r9
 	add rax, 1
@@ -321,36 +326,65 @@ biFromString:
 	cmp byte[rbx], '-'
 	jnz .positive
 	mov qword[rax + bigInt.sign], -1
-	add rbx, 1
 .positive:
 	push rax
 	mov r13, rcx
+	add rbx, qword[lenn]
 	mov rcx, 0
 	mov rdx, 0	
+	mov r11, 0
+	mov qword[nzero], 0	; check is number is zero
 .loop_parse:
 ; rbx -- pointet to current string position
 ; rcx -- current number
-	cmp byte[rbx], 0
+; r14 -- current position in current substring
+; r12 - cnt
+; r11 -- new length
+; lenn -- current length
+	mov rdx, 9
+	cmp qword[lenn], 9
+	jge .bl
+	mov rdx, qword[lenn]
+.bl:
+	sub qword[lenn], rdx
+	sub rbx, rdx
+	mov r14, rbx
+	mov r12, rdx
+	mov rcx, 0
+.block:
+	cmp r12, 0
 	jz .add_d
+	cmp byte[r14], '-'
+	jnz .notM
+	sub r12, 1
+	add r14, 1
+	jmp .block
+.notM:
 	imul rcx, 10
-	mov byte dl, byte[rbx]
+	mov rdx, 0
+	mov byte dl, byte[r14]
 	sub byte dl, '0'
 	add rcx, rdx	; rcx = rcx * 10 + (s[rbx] - '0')
-	add rbx, 1	; go to next position
-	cmp rcx, BASE	; if rcx >= BASE write it
-	jl .loop_parse
+	add r14, 1	; go to next position
+	sub r12, 1
+	jmp .block
 .add_d:
-	mov [r13], rcx	; write rcx % BASE to [r13], r13 -- pointer to result number 
+	cmp rcx, 0
+	jz .zer
+	mov qword[nzero], 1
+.zer:
+	mov qword[r13], rcx	; write rcx % BASE to [r13], r13 -- pointer to result number 
+	add r11, 1
 	add r13, 8
-	mov rdx, 0
-	mov rax, rcx
-	mov r9, BASE
-	div r9
-	mov rcx, rax
-	cmp byte[rbx], 0
+	cmp qword[lenn], 0
 	jnz .loop_parse		; go to next string number
 .end_parse:
 	pop rax
+	cmp qword[nzero], 0	; if number is zero set sign = 0
+	jnz .nzer
+	mov qword[rax + bigInt.sign], 0
+.nzer:
+	mov [rax + bigInt.size], r11
 	returnRegisters
 	ret
 .fail:
@@ -451,7 +485,9 @@ biDelete:
 	saveRegisters
 	mov rbx, rdi
 	mov rdi, [rbx + bigInt.num]
+	push rbx
 	call callFree	; free memory of number
+	pop rbx
 	mov rdi, rbx
 	call callFree	; free memory of bigInt structure
 	returnRegisters
@@ -535,16 +571,16 @@ biAdd:
 ; R13 -- pointer to result
 	cmp r12, [lenn]
 	jz .end_sum
-	mov rcx, qword[r9]
-	cmp r12, qword[rsi + bigInt.size]
-	jl .ok1
 	mov rcx, 0
+	cmp r12, qword[rsi + bigInt.size]
+	jge .ok1
+	mov rcx, qword[r9]
 .ok1:
 	mov [r13], rcx
-	mov rcx, [r10]
-	cmp r12, qword[rdi + bigInt.size]
-	jl .ok2
 	mov rcx, 0
+	cmp r12, qword[rdi + bigInt.size]
+	jge .ok2
+	mov rcx, qword[r10]
 .ok2:
 	add [r13], rcx	; [r13] = rcx + r11 = [r9] + [r10]
 	add [r13], r11
@@ -756,10 +792,19 @@ biMul:
 	call createNumber	; create result number
 	pop rdi
 	mov r13, rax
+	mov r14, 0
+.set_zeros:			; set new number = 0
+	cmp r14, qword[lenn]
+	jz .ok_zeros
+	mov qword[rax], 0
+	add rax, 8
+	add r14,  1
+	jmp .set_zeros	
+.ok_zeros:
 	mov r14, 0 	; current number in a
 .loopA:
 	cmp r14, [rdi + bigInt.size]	; if cur number in a == size of a then ok mul
-	jz .end_mul
+	jge .end_mul
 	add r14, 1
 	mov r11, 0	; remind
 	mov r15, 0	; current number in b
@@ -767,7 +812,7 @@ biMul:
 	cmp r15, [rsi + bigInt.size]
 	jl .go
 	cmp r11, 0	; if remind == 0 and cur number in b == size of b then go to next iteration in circle
-	jz .loopA	
+	je .loopA	
 .go:
 	push r9
 	push r10
@@ -808,7 +853,7 @@ biMul:
 	mov [rdi + bigInt.num], r13	; save result multiply number
 	push rdi
 	mov rdi, rcx		; delete previuos number
-;	call callFree
+	call callFree
 	pop rdi
 	mov rcx, [lenn]		; save size of result number
 	mov [rdi + bigInt.size], rcx
@@ -896,6 +941,7 @@ biCmp:
 ; Cut zerous at te begin of the number	
 ; R9 -- pointer to BigInt
 cut_zeros:
+	saveRegisters
 	push rcx
 	mov rcx, [lenn]
 	mov [r9 + bigInt.size], rcx
@@ -905,13 +951,18 @@ cut_zeros:
 	cmp qword[r9 + bigInt.sign], 0
 	jz .ok
 .cut:
+	cmp qword[r9 + bigInt.size], 0
+	jz .zz
 	cmp qword[rcx], 0	; while (r9[size of r9 - 1] == 0) size of r9 --
-	jnz .ok
+	jne .ok
 	sub qword[r9 + bigInt.size], 1
 	sub rcx, 8
 	jmp .cut
+.zz:
+	mov qword[r9 + bigInt.sign], 0
 .ok:
 	pop rcx
+	returnRegisters
 	ret
 
 
@@ -924,4 +975,4 @@ aa:		resq 1
 second:		resq 1
 ssecond:	resq 1
 bb:		resq 1
-
+nzero:		resq 1
