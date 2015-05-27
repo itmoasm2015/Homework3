@@ -646,7 +646,7 @@ biAddUnsigned:
   jne .finish
   dec rcx
 
-.finish;
+.finish:
   MPOP rdi, rsi, r12, r13
   ret
 
@@ -674,7 +674,7 @@ biSubUnsigned:
   call biCompareUnsigned                ;compare digits
   MPOP rdi, rsi, rcx
 
-.end_compare;
+.end_compare:
   push r14
   mov r14, [rdi + sign]
 
