@@ -127,13 +127,12 @@ biFromInt:
 biToString:
   enter 0, 0
 
-  mov r15, rdi
   mov r9, [rdi + length]                ; allocate space on stack, it will be used for digits processing
   inc r9
   shl r9, 5
   sub rsp, r9
 
-  MPUSH r11, r12, r14, r15              ; push calee-saved registers
+  MPUSH r11, r12, r14                   ; push calee-saved registers
 
   push rdi
   xor rdi, rdi
@@ -191,7 +190,7 @@ biToString:
   MPOP rdi, rsi
 
 .finish:
-  MPOP r11, r12, r14, r15               ; pop calee-saved registers
+  MPOP r11, r12, r14                    ; pop calee-saved registers
   leave
   ret
 
