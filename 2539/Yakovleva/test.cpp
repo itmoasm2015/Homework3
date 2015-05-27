@@ -73,8 +73,8 @@ bool testSub() {
 bool testMul() {
 	for (int i = -MAX_INT; i < MAX_INT; i++) {
 		for (int j = -MAX_INT; j < MAX_INT; j++) {
-			long long a = (long long)(BASE / 1000) * i;
-			long long b = (long long)(BASE / 1000) * j;
+			long long a = (long long)(BASE / 1000 * i + i);
+			long long b = (long long)(BASE / 1000 * j + j);
 			BigInt aa = biFromInt((int64_t)a);
 			BigInt bb = biFromInt((int64_t)b);
 			biMul(aa, bb);
@@ -91,15 +91,15 @@ bool testMul() {
 				printf("%lld * %lld = %s\n", a, b, out);
 
 			}
-//			biDelete(bb);
-//			biDelete(aa);
+			biDelete(aa);
+			biDelete(bb);
 		}		
 	}
 	return true;
 }
 
 bool testCmp() {
-	for (int i = 0; i < 100000; i++) {
+	for (int i = 0; i < 10000; i++) {
 		BigInt a = biFromInt((int64_t)-((long long)(i * BASE + i + 1)));
 		BigInt b = biFromInt((int64_t)-((long long)(i * BASE + i + 1)));
 		int cmp = biCmp(a, b);
@@ -115,7 +115,6 @@ bool testCmp() {
 }
 
 int main() {
-	srand(time(NULL));
 	printf("START TEST\n");
 //	testCmp();
 //	if (testSum()) {
@@ -124,6 +123,8 @@ int main() {
 //		}
 //	}
 	//2^1024 -1 - (-1) = 2^1024
+//	BigInt em = biFromString("");
+//	printf("ads=!%d!\n", (int*)em);
 	BigInt tt = biFromInt(2);
 	biSub(tt, tt);
 	biToString(tt, out, 10);
@@ -163,6 +164,7 @@ int main() {
 	biToString(two, out, LEN_BUF);
 	printf("res == %s\n", out);
 	printf("CMP %d\n", biCmp(ttwo, two));
+
 /*	char ss[100];
 	int i = 1;
 	while (i < 10) {
