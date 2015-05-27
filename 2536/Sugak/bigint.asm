@@ -126,16 +126,18 @@ biFromInt:
 ;returns: ---
 biToString:
   enter 0, 0
-  MPUSH r11, r12, r14, r15              ; push calee-saved registers
 
   mov r15, rdi
   mov r9, [rdi + length]                ; allocate space on stack, it will be used for digits processing
+  inc r9
   shl r9, 5
   sub rsp, r9
 
+  MPUSH r11, r12, r14, r15              ; push calee-saved registers
+
   push rdi
   xor rdi, rdi
-  MPUSH rsi, rdx,  r9
+  MPUSH rsi, rdx, r9
   call biFromInt                        ; Create new BigInt(0) to be used for division
   MPOP rsi, rdx, r9
   mov r8, rax
