@@ -126,7 +126,19 @@ biFromInt:
 ;returns: ---
 biToString:
   enter 0, 0
+  mov r9, [rdi + sign]
+  mov r8, [rdi + length]
+  inc r8
+  cmp r9, -1
+  jne .positive
+  inc r8
+.positive:
+  cmp r8, rdx
+  jle .continue
+  leave
+  ret
 
+.continue:
   mov r9, [rdi + length]                ; allocate space on stack, it will be used for digits processing
   inc r9
   shl r9, 5
