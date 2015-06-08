@@ -8,8 +8,10 @@ global vecFree
 global vecPush
 global vecSet
 global vecGet
+global vecExtend
 global vecSize
 global vecCapacity
+global vecCopy
 
 default rel
 
@@ -29,7 +31,7 @@ section .text
 vecNew:
 	mov rdi, DEFAULT_CAPACITY
 vecAlloc:
-	enter 0, 0
+	enter 8, 0
 	push rdi
 	mov rdi, vector_size
 	call malloc ; allocate vector structure
@@ -202,3 +204,38 @@ vecExtend:
 	ret
 
 
+;;; vector* vecCopy(vector* vec)
+;;; Copies passed vector.
+vecCopy:
+	enter 0, 0
+
+	push rdi
+	push rdi
+	mov rdi, vector_size
+	call malloc
+	pop rdi
+	pop rdi
+	mov rdx, [rdi + vector.size]
+	mov [rax + vector.size], rdx
+	mov rdx, [rdi + vector.capacity]
+	mov [rax + vector.capacity], rdx
+
+	push rdi
+	push rax
+	mov rdi, [rdi + vector.capacity]
+	shl rdi, 3
+	call malloc
+	pop rcx
+	pop rsi
+
+	mov [rcx + vector.data], rax
+
+	push rcx
+	mov rdi, rax
+	mov rcx, [rsi + vector.size]
+	mov rsi, [rsi + vector.data]
+	cld
+	rep movsq
+	pop rax
+	leave
+	ret

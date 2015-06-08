@@ -1,3 +1,9 @@
+; calee-save RBX, RBP, R12-R15, DF = 0
+; rdi , rsi ,
+; rdx , rcx , r8 ,
+; r9 , zmm0 - 7 
+
+default rel
 global biFromInt
 global biFromString
 global biToString
@@ -206,11 +212,10 @@ biToString:
     ret                                              ;     return
                                                      ; }
     .next:                                           
-    call_fun_2 createBigInt, [rdi + SIZE_FIELD], rsi ; rax = new BigInt();
+    call_fun_2 createBigInt, [rdi], rsi              ; rax = new BigInt();
     xchg rdi, rax
     call_fun_2 copy_BigInt, rdi, rax                 ; deep_copy: rax = rdi
     xor r13, r13                                     ; r13 = 0, count converted digits
-    mov rdi, rax                                     ; rdi = deep copy of bi
     .loop:
         call_fun_2 div_short, rdi, INPUT_BASE        ; rax = bi % INPUT_BASE
         add al, '0'                                  ; al = '0' + bi % INPUT_BASE
@@ -234,9 +239,9 @@ biToString:
     mov r13, rsi                                     ; r13 = buf + r12
     add r13, r12                                     ; r13 point to last digit
     .while_reverse
-        mov bl, [rsi]                                ; ~swap(buf[i], buf[size - i - 1])
-        xchg bl, [r13]                               ;
-        mov [rsi], bl                                ;
+        mov al, [rsi]                                ; ~swap(buf[i], buf[size - i - 1])
+        xchg al, [r13]                               ;
+        mov [rsi], al                                ;
 
         inc rsi                                      ; if (fst_pointer == last_pointer || fst_pointer + 1 == last_pointer) break
         cmp rsi, r13
@@ -264,7 +269,7 @@ biDelete:
 
 ; int biSign(BigInt bi);
 biSign:
-    mov rax, [rdi + SIZE_FIELD]    
+    mov rax, [rdi + SIGN_FIELD]    
     ret
 
 ; void biAdd(BigInt dst, BigInt src);
@@ -915,16 +920,31 @@ add_short:
     mov  r10, [rdi + DATA_FIELD]      ; r10 = src->data
     .while_carry:
         add [r10], rsi                ; src->data[0] += num
-        jnc .end
         mov rsi, 0                    ; carry = 0
+        jnc .end_while
         adc rsi, 0                    ; carry = get_carry()
         add r10, SIZEOF_FLD
         sub rcx, 1
         jg .while_carry
+    .end_while:
 
     cmp  rsi, 0                       ; if (carry == 0) return
-    je .end                           ; else push_back(src, carry)
+    je .after_push                    ; else push_back(src, carry)
     call_fun_2 push_back, rdi, rsi
+    .after_push
+    cmp qword [rdi + SIGN_FIELD], 0         
+    jg .next
+    jl .next
+    mov qword [rdi + SIGN_FIELD], 1   ; if src->sign == 0: src->sign = 1;
+    jmp .end
+
+    .next 
+    cmp qword [rdi +SIZE_FIELD], 1    ;   if src->size == 1:
+    jg .end
+    mov rdi, [rdi + DATA_FIELD]       ;      if src->data[0] == 0:
+    cmp qword [rdi], 0                ;         
+    jne .end
+    mov qword [rdi + SIGN_FIELD], 0   ;        src->sign = 0
 
     .end
     ret

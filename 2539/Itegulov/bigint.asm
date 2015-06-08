@@ -12,13 +12,16 @@ endstruc
 ;;; Sign of bigint is qword for alignment.
 
 extern malloc
+extern printf
 extern free
 
 extern vecNew
 extern vecAlloc
 extern vecFree
 extern vecEnsureCapacity
+extern vecExtend
 extern vecPush
+extern vecCopy
 
 global biFromInt
 global biFromString
@@ -31,10 +34,17 @@ global biSign
 global biToString
 global biDivRem
 
+;;; Internal functions (for debug)
+global biUAdd
+global biUSub
+global biUCmp
+global biDump
+global biCopy
+
 ;;; bigint biAlloc(uint64 length)
 ;;; Allocates new bigint with specified length (in qwords).
 biAlloc:
-	enter 0, 0
+	enter 8, 0
 	
 	push rdi
 	mov rdi, bigint_size
@@ -66,7 +76,7 @@ biAlloc:
 ;;; bigint biFromInt(uint64 value)
 ;;; Creates simple bigint, representing value.
 biFromInt:
-	enter 0, 0
+	enter 8, 0
 	push rdi
 	mov rdi, 1
 	call biAlloc
@@ -95,7 +105,7 @@ biFromInt:
 ;;; void biDelete(bigint* big)
 ;;; Deletes allocated bigint, freeing all memory, used by it.
 biDelete:
-	enter 0, 0
+	enter 8, 0
 	push rdi
 	mov rdi, [rdi + bigint.vector]
 	call vecFree
@@ -150,4 +160,367 @@ biUAddShort:
 	leave
 	ret
 
+;;; void biUAdd(bigint* first, bigint* second)
+;;; first += second
+;;; Ignores signs of bigints.
+biUAdd:
+	enter 8, 0
+	mov r8, rdi
+	mov r9, rsi
+	
+	mov rdi, [rdi + bigint.vector]
+	mov rdi, [rdi + vector.size]
 
+	mov rsi, [rsi + bigint.vector]
+	mov rsi, [rsi + vector.size]    ; get bigints' sizes
+
+	cmp rdi, rsi
+	cmovb rdi, rsi                  ; find maximum length (cmovb - mov if below)
+
+	lahf                            ; store flags in ah
+
+	test rdi, rdi
+	jz .ret
+	
+	sahf                            ; load flags from ah
+
+	mov r10, rdi
+
+	je .equal                       ; no need to expand bigints if their size are equal
+	
+	mov rsi, rdi
+	cmovb rdi, [r8 + bigint.vector]
+	cmova rdi, [r9 + bigint.vector] ; load the lowest one vector
+	push r8
+	push r9
+	push r10
+	call vecExtend                  ; extend lesser vector's size to greater vector's size
+	pop r10
+	pop r9
+	pop r8
+
+	mov rsi, [r8 + bigint.vector]
+	mov [rsi + vector.size], r10    ; first.size = max(first.size, second.size)
+
+.equal
+	mov rdi, [r8 + bigint.vector]
+	mov rsi, [r9 + bigint.vector]
+	mov rdi, [rdi + vector.data]
+	mov rsi, [rsi + vector.data]
+
+	xor rcx, rcx                    ; counter of current digit
+	xor rax, rax
+
+.loop
+	sahf
+	mov rax, [rdi + 8 * rcx]
+	adc rax, [rsi + 8 * rcx]
+	mov [rdi + 8 * rcx], rax
+	lahf
+
+	inc rcx
+	cmp rcx, r10                     ; r10 contains max(first.size, second.size)
+
+	bt rax, 8
+	jnc .ret
+
+	mov rdi, [r8 + bigint.vector]
+	mov rsi, 1
+	push rdi
+	call vecPush
+	pop rdi
+
+.ret
+	leave
+	ret
+
+;;; int biUCmp(bigint* first, bigint* second)
+;;; Compares two bigint, ignoring their signs
+biUCmp:
+	enter 0, 0
+
+	mov rdi, [rdi + bigint.vector]
+	mov rsi, [rsi + bigint.vector]  ; load vectors
+
+	mov rax, [rdi + vector.size]
+	mov rcx, [rsi + vector.size]    ; and their sizes
+
+	cmp rax, rcx
+	je .compare                     ; only equal-sized vectors need to be compared by data
+
+	cmovb rax, [minus_one]
+	cmovb rax, [one]
+
+	jmp .ret
+
+.compare
+	test rax, rax
+	jz .ret          ; if both zeros, than they are equal
+
+	mov rdi, [rdi + vector.data]
+	mov rsi, [rsi + vector.data]
+	lea rdi, [rdi + rax * 8]
+	lea rsi, [rsi + rax * 8]
+
+.loop
+	sub rdi, 8
+	sub rsi, 8
+
+	mov r8, [rdi]
+	mov r9, [rsi]
+
+	cmp r8, r9
+
+	jne .different
+
+	loop .compare   ; rcx contains length, so it's correct
+
+	xor rax, rax
+	jmp .ret        ; didn't found different digits, so they are equal
+
+.different
+	cmovb rax, [minus_one]
+	cmova rax, [one] 
+
+.ret
+	leave
+	ret
+
+biCmp:
+	enter 8, 0
+
+	mov r8, [rdi + bigint.vector]
+	mov r9, [rsi + bigint.vector]
+	mov rdx, [r8 + vector.size]
+	test rdx, rdx
+	jnz .nz
+
+	mov rdx, [r9 + vector.size]
+	test rdx, rdx
+	jnz .nz
+
+	xor rax, rax
+	jmp .ret     ; zeros are equal
+
+.nz
+	mov rax, [rdi + bigint.sign]
+	mov rdx, [rsi + bigint.sign]
+
+	cmp rax, rdx ; compare signs
+
+	je .compare  ; if signs are equal, then we must really compare them
+
+	cmova rax, [minus_one]
+	cmovb rax, [one]
+
+	jmp .ret
+
+.compare
+	push rdx
+	call biUCmp  ; let's compare stupidly
+	pop rdx
+	mov rdi, rax
+	neg rdi      ; negate result if signs are minuses
+	test rdx, rdx
+	cmovnz rax, rdi
+
+.ret
+	leave
+	ret
+
+
+biUSub:
+	enter 16, 0   ;; need 8 bytes to save first bigint (to shrink it's size later)
+	              ;; but need 8 more bytes for alignment
+	mov [rsp], rdi
+	mov rdi, [rdi + bigint.vector]
+	mov rsi, [rsi + bigint.vector]
+
+	mov r8, rdi
+	mov r9, [rsi + vector.size]
+
+	test r9, r9
+	jz .ret       ; do not subtract zero
+
+	mov rdi, [rdi + vector.data]
+	mov rsi, [rsi + vector.data]
+
+	xor rcx, rcx
+	xor rax, rax
+
+.loop
+	sahf
+	mov rax, [rdi + rcx * 8]
+	sbb rax, [rsi + rcx * 8]
+	mov [rdi + rcx * 8], rax
+	lahf
+
+	inc rcx
+	cmp rcx, r9
+	jb .loop
+
+	bt rcx, 8
+	jnc .shrink
+
+.loop2          ; we have carry and we need to something with it
+	mov rax, [rdi + rcx * 8]
+	test rax, rax
+	jz .continue
+	dec rax
+	mov [rdi + rcx * 8], rax
+	jmp .shrink
+.continue
+	sub rax, 1
+	mov [rdi + rcx * 8], rax
+	inc rcx
+	jmp .loop2
+
+.shrink
+	mov rdi, [rsp]
+	call biShrink
+.ret
+	leave
+	ret
+
+;;; void biAdd(bigint* first, bigint* second);
+;;; first += second
+;;; Doesn't ignore sign of bigints.
+biAdd:
+	enter 0, 0
+
+	mov rdx, [rdi + bigint.sign]
+	cmp rdx, [rsi + bigint.sign]
+	jne .different_signs
+
+	call biUAdd         ; we can simply add bigints by abs value if their signs are equal
+
+	jmp .ret
+
+.different_signs
+	push rdi
+	push rsi
+	call biUCmp         ; if |first| >= |second|,
+	pop rsi
+	pop rdi
+
+	jl .lesser
+	
+	call biUSub         ; then just first -= second
+	jmp .ret
+
+.lesser
+
+	push rdi            ; else we need second -= first
+	push rsi
+	mov rdi, rsi
+	call biCopy         ; so we'll copy second
+	pop rsi
+	pop rdi
+	
+	push rdi
+	push rax
+	mov rsi, rdi
+	mov rdi, rax
+	call biUSub         ; and second_copy -= first
+	pop rax
+	pop rdi
+
+	push rdi
+	push rsi
+	mov rsi, rax        ; now we need first = second_copy
+	call biAssign
+	pop rsi
+	pop rdi
+
+	;mov rdi, rax
+	;call free
+
+.ret
+	leave
+	ret
+	
+biAssign:
+	enter 0, 0
+
+	mov rdx, [rsi + bigint.sign]
+	mov [rdi + bigint.sign], rdx
+
+	mov rdx, [rsi + bigint.vector]
+	mov rcx, [rdi + bigint.vector]
+	mov [rdi + bigint.vector], rdx
+
+	mov rdi, rcx
+	call vecFree
+
+	leave
+	ret
+
+;;; void biShrink(bigint* big)
+;;; Removes leading zeros from passed bigint.
+biShrink:
+	enter 0, 0
+	
+	mov rdi, [rdi + bigint.vector]
+	mov rsi, [rdi + vector.data]
+	mov rdx, [rdi + vector.size]
+	test rdx, rdx
+	jz .ret
+	
+.loop
+	mov rax, [rsi + rdx * 8 - 8]
+	test rax, rax
+	jnz .end
+
+	dec rdx
+	test rdx, rdx
+	jnz .ret
+
+.end
+	mov [rdi + vector.size], rdx
+.ret
+	leave
+	ret
+
+;;; bigint* biCopy(bigint* big)
+;;; Copies passed bigint.
+biCopy:
+	enter 8, 0
+
+	push rdi
+	mov rdi, bigint_size
+	call malloc
+	pop rdi
+	mov rdx, [rdi + bigint.sign]
+	mov [rax + bigint.sign], rdx
+	push rax
+	mov rdi, [rdi + bigint.vector]
+	call vecCopy
+	pop rdi
+	mov [rdi + bigint.vector], rax
+	mov rax, rdi
+	leave
+	ret
+
+
+;;; void biDump(bigint* big)
+;;; Prints some information about passed bigint
+;;; (used for debug only).
+biDump:
+	enter 0, 0
+
+	mov r8, [rdi + bigint.vector]
+	mov r9, [r8 + vector.data]
+
+	mov rsi, [rdi + bigint.sign]
+	mov rdx, [r8 + vector.size]
+	mov rcx, [r9]
+	mov rdi, qword dump_string
+	call printf
+
+	leave
+	ret
+
+section .data
+minus_one:   dq -1
+one:         dq 1
+dump_string: db "BigInt: sign is %ld, size is %ld, value is %ld", 10, 0

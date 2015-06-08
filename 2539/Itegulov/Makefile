@@ -4,7 +4,13 @@ ASM = yasm
 AR = ar
 CXX_OPTS = -g -Wall -Wextra -std=c++11 -m64 -L. -I../../include
 C_OPTS = -g -Wall -Wextra -std=c99 -m64 -L. -I../../include
+ifeq ($(shell uname), Darwin)
+ASM_OPTS = -f macho64 --prefix=_
+CXX_OPTS += -Wl,-no_pie
+C_OPTS += -Wl,-no_pie
+else
 ASM_OPTS = -g dwarf2 -f elf64
+endif
 
 all: vector_test bigint_test
 
@@ -29,7 +35,7 @@ vector_test.o: vector_test.cpp
 bigint_test.o: bigint_test.c
 	$(C) -o $@ -c $(C_OPTS) $^
 
-libhw.a: ivector.o bigint.o
+libhw.a: ivector.o bigint.o 
 	$(AR) rcs $@ $^
 
 ivector.o: ivector.asm
