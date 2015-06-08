@@ -43,7 +43,7 @@ global biToString       ;; TODO
 ;;;   size_t size;      /* size > 0 */
 ;;;   size_t capacity;  /* capacity >= size */
 ;;; }
-;;; typedef (BigIntRepresentation *) BigInt
+;;; typedef (BigIntRepresentation *) BigInt;
 
 
 %define DATA 0
@@ -131,25 +131,22 @@ biAllocate:
 
             newArray ; RAX = BigInt->data
             test rax, rax
-            je .fail
+            je .return
             mov r12, rax ; memorize BigInt->data
 
-            mov rdi, 24 ; 24 = sizeof(*int64_t) + sizeof(size_t) + sizeof(size_t) 
+            mov rdi, 24 ; 24 = sizeof(int64_t *) + sizeof(size_t) + sizeof(size_t) 
             callItWithAlignedStack malloc ; allocates memory for BigInt
             test rax, rax 
             jne .fill
             mov rdi, r12
             callItWithAlignedStack free ; say "NO" to memory leaks!
-            jmp .fail
+            xor rax, rax ; RAX = nullptr
+            jmp .return
 
         .fill:
             mov [rax + DATA], r12
             mov qword [rax + SIZE], 0
             mov qword [rax + CAPACITY], r13
-            jmp .return
-
-        .fail:
-            xor rax, rax ; RAX = nullptr
 
         .return:
             pop r13
@@ -181,6 +178,9 @@ biFromInt:
 
 ; BigInt biFromString(const char *string)
 ; string must match ^-\d+$ regexp
+; * currently biFromInt, biMul and biAdd are called after every ~17 digits]
+; * TODO: replace expensive biFromInt + biMul/biAdd calls 
+;   with simple and cheap biMulShort/biAddShort calls
 ; string in RDI
 ; result in RAX
 biFromString: 
@@ -194,13 +194,7 @@ biFromString:
 
             mov rax, 1
             mov rcx, 17
-            mov r15, 10
-         .grow_r15:
-            mul r15
-            dec rcx
-            jnz .grow_r15 
-            mov r15, rax ; multiplier limit = 10^17
-            ; TODO: move to constant
+            mov r15, [ten_to_the_17]
 
             mov rdi, 0
             call biFromInt
@@ -210,9 +204,6 @@ biFromString:
             mov r12, rax ; accumulator = 0 initially
             mov r13, 1 ; multiplier
             xor r14, r14 ; ad
-
-;            %define INPUT_BASE 10
-;            %define MAX_MUL 100000000000000000 ; INPUT_BASE^17
 
             xor rbp, rbp ; pointer to current position in string
             sub rsp, 8 ; allocate memory on stack for sign
@@ -238,7 +229,7 @@ biFromString:
             mov rsi, rax ; multiplier
             push rax ; memorize multiplier (BigInt)
             call biMul
-;            call biMulByPositiveMultiplier ; accumulator *= multiplier
+;            call biMulByPositiveMultiplier ; RAX = accumulator * multiplier
 
             pop rdi
             call biDelete ; delete multiplier
@@ -428,12 +419,12 @@ biMulBy2:
 
         .main_part:
             mov rcx, rsi 
-            xor r11, r11 ; R11 is carry bit
+            xor r11, r11 ; R11 is a carry bit
             xor r9, r9
         .loop: ; for RCX from x->size downto 1
             mov r8, [rdx + r9 * 8] ; R8 = x->data[x->size - RCX]
             xor rax, rax ; RAX -- next carry bit
-            shl r8, 1 ; R8 *= 2, if overflow update next carry bit (RAX)
+            shl r8, 1 ; R8 *= 2, if overflow, update next carry bit (RAX)
             jnc .actual_carry_bit
             inc rax
           .actual_carry_bit:
@@ -457,7 +448,7 @@ biAdd:
             fillR8__11 rdi, rsi
             cmp r9, r11
             jne .general_case
-            ; if r9 = r11 then src = dst and we can just multiply dst by 2
+            ; if R9 = R11 then src = dst and we can just multiply dst by 2
             call biMulBy2
             ret
 
@@ -490,7 +481,7 @@ biAdd:
 
         .r8_greater_than_r10:
             mov rdx, r8
-            overflowWarning [r9 + 8 * r8 - 8] ; mos singnigicant coefficient in dst
+            overflowWarning [r9 + 8 * r8 - 8] ; most singnigicant coefficient in dst
             jz .good_size_in_rdx
             inc rdx
 
@@ -571,6 +562,7 @@ biNot:
             mov rcx, [rdi + SIZE]
             mov rdx, [rdi + DATA]
 
+            ;; TODO: SIMD, you know...
         .not_loop: ; for RCX from x->size downto 1: x->data[RCX] = ~x->data[RCX]
             xor qword [rdx + 8 * rcx - 8], -1
             dec rcx
@@ -636,18 +628,20 @@ biNegate:
 ; dst in RDI
 ; src in RSI
 biSub:      
-            ; dst -= src <==> dst += (-src)
+            ; dst -= src <==> dst += (-src) <==> dst += (~src + 1)
             push rdi
             push rsi
-            mov rdi, rsi
-            call biNegate
+            call biInc ; dst += 1
+
+            mov rdi, [rsp]
+            call biNot
 
             mov rsi, [rsp]
             mov rdi, [rsp + 8]
-            call biAdd ; dst normalized
+            call biAdd ; dst += ~src (normalized)
 
             mov rdi, [rsp]
-            call biNegate ; return src to initial value
+            call biNot ; return src to initial value
 
             pop rsi
             pop rdi
@@ -663,8 +657,8 @@ biMul:
             push rsi
 
         %macro common_part 0
-            mov rdi, [rsp + 8] ; rdi = dst
-            mov rsi, [rsp] ; rsi = src
+            mov rdi, [rsp + 8] ; RDI = dst
+            mov rsi, [rsp] ; RSI = src
             call biMulByPositiveMultiplier
             pop rsi
             pop rdi
@@ -689,7 +683,7 @@ biMul:
             call biNegate
             mov rdi, [rsp] ; RDI = src
             cmp rdi, [rsp + 8] ; src =? dst
-            je .skip_first_negating
+            je .skip_first_negating ; consider case src == dst
             call biNegate
           .skip_first_negating:
 
@@ -717,6 +711,7 @@ biMul:
 
 ; BigInt biMul(BigInt multiplicand, BigInt multiplier);
 ; requirement: multiplier >= 0
+; * TODO: SIMD (http://stackoverflow.com/questions/27923192/practical-bignum-avx-sse-possible)
 ; multiplicand in RDI
 ; multiplier in RSI
 ; result in RAX
@@ -914,7 +909,7 @@ biSign:
             jg .positive
             jl .negative
             cmp r9, 1 ; x->size = 1?
-            jne .positive ; x looks like 0000...0001... with at least 64 leading zeros
+            jne .positive ; x looks like 0000...0001... with 64 leading zeros
             ; else x = 0
             xor rax, rax
             ret
@@ -936,7 +931,7 @@ biTrim:     ret
 
 ; void biNormalize(BigInt x)
 ; removes leading ones/zeros (in two's complement representaion)
-; TODO: call trim inside to spare memory
+; * TODO: call trim inside to spare memory
 ; x in RDI
 biNormalize:
             ; we need to find last idx such that
@@ -1006,3 +1001,7 @@ biMove:
             mov [rdi + CAPACITY], rax
 
             ret
+
+
+section .data
+          ten_to_the_17: dq 100000000000000000
