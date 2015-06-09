@@ -31,6 +31,7 @@ global biToString       ;; TODO
 ; private biMove            ;; DONE
 ; private biEnsureCapacity  ;; DONE
 ; private biGrowCapacity    ;; DONE
+; private biClone           ;; DONE
 
 ; private biTrim            ;; TODO: method to trim size of vector to spare memory
 
@@ -117,7 +118,7 @@ global biToString       ;; TODO
 section .text
 
 
-; BigInt biAllocate(uint capacity);
+; BigInt biAllocate(size_t capacity);
 ; allocates memory for capacity-digits BigInt 
 ; BigInt->size = 0
 ; BigInt->capacity = capcity
@@ -924,7 +925,18 @@ biSign:
 
 
 biDivRem:   ret
-biToString: ret
+
+; void biToString(BigInt x, char *buffer, size_t limit);
+; x in RDI
+; buffer in RSI
+; limit in RDX
+; if lenghtOf(x) >= limit - 1 result is undefined 
+; (but without access to invalid memory)
+biToString:
+            push rsi
+            push rdx
+            call biClone
+ret
 
 biTrim:     ret
 
@@ -1000,6 +1012,35 @@ biMove:
             mov rax, [rsi + CAPACITY]
             mov [rdi + CAPACITY], rax
 
+            ret
+
+
+; BigInt biClone(BigInt x);
+; x in RDI
+; result in RAX
+biClone:
+            push rdi
+            mov rdi, [rdi + SIZE]
+            call biAllocate
+            test rax, rax
+            pop rdi
+            jne .clone 
+            ret ; allocation failed
+
+          .clone
+            mov rcx, [rdi + SIZE]
+            mov [rax + SIZE], rcx
+            mov r8, [rdi + DATA]
+            mov r9, [rax + DATA]
+            
+            ;; TODO: replace with SIMD
+          .clone_loop:
+            dec rcx
+            mov r10, [r8 + 8 * rcx]
+            mov [r9 + 8 * rcx], r10
+            test rcx, rcx
+            jne .clone_loop
+            
             ret
 
 
