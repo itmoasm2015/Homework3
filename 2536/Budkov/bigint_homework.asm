@@ -61,6 +61,19 @@ global biCmp
 %endmacro
            
 
+; aligns stack and STACKANDCALLs %1
+%macro  STACKANDCALL 1
+        test    rsp, 0xf
+        jz      %%allright
+        sub     rsp, 8
+        call    %1
+        add     rsp, 8
+        jmp     %%complete
+    %%allright:
+        call    %1
+    %%complete:
+%endmacro
+
 section .text
 
 ;BigInt biFromInt(int64_t x);
@@ -71,10 +84,10 @@ biFromInt:
         mov     rsi, 8
         mov     rdi, rsi
         push    rsi
-        call    malloc              
+        STACKANDCALL    malloc              
         push    rax
         mov     rdi, bi_size
-        call    malloc              
+        STACKANDCALL    malloc              
         pop     rdx
         pop     rsi
         mov     [rax + bi.len], rsi
@@ -123,10 +136,10 @@ biFromString:
         push    rsi                             
         mov     rdi, rax
         push    rdi
-        call    malloc
+        STACKANDCALL    malloc
         push    rax
         mov     rdi, bi_size
-        call    malloc
+        STACKANDCALL    malloc
         pop     r9
         pop     rdi
         mov     [rax + bi.len], rdi
@@ -211,9 +224,9 @@ biFromString:
     .fail:
         push    r9
         mov     rdi, [r9 + bi.data]
-        call    free
+        STACKANDCALL    free
         pop     rdi
-        call    free
+        STACKANDCALL    free
     .fail_:
         mov     rax, 0
         pop     rbx                             
@@ -225,9 +238,9 @@ biFromString:
 biDelete:
         push    rdi
         mov     rdi, [rdi + bi.data]
-        call    free
+        STACKANDCALL    free
         pop     rdi
-        call    free
+        STACKANDCALL    free
         ret
 
 ;int biSign(BigInt bi);
@@ -268,7 +281,7 @@ biAdd:
         add     rcx, 8                          
         push    rdi
         push    rsi                             
-        call    malloc
+        STACKANDCALL    malloc
         mov     r8, rax
         pop     rsi
         pop     rdi
@@ -335,7 +348,7 @@ biAdd:
         mov     rdi, [rsp + 8]                  
         mov     [rdi + bi.len], rax
         mov     rdi, [rdi + bi.data]
-        call    free
+        STACKANDCALL    free
         pop     r8                              
         pop     rdi                             
         mov     [rdi + bi.data], r8
@@ -379,10 +392,10 @@ biSub:
 		; new BigInt
         mov     rdi, rcx
         push    rcx
-        call    malloc            
+        STACKANDCALL    malloc            
         push    rax
         mov     rdi, bi_size
-        call    malloc             
+        STACKANDCALL    malloc             
         pop     rdx
         pop     rcx
         mov     [rax + bi.len], rcx
@@ -404,9 +417,9 @@ biSub:
         pop     rsi
         push    rsi
         mov     rdi, [rsi + bi.data]
-        call    free
+        STACKANDCALL    free
         pop     rdi
-        call    free
+        STACKANDCALL    free
         ret
 
 ;void biMul(BigInt dst, BigInt src);
@@ -457,12 +470,12 @@ biMul:
         add     rdi, [rsi + bi.len]
         add     rdi, 8
         push    rdi
-        call    malloc
+        STACKANDCALL    malloc
         push    rax
         mov     rdi, [rsp + 24]
         mov     rdi, [rdi + bi.len]         
         add     rdi, 8
-        call    malloc
+        STACKANDCALL    malloc
         mov     r10, rax                        ; массиы tmp
         pop     rbx                             ; новый BigInt
         pop     r13                             ; размер нового BigInt
@@ -511,10 +524,10 @@ biMul:
         push    rsi
         push    rdi
         mov     rdi, r10
-        call    free                            ; чистим tmp
+        STACKANDCALL    free                            ; чистим tmp
         mov     rdi, [rsp]                      ; создаем новый массив вместо dst
         mov     rdi, [rdi + bi.data]
-        call    free
+        STACKANDCALL    free
         pop     rdi
         pop     rsi
         pop     rbx
@@ -580,10 +593,10 @@ biToString:
 		; new BigInt
         mov     rdi, rcx
         push    rcx
-        call    malloc              ; data - выделяем память
+        STACKANDCALL    malloc              ; data - выделяем память
         push    rax
         mov     rdi, bi_size
-        call    malloc              ; headers - выделяем память
+        STACKANDCALL    malloc              ; headers - выделяем память
         pop     rdx
         pop     rcx
         mov     [rax + bi.len], rcx
@@ -605,7 +618,7 @@ biToString:
         inc     rax
         push    rdi                             
         mov     rdi, rax
-        call    malloc
+        STACKANDCALL    malloc
         mov     rbx, rax                        ; tmp
         xor     r13, r13                        ; счетчик записанных чаров
         pop     rdi
@@ -673,11 +686,11 @@ biToString:
         push    rbx       
         push    rdi
         mov     rdi, [rdi + bi.data]
-        call    free
+        STACKANDCALL    free
         pop     rdi
-        call    free
+        STACKANDCALL    free
         pop     rdi
-        call    free                            ; освобождаем tmp
+        STACKANDCALL    free                            ; освобождаем tmp
         pop     rbx
         pop     r12
         pop     r13
@@ -693,10 +706,10 @@ biCmp:
 		; new BigInt
         mov     rdi, rcx
         push    rcx
-        call    malloc              ; data - выделяем память
+        STACKANDCALL    malloc              ; data - выделяем память
         push    rax
         mov     rdi, bi_size
-        call    malloc              ; headers - выделяем память
+        STACKANDCALL    malloc              ; headers - выделяем память
         pop     rdx
         pop     rcx
         mov     [rax + bi.len], rcx
@@ -720,9 +733,9 @@ biCmp:
         push    rax
         push    rdi
         mov     rdi, [rdi + bi.data]
-        call    free
+        STACKANDCALL    free
         pop     rdi
-        call    free
+        STACKANDCALL    free
         pop     rax
         ret
 
