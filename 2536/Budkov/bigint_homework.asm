@@ -61,7 +61,6 @@ global biCmp
 %endmacro
            
 
-; aligns stack and STACKANDCALLs %1
 %macro  STACKANDCALL 1
         test    rsp, 0xf
         jz      %%allright
