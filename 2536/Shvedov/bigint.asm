@@ -228,7 +228,7 @@ biAddInt:
 	mov argument1, [argument1 + bigint.data]
 	xor rdx, rdx ; carry
 	xor r13, r13
-.loop:
+.jump:
     add [argument1], argument2
     adc rdx, 0 ; carry is in rdx now
     mov argument2, rdx ; carry is in argument2 now
@@ -236,10 +236,10 @@ biAddInt:
     inc r13
     add argument1, 8
     cmp argument2, 0 ; if carry is 0 then finish cycle
-    jne .loop
+    jne .jump
     cmp r13, r14
     jg .carry_iteration_last
-.finish_loop:
+.finish_jump:
     mov argument1, rbx
     end_funct
 .carry_iteration_last:
@@ -263,7 +263,7 @@ biMulInt:
 	pop argument2 ; restore value of argument2 after expand
 	mov r13, [argument1 + bigint.data]
 	xor r12, r12 ; information about carry is in r12
-.loop:
+.jump:
     mov rax, [r13]
     mul argument2 ; rax * argument2 = rdx:rax
     add rax, r12 ; carry from last cycle iteration
@@ -273,7 +273,7 @@ biMulInt:
     mov r12, rdx ; carry is in r12 now
     xor rdx, rdx
     dec r14
-    jnz .loop
+    jnz .jump
 	cmp r12, 0
 	jne .carry_iteration_last	; it's enough because size of bigint can increased only by one qword
 	pop argument1
@@ -349,7 +349,7 @@ biCmp:
 	mov r9, [argument2 + bigint.data]
 	lea r10, [r10 + 8 * r11 - 8] ; most significant qword of argument1 is in r10 now
 	lea r9, [r9 + 8 * r11 - 8] ; most significant qword of argument2 is in r9 now
-.loop_posit:
+.jump_posit:
     mov rbx, [r10] ; current qword of argument1
     mov rcx, [r9] ; current qword of argument2
     cmp rbx, rcx
@@ -359,7 +359,7 @@ biCmp:
     sub r9, 8 ; to next qword
     dec r11
     jz .return_zero ; all qword are equal => bigints are equal
-    jmp .loop_posit
+    jmp .jump_posit
 .return_one:
 	mov res, 1
 	end_funct
@@ -379,7 +379,7 @@ biCmp:
 	mov r9, [argument2 + bigint.data]
 	lea r10, [r10 + 8 * r11 - 8] ; most significant qword of argument1 is in r10 now
 	lea r9, [r9 + 8 * r11 - 8] ; most significant qword of argument2 is in r9 now
-.loop:
+.jump:
     mov rbx, [r10] ; current qword of argument1
     mov rcx, [r9] ; current qword of argument2
     cmp rbx, rcx
@@ -389,7 +389,7 @@ biCmp:
     sub r9, 8 ; to next qword
     dec r11
     jz .return_zero ; all qword are equal => bigints are equal
-    jmp .loop
+    jmp .jump
 
 ; argument1 - pointer on first bigint,argument2 - pointer on second bigint.After the function argument1_after = argument1_start + argument2
 biAdd:
@@ -420,25 +420,25 @@ biAdd:
 	jmp .going_on
 .flag_equal:	
 	xor r12, r12 ; current size of vector in qwords
-.loop:
+.jump:
     mov r9, [r10]
     lea r10, [r10 + 8]
     adc [r11], r9
     lea r11, [r11 + 8]
     inc r12
-    dec r8 ; finish our loop if it's no more to add (no carry and second bigint is finished)
+    dec r8 ; finish our jump if it's no more to add (no carry and second bigint is finished)
     jz .only_bear ; second bigint is finished, maybe it's carry
-    jmp .loop
+    jmp .jump
 .only_bear:
-	jnc .finish_loop ; no carry
-.bear_loop:
+	jnc .finish_jump ; no carry
+.bear_jump:
     mov rbx, [r11]
     adc rbx, 0
     mov [r11], rbx
     inc r12
     lea r11, [r11 + 8]
-    jc .bear_loop
-.finish_loop:
+    jc .bear_jump
+.finish_jump:
 	cmp [argument1 + bigint.size], r12
 	jge .not_incremented
 	mov [argument1 + bigint.size], r12 ; move real size of vector of argument1 in qwords to size field
@@ -473,9 +473,9 @@ biSub:
     adc r13, 0 ; set to zero carry flag
     mov r13, [argument1 + bigint.data]
     mov r12, [argument2 + bigint.data]
-    mov r11, [argument1 + bigint.size] ; loop can't have more than r11 iterations, because argument1 > argument2 and it won't be carry after r11 iterations
+    mov r11, [argument1 + bigint.size] ; jump can't have more than r11 iterations, because argument1 > argument2 and it won't be carry after r11 iterations
     mov rcx, [argument2 + bigint.size]
-.loop:
+.jump:
     mov r10, [r12]
     lea r12, [r12 + 8]
     sbb [r13], r10
@@ -483,7 +483,7 @@ biSub:
     dec rcx
     jz .only_bear ; second argument is finished, it's only carry now
     dec r11
-    jnz .loop
+    jnz .jump
 .after_bear:
     cmp r15, -1
     je .was_swapped ; if it was swapped then i must do some other things then if it wasn't swap
@@ -498,16 +498,16 @@ biSub:
     jmp .after_swap
 .only_bear:
 	jnc .after_bear ; no carry
-	dec r11 ; from the last iteration of loop
+	dec r11 ; from the last iteration of jump
 	jz .after_bear
-.bear_loop:
+.bear_jump:
     mov rcx, 0
     adc rcx, 0 ; carry
     sbb [r13], rcx
     lea r13, [r13 + 8]
     dec r11
     jz .after_bear
-    jmp .bear_loop
+    jmp .bear_jump
 .was_swapped:
 	mov cl, 1
 	sub cl, byte [argument1 + bigint.flag] ; must have other flag, because arguments were swapped
@@ -516,7 +516,7 @@ biSub:
 	mov r12, [argument1 + bigint.data]
 	mov r13, [argument1 + bigint.size]
 	lea r12, [r12 + 8 * r13 - 8] ; while first qword of bigint is 0, decrement size
-.decrement_size_loop:
+.decrement_size_jump:
     mov r11, [r12]
     cmp r11, 0
     je .decrement_size
@@ -551,7 +551,7 @@ biSub:
 	dec r13
 	cmp r13, 0
 	je .increment_size ; if res bigint is 0 then r13 will be 0 at the end of cycle, but i don't want size of bigint 0 because of some collisions
-	jmp .decrement_size_loop
+	jmp .decrement_size_jump
 .increment_size: 
 	inc r13 ; we are here only if res of function biSub is 0. And we must increment it, because size of bigint mustn't be 0, because of some collisions
 	jmp .after_decrement_size
@@ -680,7 +680,7 @@ biDivInt:
     lea r10, [r10 + 8 * r14 - 8] ; most significant qword is in r10 now
     xor rdx, rdx
     xor r13, r13
-.loop:
+.jump:
     mov rax, [r10]
     div argument2 ; rax = rdx:rax / argument2, rdx = rdx:rax % argument2
     mov [r10], rax
@@ -695,7 +695,7 @@ biDivInt:
     inc r13
     sub r10, 8
     dec r14
-    jnz .loop
+    jnz .jump
     mov res, rdx ; remainder is in res
     end_funct
 .flag_to_reduct_size:
@@ -742,7 +742,7 @@ biToString:
     je .finish_write_to_string
     mov r12, r13 ; position from which we need to reverse string
     mov argument2, 10 ; to call biDivInt
-.loop:
+.jump:
     mov r11, argument3 ; save limit value
     call biDivInt
     add res, '0'
@@ -755,7 +755,7 @@ biToString:
     dec argument3
     cmp argument3, 1
     je .limit_exhausted ; we can't print something because limit is exhausted
-    jmp .loop ; argument1 after the iteration = argument1 before the iteration / 10, argument1 before the iteration % 10 is written to string
+    jmp .jump ; argument1 after the iteration = argument1 before the iteration / 10, argument1 before the iteration % 10 is written to string
 ; reverse string from position r12 to position r13 - 1
 .reverse_string:
     push rcx
