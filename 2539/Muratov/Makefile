@@ -1,12 +1,12 @@
-makeall: clean test
-#makeall: clean libhw.a
+#makeall: clean test
+makeall: clean libhw.a
 
 test: test.o libhw.a
 	g++ -Wall -msse -g -o $@ $^ 
 	./test
 
 test.o:
-	g++ test.cpp -Wall -g -c -o $@
+	g++ -o test.o -O2 -std=c++11 -g -c test.cpp 
 
 libhw.a: bigint.o
 	ar rcs $@ $^
