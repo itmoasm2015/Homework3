@@ -13,7 +13,7 @@ std::mt19937_64 rng;
 
 void test_to_string(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("biToString testing (%d iterations)\n", iterations);
-  static const int max_length = 100 * 1000;
+  static const int max_length = 10 * 1000 + 10;
   static char src[max_length];
   static char dst[max_length];
   for (int i = 0; i < iterations; ++i) {
@@ -22,13 +22,19 @@ void test_to_string(const int iterations = 1, bool verbose = false) {
       src[ptr++] = '-';
     }
     int digits = (rng() % (max_length - 2)) + 1;
+    //int digits = 100 * 1000;
     for (int j = 0; j < digits; ++j) {
       src[ptr++] = '0' + (rng() % 10);
       while (j == 0 && src[ptr - 1] == '0') src[ptr - 1] = '0' + (rng() % 10);
     }
     src[ptr] = 0;
+    auto start_constructing = std::chrono::system_clock::now();
     BigIntRepresentation *foo = (BigIntRepresentation *) biFromString(src);
+    auto finish_constructing = std::chrono::system_clock::now();
+    auto start_printing = std::chrono::system_clock::now();
     biToString(foo, dst, max_length);
+    auto finish_printing = std::chrono::system_clock::now();
+    DEBUG("constructing: %.3fs, printing: %.3fs\n", std::chrono::duration<double>(finish_constructing - start_constructing).count(), std::chrono::duration<double>(finish_printing - start_printing).count());
     ptr = 0;
     while (true) {
       if (src[ptr] != dst[ptr]) {

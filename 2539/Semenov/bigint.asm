@@ -1,5 +1,7 @@
 default rel
 
+;;; TODO: tell about time/memory complexity
+
 ; extern _biDump
 
 extern malloc
@@ -924,7 +926,107 @@ biSign:
             ret
 
 
-biDivRem:   ret
+; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt dividend, BigInt divisor)
+; *quotient in RDI
+; *remainder in RSI
+; dividend in RDX
+; divisor in RCX
+; temporary changes dividend and divisor to call biDivRemPositive
+biDivRem:   
+            call biDivRemPositive
+            ret
+
+; void biDivRemPositive(BigInt *quotient, BigInt *remainder, BigInt dividend, BigInt divisor)
+; *quotient in RDI
+; *remainder in RSI
+; dividend in RDX
+; divisor in RCX
+; 
+; assumes that divident and divisor are positive
+biDivRemPositive:
+            push r12 
+            push r13
+            push r14
+            push r15
+            push rbp
+            mov rbp, rsp
+            push rdx ; dividend
+            push rcx ; divisor
+            push rsi ; *remainder
+            push rdi ; *quotient
+
+            mov qword [rdi], 0
+            mov qword [rsi], 0
+
+            mov rdi, rdx
+            call biClone
+            test rax, rax
+            je .return
+
+            push rax ; memorize copy of dividend
+            mov rdi, 0
+            call biFromInt
+            test rax, rax
+            jnz .allocated
+            pop rdi
+            call biDelete
+            jmp .return
+
+        .allocated:
+            mov rdi, [rsp + 8] ; *quotient
+            mov [rdi], rax ; quotient is zero initialy
+            mov r12, rax ; R12 = quotient
+            pop rax ; copy of dividend
+            mov rsi, [rsp + 8] ; *remainder
+            mov [rsi], rax
+            mov r13, rax ; R13 = remainder
+            add rsp, 16 ; remove *quotient and *remainder from stack
+            pop r14 ; R14 = dividend
+            pop r15 ; R15 = divisor
+
+        %macro highestOneBit 1 
+            push r8
+            push r9
+            push r10
+            push rdx
+
+            mov rdx, %1
+            mov r8, [rdx + SIZE]
+            mov r9, [rdx + DATA]
+            mov r10, [r9 + 8 * r8 - 8] ; R10 - most significant coefficient
+            mov rax, -1
+            test r10, r10
+            je %%ret
+            bsr rax, r10 ; bit scan reverse - found most significan bit of R10
+          %%ret:
+            lea rax, [rax + r8 * 64 - 64]
+            pop rdx
+            pop r10
+            pop r9
+            pop r8
+        %endmacro
+            
+            mov rdi, r14
+            mov rsi, r15
+            call biCmp
+            cmp rax, 0
+            jl .return ; if dividend < divisor then quotient = 0, remainder = dividend
+            jg .main_part
+            ; else dividend = divisor then quotient = 1, remainder = 0
+            mov rdi, r14
+            mov rsi, r15
+            call biSwap
+
+            .main_part:
+
+        .return:
+            mov rsp, rbp
+            pop rbp
+            pop r15
+            pop r14
+            pop r13
+            pop r12
+            ret
 
 ; void biToString(BigInt x, char *buffer, size_t limit);
 ; x in RDI
@@ -932,6 +1034,7 @@ biDivRem:   ret
 ; limit in RDX
 ; if lenghtOf(x) >= limit - 1 result is undefined 
 ; (but without access to invalid memory)
+; TODO: improve performance, dividing 10^18, not 10
 biToString:
             push rbp
             mov rbp, rsp
@@ -1143,6 +1246,19 @@ biClone:
             
             ret
 
+; void biSwap(BigInt x, BigInt y)
+; after swap x' point to y, y' points to x
+biSwap:
+        %macro swap 1
+            mov r8, [rdi + %1]
+            mov r9, [rsi + %1]
+            mov [rdi + %1], r9
+            mov [rsi + %1], r8
+        %endmacro
+            swap DATA
+            swap SIZE
+            swap CAPACITY
+            ret
 
 section .data
           ten_to_the_17: dq 100000000000000000
