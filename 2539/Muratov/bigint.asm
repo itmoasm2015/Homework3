@@ -17,50 +17,13 @@ global biToString
 
 section .text
 
-struc bigint
-    .sign:      resb 1 ; 0 if sign is '+' and 1 if sign is '-'
-    .size:      resq 1
-    .capacity:  resq 1
-    .data:      resq 1 ; pointer to vector
-endstruc  
+; offsets in structure
+%define sign                    0 ; points to sign bit, this bit is 0 if number is positive and 1 otherwise.
+%define size                    1 ; points to current size of number
+%define capacity                9 ; points to capacity of vector
+%define data                    17 ; points to allocated vector 
 
-%macro alloc 1  ; Allocates memory
-    push rbp
-    push rdi
-    push rsi
-    mov rbp, rsp
-    mov rdi, %1
-    mov rsi, 8 ; qword = 8 bytes
-    call calloc
-    test rax, rax
-    jnz %%correct
-    ret     ; Can't allocate, finish program
-%%correct:
-    mov rsp, rbp
-    pop rsi
-    pop rdi
-    pop rbp
-%endmacro   
-
-; rdi before the macro is pointer on bigint, rsi - bigint size
-%macro check_to_expand 0
-    push r14
-    mov r14, [rdi + bigint.capacity]
-    cmp r14, rsi
-    jge %%not_expand ; we don't need to expand if capacity >= size
-    call expand_vector
-%%not_expand:
-    pop r14
-%endmacro   
-
-%macro check_null 0
-    cmp rdi, 0
-    jne %%bigint_is_not_null
-    ret ; if given in some function bigint is NULL then finish program. Otherwise, do nothing
-%%bigint_is_not_null
-%endmacro       
-
-%macro push_registers 0  ; Save register values which we must save according to calling convention
+%macro push_registers 0  ; push register according to calling convention
     push rbp
     push rbx
     push r12
@@ -69,7 +32,7 @@ endstruc
     push r15
 %endmacro   
 
-%macro pop_registers 0  ; Restore registers values
+%macro pop_registers 0  ; pop registers values
     pop r15
     pop r14
     pop r13
@@ -84,25 +47,40 @@ endstruc
 ; rax - pointer on bigint
 new_vector:
     push_registers
-    lea rdx, [rsi * 2] ; initial capacity in qwords, capacity = 2 * size, because i don't want to do so much expands
-    mov r13, rdx        ; save initial capacity in r13
-    alloc rdx
-    mov [rdi + bigint.size], rsi
-    mov [rdi + bigint.capacity], r13
-    mov [rdi + bigint.data], rax
+    lea rdx, [rsi * 2] ; capacity = 2 * size
+    mov r13, rdx       
+    
+    ;allocating memory
+    push rdi
+    push rsi
+    mov rbp, rsp
+    mov rdi, rdx
+    mov rsi, 8 ; qword = 8 bytes
+    call calloc
+    test rax, rax
+    jnz .correct
+    ret     ; if can't allocate, finish program
+.correct:
+    mov rsp, rbp
+    pop rsi
+    pop rdi
+    
+    mov [rdi + size], rsi
+    mov [rdi + capacity], r13
+    mov [rdi + data], rax
     mov rax, rdi
     pop_registers
 
 ; rdi - pointer on bigint
 ; rsi - size, new capacity must be greater or equal to this size 
-expand_vector:  
+extend_vector:  
     push_registers
     push rdi
-    mov r15, [rdi + bigint.data]
-    mov r14, [rdi + bigint.size]
+    mov r15, [rdi + data]
+    mov r14, [rdi + size]
     call new_vector
     mov r13, rsp
-    mov rdi, [rax + bigint.data]
+    mov rdi, [rax + data]
     mov rsi, r15
     lea rdx, [r14 * 8] ; size of vector in bytes
     call memcpy ; copy data to new place in memory
@@ -118,21 +96,33 @@ expand_vector:
 biCopy:
     push_registers
     mov r12, rdi
-    alloc 4
+    ;allocate memory for new bigint
+    push rdi
+    mov rbp, rsp
+    mov rdi, 4
+    mov rsi, 8 ; qword = 8 bytes
+    call calloc
+    test rax, rax
+    jnz .correct
+    ret     ; if can't allocate, finish program
+.correct:
+    mov rsp, rbp
+    pop rdi
+    
     mov rdi, rax
-    mov r13, [r12 + bigint.size]
+    mov r13, [r12 + size]
     mov rsi, r13
     call new_vector
     mov r14, rax
     mov r15, rsp
-    mov rdi, [rax + bigint.data]
-    mov rsi, [r12 + bigint.data]
+    mov rdi, [rax + data]
+    mov rsi, [r12 + data]
     lea rdx, [r13 * 8]
     call memcpy ; copy our bigint
     mov rsp, r15
-    mov [r14 + bigint.size], r13
-    mov bl, byte [r12 + bigint.sign]
-    mov byte [r14 + bigint.sign], bl
+    mov [r14 + size], r13
+    mov bl, byte [r12 + sign]
+    mov byte [r14 + sign], bl
     mov rax, r14
     pop_registers    
 
@@ -140,21 +130,33 @@ biCopy:
 ; rax - pointer on bigint
 biFromInt:
     push_registers
-    mov r14, rdi ; save argument, because we will be call functions at this function
-    alloc 4
+    mov r14, rdi
+    ;allocating memory for new bigint
+    push rdi
+    mov rbp, rsp
+    mov rdi, 4
+    mov rsi, 8 ; qword = 8 bytes
+    call calloc
+    test rax, rax
+    jnz .correct
+    ret     ; if can't allocate, finish program
+.correct:
+    mov rsp, rbp
+    pop rdi
+    
     mov rdi, rax
     mov rsi, 4
     call new_vector
-    mov qword [rax + bigint.size], 1 ; initial size is 1, because it's now only one int
+    mov qword [rax + size], 1 ; initial size is 1, because it's now only one int
     cmp r14, 0
     jge .positive_int
-    mov byte [rax + bigint.sign], 1 ; sign is '-' now
-    neg r14  ; number in field .data will be positive
+    mov byte [rax + sign], 1 ; setting sign
+    neg r14  ; number in field data will be positive
     jmp .finish
     .positive_int:
-        mov byte [rax + bigint.sign], 0 ; sign is '+' now
+        mov byte [rax + sign], 0 ; setting sign
     .finish:
-        mov r12, [rax + bigint.data]
+        mov r12, [rax + data]
         mov [r12], r14 ; initialize data
         pop_registers
 
@@ -162,21 +164,27 @@ biFromInt:
 ; rsi - long long (it's positive because i use it in my code like positive)
 biAddInt:
     push_registers
-    mov r14, [rdi + bigint.size] ; maybe need to expand
+    mov r14, [rdi + size]
     inc r14 ; after function size of vector <= size of vector before the function + 1
     push rsi
     mov rsi, r14
-    check_to_expand
+    ;check if we should extend vector
+    mov r14, [rdi + capacity]
+    cmp r14, rsi
+    jge .dont_extend ; we don't need to extend if capacity >= size
+    call extend_vector
+.dont_extend:
+    
     dec r14
-    pop rsi ; restore value of rsi after expand
+    pop rsi ; restore value of rsi after extend
     mov rbx, rdi
-    mov rdi, [rdi + bigint.data]
+    mov rdi, [rdi + data]
     xor rdx, rdx ; carry
     xor r13, r13
     .loop:
         add [rdi], rsi
-        adc rdx, 0 ; carry is in rdx now
-        mov rsi, rdx ; carry is in rsi now
+        adc rdx, 0 ; carry in rdx
+        mov rsi, rdx ; carry in rsi
         xor rdx, rdx
         inc r13
         add rdi, 8
@@ -192,23 +200,30 @@ biAddInt:
         mov [rdi], rdx ; move carry to new qword
         mov rdi, rbx
         inc r14 ; increment size of vector in qwords
-        mov [rdi + bigint.size], r14   
+        mov [rdi + size], r14   
         pop_registers
 
 ; rdi - pointer on bigint
 ; rsi - long long int (it's positive because i use it in my code like positive)
 biMulInt:
     push_registers
-    mov r14, [rdi + bigint.size]
+    mov r14, [rdi + size]
     push r14 ; save value of r14 to stack because I change it in my function
     push rdi
     inc r14 ; after function size of vector <= size of vector before the function + 1
     push rsi
     mov rsi, r14
-    check_to_expand
+    
+    ;check if we should extend vector
+    mov r13, [rdi + capacity]
+    cmp r13, rsi
+    jge .not_extend ; we don't need to extend if capacity >= size
+    call extend_vector
+.not_extend:
+    
     dec r14
-    pop rsi ; restore value of rsi after expand
-    mov r13, [rdi + bigint.data]
+    pop rsi ; restore value of rsi after extend
+    mov r13, [rdi + data]
     xor r12, r12 ; information about carry is in r12
     .loop:
         mov rax, [r13]
@@ -231,8 +246,8 @@ biMulInt:
         pop r14 ; restore value of bigint size
         mov [r13], r12 ; move carry to new qword
         inc r14 ; increment size of vector in qwords
-        mov [rdi + bigint.size], r14
-        mov r14, [rdi + bigint.size]
+        mov [rdi + size], r14
+        mov r14, [rdi + size]
         pop_registers
 
 
@@ -246,7 +261,7 @@ biFromString:
     mov rdi, r14
     cmp byte [rdi], '-'
     je .set_minus_sign
-    mov byte [rax + bigint.sign], 0 ; sign '+'
+    mov byte [rax + sign], 0 ; sign '+'
     jmp .after_setting_sign
 
 .after_setting_sign:
@@ -281,7 +296,7 @@ biFromString:
     pop_registers    
 
 .set_minus_sign:
-    mov byte [rax + bigint.sign], 1 ; sign '-'
+    mov byte [rax + sign], 1 ; sign '-'
     inc r14 ; look on next symbol
     jmp .after_setting_sign
 
@@ -297,7 +312,7 @@ biDelete:
     push_registers
     mov r15, rsp
     mov r14, rdi
-    mov rdi, [rdi + bigint.data] ; free data
+    mov rdi, [rdi + data] ; free data
     call free
     mov rdi, r14 ; free struct
     call free
@@ -310,27 +325,34 @@ biDelete:
 ; After the execution bigint in rsi remains the same and bigint in rdi is sum of two bigints
 biAdd:
     push_registers
-    mov r15, [rdi + bigint.size]
-    mov r8, [rsi + bigint.size]
+    mov r15, [rdi + size]
+    mov r8, [rsi + size]
     mov rbx, r15 ; maximal size of argument
     cmp r15, r8
     jl .rsi_size_greater
 
     .continue:
     inc rbx ; size of rdi after the function <= max(size of rdi before, size of rsi before) + 1
-    mov rcx, rsi ; save value of rsi, because i check if need to expand that use rsi
+    mov rcx, rsi ; save value of rsi, because i check if need to extend that use rsi
     mov rsi, rbx
-    check_to_expand
+  
+    ;check if we should extend vector  
+    mov r14, [rdi + capacity]
+    cmp r14, rsi
+    jge .not_extend ; we don't need to extend if capacity >= size
+    call extend_vector
+.not_extend:
+    
     mov rsi, rcx ; restore value of rsi
-    mov cl, byte [rdi + bigint.sign]
-    mov bl, byte [rsi + bigint.sign]
-    mov r11, [rdi + bigint.data]
-    mov r10, [rsi + bigint.data]
+    mov cl, byte [rdi + sign]
+    mov bl, byte [rsi + sign]
+    mov r11, [rdi + data]
+    mov r10, [rsi + data]
     cmp cl, bl ; if sign is equal then our operation is equal to add, else our operation is equal to sub
     je .equal_sign
-    mov byte [rsi + bigint.sign], cl ; add = change sign + sub
+    mov byte [rsi + sign], cl ; add = change sign + sub
     call biSub
-    mov byte [rsi + bigint.sign], bl ; restore sign of rsi, function biSub don't change bl, because it saves rbx accordingly to calling convention
+    mov byte [rsi + sign], bl ; restore sign of rsi, function biSub don't change bl, because it saves rbx accordingly to calling convention
     pop_registers
 
 .rsi_size_greater:
@@ -360,9 +382,9 @@ biAdd:
         jc .carry_loop
 
 .finish_loop:
-    cmp [rdi + bigint.size], r12
+    cmp [rdi + size], r12
     jge .not_incremented
-    mov [rdi + bigint.size], r12 ; move real size of vector of rdi in qwords to size field
+    mov [rdi + size], r12 ; move real size of vector of rdi in qwords to size field
     pop_registers        
 
 .not_incremented:
@@ -374,32 +396,32 @@ biAdd:
 biSub:
     push_registers
     push rsi ; save value of rsi, because i mustn't change it in biSub
-    mov cl, byte [rdi + bigint.sign]
-    mov bl, byte [rsi + bigint.sign]
+    mov cl, byte [rdi + sign]
+    mov bl, byte [rsi + sign]
     cmp bl, cl
     je .equal_sign ; if sign is equal then do sub else change sign and do add
-    mov byte [rsi + bigint.sign], cl
+    mov byte [rsi + sign], cl
     call biAdd
-    mov byte [rsi + bigint.sign], bl ; restore sign of rsi, function biAdd don't change bl, because it saves rbx accordingly to calling convention
+    mov byte [rsi + sign], bl ; restore sign of rsi, function biAdd don't change bl, because it saves rbx accordingly to calling convention
     pop rsi ; restore value of rsi before function end
     pop_registers
 
 .equal_sign:
-    mov byte [rdi + bigint.sign], 0
-    mov byte [rsi + bigint.sign], 0 ; change signs on positive, because i want to compare absolute values of bigints 
+    mov byte [rdi + sign], 0
+    mov byte [rsi + sign], 0 ; change signs on positive, because i want to compare absolute values of bigints 
     push rcx ; save sign of rsi
     call biCmp
     mov r15, rax ; save information if bigint was copyied
     pop rcx ; restore sign of rsi
-    mov byte [rsi + bigint.sign], cl ; restore sign of rsi
+    mov byte [rsi + sign], cl ; restore sign of rsi
     cmp rax, -1
     je .swap_args
     .after_swap:
         adc r13, 0 ; set to zero carry flag
-        mov r13, [rdi + bigint.data]
-        mov r12, [rsi + bigint.data]
-        mov r11, [rdi + bigint.size] ; loop can't have more than r11 iterations, because rdi > rsi and it won't be carry after r11 iterations
-        mov rcx, [rsi + bigint.size]
+        mov r13, [rdi + data]
+        mov r12, [rsi + data]
+        mov r11, [rdi + size] ; loop can't have more than r11 iterations, because rdi > rsi and it won't be carry after r11 iterations
+        mov rcx, [rsi + size]
         .loop:
             mov r10, [r12]
             lea r12, [r12 + 8]
@@ -430,13 +452,13 @@ biSub:
 
 .was_swap:
     mov cl, 1
-    sub cl, byte [rdi + bigint.sign] ; must have other sign, because arguments were swapped
-    mov byte [rdi + bigint.sign], cl
+    sub cl, byte [rdi + sign] ; must have other sign, because arguments were swapped
+    mov byte [rdi + sign], cl
     
 
 .change_size:
-    mov r12, [rdi + bigint.data]
-    mov r13, [rdi + bigint.size]
+    mov r12, [rdi + data]
+    mov r13, [rdi + size]
     lea r12, [r12 + 8 * r13 - 8] ; while first qword of bigint is 0, decrement size
     .decrement_size_loop:
         mov r11, [r12]
@@ -446,20 +468,20 @@ biSub:
     .after_decrement_size:
         cmp r15, -1
         je .delete_was_swap ; delete copyied bigint if was swap and it's copy
-        mov [rdi + bigint.size], r13 ; set actual size
+        mov [rdi + size], r13 ; set actual size
         pop rsi ; restore value of rsi before pop_registers
         pop_registers
 
     .delete_was_swap:
         pop rbx ; begin value of rdi is in rbx now
-        mov [rbx + bigint.size], r13 ; set actual size
-        mov cl, byte [rdi + bigint.sign]
-        mov byte [rbx + bigint.sign], cl ; move all information from rdi to rbx
+        mov [rbx + size], r13 ; set actual size
+        mov cl, byte [rdi + sign]
+        mov byte [rbx + sign], cl ; move all information from rdi to rbx
         push rdi ; save value rdi to delete it after memcpy
         push r15
         mov r15, rsp
-        mov rsi, [rdi + bigint.data]
-        mov rdi, [rbx + bigint.data]
+        mov rsi, [rdi + data]
+        mov rdi, [rbx + data]
         lea rdx, [r13 * 8] ; arguments for memcpy
         call memcpy
         mov rsp, r15
@@ -494,23 +516,26 @@ biSub:
 ; rdi - pointer on bigint
 ; return -1 if rdi < 0, 1 if rdi > 0 and 0 if rdi == 0
 biSign:
-    check_null
+    cmp rdi, 0
+    jne .bigint_is_not_null
+    ret ; if given in some function bigint is NULL then finish program. Otherwise, do nothing
+.bigint_is_not_null
     push_registers
-    mov r14, qword [rdi + bigint.size]
+    mov r14, qword [rdi + size]
     cmp r14, 1 ; if size of bigint is 1 then bigint can be zero (or maybe not, need to think about it)
     je .maybe_return_zero
-    mov bl, byte [rdi + bigint.sign]
+    mov bl, byte [rdi + sign]
     cmp bl, 1
     je .return_minus_one
     mov rax, 1
     pop_registers
 
 .maybe_return_zero:
-    mov r14, qword [rdi + bigint.data]
+    mov r14, qword [rdi + data]
     mov rax, [r14]
     cmp rax, 0
     je .return_zero
-    mov bl, byte [rdi + bigint.sign]
+    mov bl, byte [rdi + sign]
     cmp bl, 1
     je .return_minus_one
     mov rax, 1
@@ -544,13 +569,13 @@ biCmp:
     je .return_zero ; first ans second bigint are 0
     cmp r14, -1
     je .sign_is_minus
-    mov r11, [rdi + bigint.size]
-    mov r10, [rsi + bigint.size]
+    mov r11, [rdi + size]
+    mov r10, [rsi + size]
     cmp r11, r10
     ja .return_positive ; size of first bigint > size of second bigint and sign is '+' => return 1
     jb .return_negative ; size of first bigint < size of second bigint and sign is '+' => return -1    
-    mov r10, [rdi + bigint.data]
-    mov r9, [rsi + bigint.data]
+    mov r10, [rdi + data]
+    mov r9, [rsi + data]
     lea r10, [r10 + 8 * r11 - 8] ; most significant qword of rdi is in r10 now
     lea r9, [r9 + 8 * r11 - 8] ; most significant qword of rsi is in r9 now
     .loop_positive:
@@ -578,13 +603,13 @@ biCmp:
     pop_registers    
 
 .sign_is_minus:
-    mov r11, [rdi + bigint.size]
-    mov r10, [rdi + bigint.size]
+    mov r11, [rdi + size]
+    mov r10, [rdi + size]
     cmp r11, r10
     jg .return_negative ; size of first bigint > size of second bigint and sign is '-' => return -1
     jl .return_positive ; size of first bigint < size of second bigint and sign is '-' => return 1   
-    mov r10, [rdi + bigint.data]
-    mov r9, [rsi + bigint.data]
+    mov r10, [rdi + data]
+    mov r9, [rsi + data]
     lea r10, [r10 + 8 * r11 - 8] ; most significant qword of rdi is in r10 now
     lea r9, [r9 + 8 * r11 - 8] ; most significant qword of rsi is in r9 now
     .loop:
@@ -604,19 +629,26 @@ biCmp:
 ; After the execution bigint in rsi remains the same and bigint in rdi is multiplication of two bigints
 biMul:
     push_registers
-    mov al, byte [rdi + bigint.sign]
-    mov bl, byte [rsi + bigint.sign]
+    mov al, byte [rdi + sign]
+    mov bl, byte [rsi + sign]
     cmp al, bl
     je .set_plus_sign ; if signs are equal then rax sign is '+', else rax sign is '-'
-    mov byte [rdi + bigint.sign], 1
+    mov byte [rdi + sign], 1
     .after_setting_sign:
-        mov r15, qword [rdi + bigint.size]
-        push r15 ; save size of rdi to stack, because this size can be changed by expand_vector, but this size is interesting for the function
-        mov r14, qword [rsi + bigint.size]
+        mov r15, qword [rdi + size]
+        push r15 ; save size of rdi to stack, because this size can be changed by extend_vector, but this size is interesting for the function
+        mov r14, qword [rsi + size]
         add r15, r14 ; size of rax <= size of rdi + size of rsi
         push rsi ; save value of rsi to stack, because some next opertions needs another rsi
         mov rsi, r15
-        check_to_expand
+        
+        ;check if we should extend vector
+        mov r13, [rdi + capacity]
+        cmp r13, rsi
+        jge .not_extend ; we don't need to extend if capacity >= size
+        call extend_vector
+    .not_extend:
+        
         mov r13, rdi ; save value of rdi, because i want to call function biFromInt with diffetent rdi
         mov rdi, 0
         call biFromInt
@@ -625,15 +657,22 @@ biMul:
         push rdi
         mov rdi, r13
         mov rsi, r15
-        check_to_expand
+        
+        ;check to extend again
+        mov r12, [rdi + capacity]
+        cmp r12, rsi
+        jge .not_extend2 ; we don't need to extend if capacity >= size
+        call extend_vector
+    .not_extend2:
+        
         pop rdi ; restore value of rdi and rsi
         pop rsi
         pop r15 ; restore size of rdi
-        mov r14, [rsi + bigint.size] ; size of rsi is in r14 now
+        mov r14, [rsi + size] ; size of rsi is in r14 now
         xor r12, r12 ; i
-        mov r10, [r13 + bigint.data]
-        mov r9, [rdi + bigint.data]
-        mov r8, [rsi + bigint.data]
+        mov r10, [r13 + data]
+        mov r9, [rdi + data]
+        mov r8, [rsi + data]
         push rsi ; save value of rsi to stack, because i want to use rsi in cycle
         push r13 ; save value of bigint3 to stack, because i want to use r13 in cycle
         .first_for:
@@ -673,7 +712,7 @@ biMul:
 
         pop r13 ; restore pointer on bigint3
         pop rsi ; restore value of rsi
-        mov r14, [r13 + bigint.capacity] ; register to get real size of bigint3
+        mov r14, [r13 + capacity] ; register to get real size of bigint3
         lea r10, [r10 + r14 * 8 - 8]
         .get_real_size:
             cmp qword [r10], 0
@@ -683,12 +722,12 @@ biMul:
             jmp .get_real_size
 
         .got_size:  
-            mov [rdi + bigint.size], r14 ; set real size to size of rdi
+            mov [rdi + size], r14 ; set real size to size of rdi
             push rdi
             push rsi ; save values of rdi and rsi, because i want to use memcpy which requiers rdi and rsi
             mov r15, rsp
-            mov rdi, [rdi + bigint.data]
-            mov rsi, [r13 + bigint.data]
+            mov rdi, [rdi + data]
+            mov rsi, [r13 + data]
             lea rdx, [r14 * 8]
             call memcpy ; copy raxed bigint to rdi
             mov rsp, r15
@@ -705,15 +744,15 @@ biMul:
     jmp .second_for
 
 .set_plus_sign:
-    mov byte [rdi + bigint.sign], 0
+    mov byte [rdi + sign], 0
     jmp .after_setting_sign
 
 ; rdi - pointer on bigint
 ; rsi - long long (it's positive because i use it in my code like positive)
 biDivInt:   
     push_registers
-    mov r14, [rdi + bigint.size]
-    mov r10, [rdi + bigint.data]
+    mov r14, [rdi + size]
+    mov r10, [rdi + data]
     lea r10, [r10 + 8 * r14 - 8] ; most significant qword is in r10 now
     xor rdx, rdx
     xor r13, r13
@@ -725,9 +764,9 @@ biDivInt:
         je .maybe_decrease_size ; need to decrease size if and only if rax == 0 and it's first iteration of cycle
         jmp .after_decrease
         .decrease_size:
-            cmp qword [rdi + bigint.size], 1 ; i don't want decrement size if it's 1, because i don't want to have size of bigint 0, because of some collisions
+            cmp qword [rdi + size], 1 ; i don't want decrement size if it's 1, because i don't want to have size of bigint 0, because of some collisions
             je .after_decrease
-            dec qword [rdi + bigint.size]
+            dec qword [rdi + size]
         .after_decrease:
             inc r13
             sub r10, 8
@@ -745,11 +784,14 @@ biDivInt:
 ; rsi - pointer on buffer
 ; rdx - limit of symbols, we mustn't write to buffer more symbols than limit
 biToString:
-    check_null ; if pointer on bigint is null then i mustn't do something
+    cmp rdi, 0
+    jne .bigint_is_not_null
+    ret ; if given in some function bigint is NULL then finish program. Otherwise, do nothing
+.bigint_is_not_null ; if pointer on bigint is null then i mustn't do something
     push_registers
     call biSign
     cmp rax, 0
-    je .sign_not_interesting ; if bigint is zero then it can be "-0" and "+0", i must print "0"
+    je .sign_not_interesting ; if zero then ignore sign
     mov r8, rdi ; i need to save rdi and work with it's copy because function changes bigint
     mov r13, rsi ; i need to save pointer on buffer because function boCopy changes it
     mov r12, rdx ; i need to save it because in biCopy i call memcpy
@@ -759,7 +801,7 @@ biToString:
     mov rdx, r12 ; restore limit
     cmp rdx, 1 
     je .finish_write_to_string ; if we must print only 0
-    mov cl, byte [rdi + bigint.sign]
+    mov cl, byte [rdi + sign]
     cmp cl, 1
     je .write_minus
     jmp .after_sign
