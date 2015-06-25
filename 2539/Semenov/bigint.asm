@@ -25,7 +25,7 @@ global biSign           ;; DONE
 
 global biDivRem         ;; TODO
 
-global biToString       ;; TODO
+global biToString       ;; DONE
 
 ; private biAllocate        ;; DONE
 ; private biMove            ;; DONE
@@ -905,7 +905,7 @@ biCmp:
 biSign:     
             mov r8, [rdi + DATA] ; R8 = x->data
             mov r9, [rdi + SIZE] ; R9 = x->size
-            mov r10, [r8 + r9 - 1] ; R9 = x->data[size - 1]
+            mov r10, [r8 + 8 * r9 - 8] ; R9 = x->data[size - 1]
             cmp r10, 0
             jg .positive
             jl .negative
@@ -933,10 +933,110 @@ biDivRem:   ret
 ; if lenghtOf(x) >= limit - 1 result is undefined 
 ; (but without access to invalid memory)
 biToString:
+            push rbp
+            mov rbp, rsp
+
             push rsi
             push rdx
+            push rdi
+
+            cmp rdx, 2
+            jb .fail ; nowhere to write
+
+            call biSign
+            test rax, rax
+            jne .non_zero
+            ; else return "0" immideately
+            mov rsi, [rsp + 16]
+            mov [rsi], word '0'
+            mov [rsi + 1], word 0
+            jmp .fail ; just return
+
+          .non_zero:
+            push rax ; memorize sign
+
+            mov rdi, [rsp + 8] ; in RDI x
             call biClone
-ret
+            test rax, rax ; in RAX copy of x
+            je .fail
+
+            pop r8 ; R8 - sign
+;            mov rdi, [rsp] ; in RDI x
+            mov rdi, rax ; in RDI cloned x
+            mov r11, [rsp + 8] ; in R11 capacity of given string
+            mov rsi, [rsp + 16] ; pointer to string
+            cmp r8, 0
+            jg .to_string_positive
+
+            push rax 
+            mov rdi, rax
+            call biNegate
+            pop rdi ; cloned BigInt
+            pop r11 ; skip x
+            pop r11 ; R11 - limit (capacity of given string)
+            pop rsi ; pointer to string
+            
+            ; store '-'
+            mov [rsi], word '-'
+            inc rsi
+            dec r11
+
+          .to_string_positive: ; now RDI refer to positive BigInt
+            mov r8, [rdi + DATA]
+            mov r9, [rdi + SIZE]
+            mov r10, 10
+            xor rcx, rcx 
+          .write_loop:
+
+          ; div by short here
+            push r9
+            xor rdx, rdx ; carry
+
+          .div_loop:
+            dec r9
+            mov rax, [r8 + 8 * r9]
+            div r10 ; RDX:RAX / R10 (=10), quotient in RAX, remainder in RDX
+            mov [r8 + 8 * r9], rax
+            test r9, r9
+            jne .div_loop
+
+            pop r9
+            mov rax, [r8 + 8 * r9 - 8]
+            test rax, rax
+            jne .end_division
+            dec r9 
+          .end_division:
+            add dl, '0' ; current digit in RDX (DL)
+            mov [rsi + rcx], dl
+            inc rcx
+            cmp rcx, r11 ; ensure if string has enough capacity
+            je .small_limit
+            test r9, r9
+            jne .write_loop
+
+            ; now reverse string
+            xor r8, r8
+            mov r9, rcx
+            dec r9
+          .reverse_string:
+            cmp r8, r9
+            jae .return
+            mov dl, [rsi + r8]
+            mov al, [rsi + r9]
+            mov [rsi + r8], al
+            mov [rsi + r9], dl
+            inc r8
+            dec r9
+            jmp .reverse_string
+            
+          .return:
+            mov [rsi + rcx], word 0
+          .small_limit
+            call biDelete ; delete tmp BigInt
+          .fail:
+            mov rsp, rbp
+            pop rbp
+            ret
 
 biTrim:     ret
 
@@ -1022,12 +1122,12 @@ biClone:
             push rdi
             mov rdi, [rdi + SIZE]
             call biAllocate
-            test rax, rax
             pop rdi
+            test rax, rax
             jne .clone 
             ret ; allocation failed
 
-          .clone
+          .clone:
             mov rcx, [rdi + SIZE]
             mov [rax + SIZE], rcx
             mov r8, [rdi + DATA]

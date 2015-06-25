@@ -11,6 +11,37 @@
 
 std::mt19937_64 rng;
 
+void test_to_string(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biToString testing (%d iterations)\n", iterations);
+  static const int max_length = 100 * 1000;
+  static char src[max_length];
+  static char dst[max_length];
+  for (int i = 0; i < iterations; ++i) {
+    size_t ptr = 0;
+    if (rng() % 2) {
+      src[ptr++] = '-';
+    }
+    int digits = (rng() % (max_length - 2)) + 1;
+    for (int j = 0; j < digits; ++j) {
+      src[ptr++] = '0' + (rng() % 10);
+      while (j == 0 && src[ptr - 1] == '0') src[ptr - 1] = '0' + (rng() % 10);
+    }
+    src[ptr] = 0;
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromString(src);
+    biToString(foo, dst, max_length);
+    ptr = 0;
+    while (true) {
+      if (src[ptr] != dst[ptr]) {
+        DEBUG("Fail on:\n%s\n%s\n", src, dst);
+      }
+      assert (src[ptr] == dst[ptr]);
+      if (src[ptr] == 0) break;
+      ++ptr;
+    }
+    DEBUG("%d ok\n", (int) i);
+  }
+}
+
 void test_constructor_and_destructor(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("Constructor and destructor testing (%d iterations)\n", iterations); 
   for (int i = 0; i < iterations; ++i) {
@@ -21,6 +52,34 @@ void test_constructor_and_destructor(const int iterations = 1, bool verbose = fa
     assert (foo->data[0] == val);
     biDelete(foo);
   }
+}
+
+void test_string_constructor(const char *string) {
+  BigIntRepresentation *num = (BigIntRepresentation *) biFromInt(0);
+  BigIntRepresentation *ten = (BigIntRepresentation *) biFromInt(10);
+  size_t i = 0;
+  bool negative = false;
+  if (string[i] == '-') {
+    negative = true;
+    ++i;
+  }
+  while (string[i] != 0) {
+    assert ('0' <= string[i] && string[i] <= '9');
+    int digit = string[i] - '0';
+    BigIntRepresentation *dig = (BigIntRepresentation *) biFromInt(digit);
+    biMul(num, ten);
+    assert (ten->size == 1 && ten->data[0] == 10);
+    biAdd(num, dig);
+    biDelete(dig);
+    ++i;
+  }
+  if (negative) biNegate(num);
+  BigIntRepresentation *result = (BigIntRepresentation *) biFromString(string);
+  assert (result != nullptr);
+  assert (biCmp(result, num) == 0);
+  biDelete(result);
+  biDelete(num);
+  biDelete(ten);
 }
 
 void test_string_constructor(const int iterations = 1, const size_t length = 100, bool verbose = false) {
@@ -35,31 +94,7 @@ void test_string_constructor(const int iterations = 1, const size_t length = 100
       string[i] = (char) (rng() % 10 + '0'); 
     }
     string[length] = 0;
-    BigIntRepresentation *num = (BigIntRepresentation *) biFromInt(0);
-    BigIntRepresentation *ten = (BigIntRepresentation *) biFromInt(10);
-    i = 0;
-    bool negative = false;
-    if (string[i] == '-') {
-      negative = true;
-      ++i;
-    }
-    while (string[i] != 0) {
-      assert ('0' <= string[i] && string[i] <= '9');
-      int digit = string[i] - '0';
-      BigIntRepresentation *dig = (BigIntRepresentation *) biFromInt(digit);
-      biMul(num, ten);
-      assert (ten->size == 1 && ten->data[0] == 10);
-      biAdd(num, dig);
-      biDelete(dig);
-      ++i;
-    }
-    if (negative) biNegate(num);
-    BigIntRepresentation *result = (BigIntRepresentation *) biFromString(string);
-    assert (result != nullptr);
-    assert (biCmp(result, num) == 0);
-    biDelete(result);
-    biDelete(num);
-    biDelete(ten);
+    test_string_constructor(string);
     delete[] string;
   }
 }
@@ -338,6 +373,7 @@ void test_mul_large(const int iterations = 1, const int multipliers = 100, bool 
 }
 
 int main() {
+  test_to_string(100, true);
   test_inc_case(-4858338985614885836);
   test_constructor_and_destructor(100, true);
   test_string_constructor(100, 4000, true);
