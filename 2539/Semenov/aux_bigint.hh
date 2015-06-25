@@ -11,6 +11,9 @@ extern "C" {
 #endif
 
 void biMulBy2(BigInt x);
+void biShl(BigInt x, size_t shift);
+void biShr(BigInt x, size_t shift);
+void biSetBit(BigInt x, size_t shift);
 void biNot(BigInt x);
 void biInc(BigInt x);
 void biNegate(BigInt x);

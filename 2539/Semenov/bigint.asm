@@ -14,6 +14,9 @@ global biFromString     ;; DONE
 global biDelete         ;; DONE
 
 global biMulBy2         ;; DONE 
+global biShl            ;; TODO
+global biShr            ;; TODO
+global biSetBit         ;; DONE
 global biNot            ;; DONE
 global biInc            ;; DONE
 global biNegate         ;; DONE
@@ -557,6 +560,79 @@ biAdd:
             call biNormalize ; normalize dst
             ret
 
+; void biShl(BigInt x, size_t shift)
+; multiplies x by 2^shift
+biShl: ret
+
+
+; void biShr(BigInt x, size_t shift) 
+; divides x by 2^shift
+biShr: ret
+
+
+; void biSetBit(BitInt x, size_t bit)
+; x in RDI
+; bit in RSI
+; x |= 2^bit
+biSetBit: 
+            xor rdx, rdx
+            mov rax, rsi
+            mov r8, 64
+            div r8
+            push rax ; bit / 64
+            push rdx ; bit % 64
+            push rdi ; memorize x
+            call biSign
+            pop rdi
+            cmp rax, 0
+            jb .negative
+            ; non-negative
+            mov r8, [rsp + 8] ; needed size (bit / 64)
+            cmp qword [rsp], 63 ; bit % 64 vs 63
+            jb .actual_size
+            inc r8 
+          .actual_size:
+            push rdi
+            push r8 ; memorize needed size
+            mov rsi, r8
+            inc rsi
+            call biEnsureCapacity
+            pop r8 ; R8 = needed size
+            pop rdi ; RDI = x
+            mov rcx, [rdi + SIZE]
+            mov r9, [rdi + DATA]
+
+            cmp rcx, r8
+            ja .ensured
+
+        .fill_loop: ;; TODO: replace with SIMD
+            mov qword [r9 + 8 * rcx], 0
+            inc rcx
+            cmp rcx, r8
+            jbe .fill_loop
+            mov [rdi + SIZE], rcx
+
+            jmp .ensured
+
+        .negative:
+            mov r8, [rdi + SIZE]
+            cmp r8, [rsp + 8] ; x->size vs bit / 64
+            jbe .ensured
+            ; x->size < bit / 64, so return immediately, 
+            ; cause x->getBit(bit) = 1 for negative x
+            jmp .return 
+
+        .ensured:
+            pop rax ; bit % 64
+            pop r11 ; bit / 64
+            mov cl, al
+            mov r10, 1
+            sal r10, cl ;r10
+            mov r8, [rdi + DATA]
+            or [r8 + 8 * r11], r10
+        .return:
+            ret
+
 
 ; void biNot(BigInt x);
 ; x = ~x
@@ -999,7 +1075,12 @@ biDivRemPositive:
             je %%ret
             bsr rax, r10 ; bit scan reverse - found most significan bit of R10
           %%ret:
-            lea rax, [rax + r8 * 64 - 64]
+            push rax
+            mov rax, 64
+            mul r8
+            sub rax, 64
+            add rax, [rsp] ; RAX = 64 * x->size - 64 + highestOneBit of MSC
+            add rsp, 8 
             pop rdx
             pop r10
             pop r9
@@ -1016,8 +1097,23 @@ biDivRemPositive:
             mov rdi, r14
             mov rsi, r15
             call biSwap
+            jmp .return
 
             .main_part:
+            highestOneBit r14
+            mov r8, rax
+            highestOneBit r15
+            sub r8, rax
+            push rax
+            push r8
+            mov rdi, r15
+            mov rsi, r8
+            call biShl
+            mov rdi, r14
+            mov rsi, r15
+            call biCmp
+            cmp rax, 0
+            
 
         .return:
             mov rsp, rbp

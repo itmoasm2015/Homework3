@@ -11,6 +11,37 @@
 
 std::mt19937_64 rng;
 
+void test_set_bit(const int iterations = 1, bool verbose = false) {
+  if (verbose) DEBUG("biSetBit testing (%d iterations)\n", iterations);
+  const int max_bit = 256; // 10 * 1000;
+  const int ops = 1000;
+  for (int it = 0; it < iterations; ++it) {
+    BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(0);
+    size_t size = 1;
+    for (int i = 0; i < ops; ++i) {
+      size_t bit;
+      if (rng() % 3) {
+        bit = ((rng() % max_bit) + max_bit) % max_bit;
+      } else {
+        bit = (((rng() % (max_bit / 64)) + max_bit / 64) % (max_bit / 64)) * 64 + 63;
+      }
+      size_t block = bit / 64;
+      size_t idx = bit % 64;
+      size_t cur_size = 1 + block;
+      if (idx == 63) {
+        ++cur_size;
+      }
+      size = std::max(size, cur_size);
+      biSetBit(foo, bit);
+//      DEBUG("after setting %dht bit on %dth iteration: size is %d-%d\n", (int) bit, i, (int) size, (int) foo->size);
+//      dump(foo);
+      assert (foo->size == size);
+      assert (foo->data[block] >> idx & 1);
+    }
+    biDelete(foo);
+  }
+}
+
 void test_to_string(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("biToString testing (%d iterations)\n", iterations);
   static const int max_length = 10 * 1000 + 10;
@@ -28,13 +59,13 @@ void test_to_string(const int iterations = 1, bool verbose = false) {
       while (j == 0 && src[ptr - 1] == '0') src[ptr - 1] = '0' + (rng() % 10);
     }
     src[ptr] = 0;
-    auto start_constructing = std::chrono::system_clock::now();
+//    auto start_constructing = std::chrono::system_clock::now();
     BigIntRepresentation *foo = (BigIntRepresentation *) biFromString(src);
-    auto finish_constructing = std::chrono::system_clock::now();
-    auto start_printing = std::chrono::system_clock::now();
+//    auto finish_constructing = std::chrono::system_clock::now();
+//    auto start_printing = std::chrono::system_clock::now();
     biToString(foo, dst, max_length);
-    auto finish_printing = std::chrono::system_clock::now();
-    DEBUG("constructing: %.3fs, printing: %.3fs\n", std::chrono::duration<double>(finish_constructing - start_constructing).count(), std::chrono::duration<double>(finish_printing - start_printing).count());
+//    auto finish_printing = std::chrono::system_clock::now();
+//    DEBUG("constructing: %.3fs, printing: %.3fs\n", std::chrono::duration<double>(finish_constructing - start_constructing).count(), std::chrono::duration<double>(finish_printing - start_printing).count());
     ptr = 0;
     while (true) {
       if (src[ptr] != dst[ptr]) {
@@ -44,7 +75,7 @@ void test_to_string(const int iterations = 1, bool verbose = false) {
       if (src[ptr] == 0) break;
       ++ptr;
     }
-    DEBUG("%d ok\n", (int) i);
+//    DEBUG("%d ok\n", (int) i);
   }
 }
 
@@ -379,6 +410,7 @@ void test_mul_large(const int iterations = 1, const int multipliers = 100, bool 
 }
 
 int main() {
+  test_set_bit(100, true);
   test_to_string(100, true);
   test_inc_case(-4858338985614885836);
   test_constructor_and_destructor(100, true);

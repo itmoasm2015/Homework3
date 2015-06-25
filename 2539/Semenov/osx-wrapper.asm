@@ -16,6 +16,12 @@ global _biDelete
 
 extern biMulBy2
 global _biMulBy2
+extern biShl
+global _biShl
+extern biShr
+global _biShr
+extern biSetBit
+global _biSetBit
 extern biNot
 global _biNot
 extern biInc
@@ -51,6 +57,9 @@ _biFromString:  jmp biFromString
 _biDelete:      jmp biDelete
 
 _biMulBy2:      jmp biMulBy2
+_biShl:         jmp biShl
+_biShr:         jmp biShr
+_biSetBit:      jmp biSetBit
 _biNot:         jmp biNot
 _biInc:         jmp biInc
 _biNegate:      jmp biNegate
