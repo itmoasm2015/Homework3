@@ -193,7 +193,8 @@ int test_mul() {
         biDelete(b1);
         biDelete(b2);
     }
-    //printf("time, GMP: %lld\ntime, mine : %lld\n", allGmp, allMine);
+    //printf("Time, GMP: %lld\nTime, Mine: %lld\n", allGmp, allMine);
+    //printf("%lld\n%lld\n", allGmp, allMine);
     printf("Verdict: OK\n");
     return 1;
 }
@@ -236,7 +237,7 @@ int test_divide() {
             cout << "First: " << var << "\n" << "Second: " << var2 << "\n";
             printf("test: %d failure \nMy: %s\nGM: %s\n", lp + 1, str, var3.str().c_str());
             biToString(remainder, str, str_size);
-            var3 = var%var2;
+            var3 = var % var2;
             printf("GMP Remainder: %s\nRemainder: %s\n", var3.str().c_str(), str);
             return 0;
         }
@@ -249,12 +250,13 @@ int test_divide() {
 
 int main() {
     srand(time(NULL));
-    int res = test_str();
-    res += test_cmp();
-    res += test_add(true);
-    res += test_add(false);
-    res += test_mul();
-    res += test_divide();
-    printf("====== ALL: %s\n", res == 6 ? "OK" : "FAILURE");
+    int res = 0, expected = 0;
+    res += test_str(), expected += 1;
+    res += test_cmp(), expected += 1;
+    res += test_add(true), expected += 1;
+    res += test_add(false), expected += 1;
+    res += test_mul(), expected += 1;
+    res += test_divide(), expected += 1;
+    printf("====== ALL: %s\n", res == expected ? "OK" : "FAILURE");
     return 0;
 }
