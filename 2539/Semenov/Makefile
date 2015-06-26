@@ -21,7 +21,7 @@ endif
 
 .PHONY: all
 
-all: testit libhw.a
+all: libhw.a
 
 testit: test
 	./test
