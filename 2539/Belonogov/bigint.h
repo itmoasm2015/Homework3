@@ -47,8 +47,8 @@ void biMul(BigInt dst, BigInt src);
  *  \param remainder must be in range [0, denominator) if denominator > 0
  *                                and (denominator, 0] if denominator < 0.
  */
-//void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
-BigInt biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+//BigInt biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
 
 /** Compare two BigInts.
  * \returns sign(a - b)

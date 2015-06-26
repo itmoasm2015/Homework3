@@ -1,6 +1,5 @@
 #include <bits/stdc++.h>
 #include "bigint.h"
-#include <gmpxx.h>
 
 const size_t MAX_SIZE = 100000;
 const size_t INF = 1e9; 
@@ -273,6 +272,31 @@ void testBiAdd() {
 	biDelete(a);
 	biDelete(b);
 	
+	a = biFromString("-39");
+	b = biFromString("100");
+	biAdd(a, b);
+	biToString(a, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+
+	a = biFromInt(0xffffffffLL);
+	b = biFromInt(0xffffffffLL);
+	BigInt c = biFromInt(0xffffffffLL + 0xffffffffLL);
+	biAdd(a, b);
+	assert(biCmp(a, c) == 0);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+
+	a = biFromString("-1");
+	b = biFromString("10398210398302183098210921830938100");
+	biAdd(a, b);
+	biToString(a, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	
 	printf("All tests passed!\n");
 	printf("============================\n");			
 }
@@ -326,6 +350,9 @@ void testBiSub() {
 	
 	a = biFromString("1");
 	b = biFromString("-2");
+	biSub(a, b);
+	biSub(a, b);
+	biSub(a, b);
 	biSub(a, b);
 	biToString(a, out, 100);
 	printf("%s\n", out);
@@ -467,6 +494,215 @@ void testBiMul() {
 	printf("=============================\n");
 }
 
+void testBiDivRem() {
+	printf("=============================\n");
+	printf("Running testBiDivRem\n");
+	BigInt c = biFromInt(0), d = biFromInt(0);
+	BigInt a, b;
+	
+	a = biFromInt(0);
+	b = biFromInt(3);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);	
+	biToString(c, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+
+	a = biFromInt(3);
+	b = biFromInt(0);
+	biDivRem(&c, &d, a, b);
+	assert(c == 0 && d == 0);
+	
+	a = biFromString("10");
+	b = biFromString("5");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);	
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+	
+	a = biFromString("239");
+	b = biFromString("100");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+
+	a = biFromString("-239");
+	b = biFromString("100");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);	
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+	
+	a = biFromString("239");
+	b = biFromString("-100");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+
+	a = biFromString("-239");
+	b = biFromString("-100");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+	
+	a = biFromInt(28226LL * 86468 + 8597);
+	b = biFromInt(86468);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+	
+	a = biFromString("6703903964971298549787012499102923063739682910296196688861780721860882015023660034294811089951732299792782023528860199663493147528504713584320662571322642");
+	b = biFromString("57896044618658097711785492504343953926634992332820282019728792003956564819949");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+
+	a = biFromString("-6703903964971298549787012499102923063739682910296196688861780721860882015023660034294811089951732299792782023528860199663493147528504713584320662571322642");
+	b = biFromString("57896044618658097711785492504343953926634992332820282019728792003956564819949");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+
+	a = biFromString("6703903964971298549787012499102923063739682910296196688861780721860882015023660034294811089951732299792782023528860199663493147528504713584320662571322642");
+	b = biFromString("-57896044618658097711785492504343953926634992332820282019728792003956564819949");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+	
+	a = biFromString("-6703903964971298549787012499102923063739682910296196688861780721860882015023660034294811089951732299792782023528860199663493147528504713584320662571322642");
+	b = biFromString("-57896044618658097711785492504343953926634992332820282019728792003956564819949");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+	
+	a = biFromString("0821037982171293873982173973219837213982173982798372197213982173982173987219837213987392183721398217398217398217398127398217392187321983721973982173921873921837982173982173982173219837982173982173982137219837219837938217398372198739821739821372198372198372193872398217392173982137921837129837219837198372193872198372198321739821739812739821739999999999999999999999999999999999999999999");
+	b = biFromString("1");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	b = biFromString("-1");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+
+	a = biFromString("-0821037982171293873982173973219837213982173982798372197213982173982173987219837213987392183721398217398217398217398127398217392187321983721973982173921873921837982173982173982173219837982173982173982137219837219837938217398372198739821739821372198372198372193872398217392173982137921837129837219837198372193872198372198321739821739812739821739999999999999999999999999999999999999999999");
+	b = biFromString("1");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	b = biFromString("-1");
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biDivRem(&c, &d, a, b);
+	biToString(c, out, INF);
+	printf("%s ", out);
+	biToString(d, out, INF);
+	printf("%s\n", out);
+	biDelete(a);
+	biDelete(b);
+	biDelete(c);
+	biDelete(d);
+
+	printf("All tests passed!\n");
+	printf("=============================\n");
+}
+
 int main() {
     srand(239017);
 	testBiFromInt();
@@ -477,5 +713,6 @@ int main() {
 	testBiAdd();    
 	testBiSub();
 	testBiMul();
+	testBiDivRem();
 }
 

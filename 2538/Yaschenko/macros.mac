@@ -1,6 +1,30 @@
 %ifndef MACROS_MAC
 %define MACROS_MAC
 
+extern calloc
+extern free
+extern strlen
+extern memcpy
+
+;; Wraped external functions with aligned to 16 stack.
+%macro aligned 1
+__ %+ %1:
+	test		rsp, 15
+	jz		.aligned_ %+ %1
+	push		rdi
+	call		%1
+	pop		rdi
+	ret
+.aligned_ %+ %1
+	call		%1
+	ret
+%endmacro
+
+aligned calloc
+aligned free
+aligned strlen
+aligned memcpy
+
 ;; Round up to the next highest power of 2 (32bit numbers).
 ;; See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 %macro round_next_2_power 1
@@ -111,10 +135,14 @@
 	call	vectorSet
 %endmacro
 
+%macro vector_copy 1
+	mov	rdi, %1
+	call	vectorCopy
+%endmacro
+
 %macro bigint_set_sign 2
 	mov	%1, %2
 %endmacro
-
 
 %macro bigint_new 1
 	mov	rdi, %1
@@ -124,6 +152,12 @@
 %macro bigint_delete 1
 	mov	rdi, %1
 	call	biDelete
+%endmacro
+
+%macro bigint_add_digits 2
+	mov	rdi, %1
+	mov	rsi, %2
+	call _biAddDigits
 %endmacro
 
 

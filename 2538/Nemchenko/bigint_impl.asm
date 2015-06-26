@@ -1,13 +1,9 @@
 ; calee-save RBX, RBP, R12-R15, DF = 0
 ; rdi , rsi ,
 ; rdx , rcx , r8 ,
-; r9 , zmm0 - 7 default rel
+; r9 , zmm0 - 7 
 
-global mul_short
-global add_short
-global div_short
-;
-
+default rel
 global biFromInt
 global biFromString
 global biToString
@@ -18,9 +14,6 @@ global biSub
 global biMul
 global biDivRem
 global biCmp
-;global main
-;main:
-    ;ret
 
 ; call_fun_2(f::x->y->z, x, y)::z
 ; %1 - name of function
@@ -55,34 +48,59 @@ global biCmp
     .abs_end_%2
 %endmacro
 
-%macro check_bigInt_zero 1
-    push rsi
-    push rax
-
-    mov rax, [%1 + SIZE_FIELD]       ; rax = %1->size
-    cmp rax, 1                       ; if (%1->size == 1) {
-    jg .end_check_bigInt             ;   rsi = %1->data[0]
-    mov rsi, [%1 + DATA_FIELD]       ;   if (rsi == 0) {
-    cmp qword [rsi], 0               ;     %1->sign = 0
-    jne .end_check_bigInt            ;   }
-    mov qword [%1 + SIGN_FIELD], 0   ; }
-
-    .end_check_bigInt:
-    pop rax
-    pop rsi
+; call fun <- %1 with stack 16 byte alligned 
+%macro call_fun_with_stack_aligned 1
+    push r15
+    mov r15, rsp
+    and rsp, -16   
+    call %1
+    mov rsp, r15
+    pop r15
 %endmacro
-extern calloc, free, strlen
+
+; call free with stack 16 byte alligned 
+%macro mycalloc 0
+    push rdi
+    push rsi
+    call_fun_with_stack_aligned calloc
+    pop rsi
+    pop rdi
+%endmacro
+
+; call free with stack 16 byte alligned 
+%macro myfree 0
+    push rdi
+    push rsi
+    call_fun_with_stack_aligned free
+    pop rsi
+    pop rdi
+%endmacro
+
+; call_fun_2(f::x->y->z, x, y)::z
+; %1 - name of function
+; %2 - first argument
+; %3 - second argument
+%macro call_fun_2_aligned 3
+    push rdi
+    push rsi
+
+    mov  rdi, %2
+    mov  rsi, %3
+    call_fun_with_stack_aligned %1
+
+    pop  rsi
+    pop  rdi
+%endmacro
+
+extern calloc, free
 
 BASE         equ 1 << 64
-MIN_LL       equ 1 << 63
 DEFAULT_SIZE equ 1
 SIZE_FIELD   equ 8
 SIGN_FIELD   equ 16
 DATA_FIELD   equ 24
 SIZEOF_FLD   equ 8
-
-section .bss
-   ;minus: resb 1 
+INPUT_BASE   equ 10
 
 ;
 ; stored bigNumber like this:
@@ -93,7 +111,7 @@ section .bss
 ;   unsigned long long *data   
 ; }
 ;  
-; forall i < capacity: data[i] < BASE
+; forall i < size: data[i] < BASE
 ; sign = 1 | 0 | -1 , more than 0, equal and less respectively
 
 section .text
@@ -161,13 +179,81 @@ biFromString:
         ret
 
     .end:
-    check_bigInt_zero rdi
+
+    push rax
+    call clear_leader_zero
+    pop rax
     mov rax, rdi
     ret
 
 ; void biToString(BigInt bi, char *buffer, size_t limit);
+;   rdi = bi
+;   rsi = buffer
+;   rdx = limit
 biToString:
-     
+    cmp rdx, 1                                       ; if (limit == 1) {
+    jne .limit_greater_1                             ;   buffer[0] = 0;
+    mov byte [rsi], 0                                ;   return;
+    ret                                              ; }
+
+    .limit_greater_1
+    push r12
+    push r13
+
+    mov r12, rdx                                     ; r12 = limit
+    dec r12                                          ; limit--; for save 0 
+    cmp qword [rdi + SIGN_FIELD], 0
+    jge .next                                        ; if (bi < 0) {
+    mov byte [rsi], '-'                              ;   buffer[0] = '-'
+    inc rsi                                          ;   buffer++
+    sub r12, 1                                       ;   limit--
+    jne .next                                        ;   if (limit == 0) {
+    mov byte [rsi], 0                                ;     *buffer = 0
+    ret                                              ;     return
+                                                     ; }
+    .next:                                           
+    call_fun_2 createBigInt, [rdi], rsi              ; rax = new BigInt();
+    xchg rdi, rax
+    call_fun_2 copy_BigInt, rdi, rax                 ; deep_copy: rax = rdi
+    xor r13, r13                                     ; r13 = 0, count converted digits
+    .loop:
+        call_fun_2 div_short, rdi, INPUT_BASE        ; rax = bi % INPUT_BASE
+        add al, '0'                                  ; al = '0' + bi % INPUT_BASE
+        mov [rsi + r13], al                          ; buf[r13]  = bi % INPUT_BASE
+        inc r13                                      ; r13++
+        cmp qword [rdi + SIGN_FIELD], 0              ; if (bi == 0) break;
+        je .end_loop 
+        cmp r13, r12                                 ; if (r13 >= limit) break;
+        jl .loop
+    .end_loop
+
+    push rsi
+    call biDelete                                    ; delete copy of bi
+    pop rsi
+    mov byte [rsi + r13], 0                          ; buf[r13] = 0
+
+    ; reverse buffer
+    sub r13, 1                                       ; if count converted digits == 1 do nothing
+    jz .end_while_reverse
+    mov r12, r13
+    mov r13, rsi                                     ; r13 = buf + r12
+    add r13, r12                                     ; r13 point to last digit
+    .while_reverse
+        mov al, [rsi]                                ; ~swap(buf[i], buf[size - i - 1])
+        xchg al, [r13]                               ;
+        mov [rsi], al                                ;
+
+        inc rsi                                      ; if (fst_pointer == last_pointer || fst_pointer + 1 == last_pointer) break
+        cmp rsi, r13
+        je .end_while_reverse
+        dec r13
+        cmp rsi, r13
+        je .end_while_reverse
+        jmp .while_reverse
+    .end_while_reverse
+
+    pop r13
+    pop r12
     ret
 
 ; void biDelete(BigInt bi);
@@ -175,15 +261,15 @@ biToString:
 biDelete:
     push rdi
     mov rdi, [rdi + DATA_FIELD]
-    call free
+    myfree
     pop rdi
     ;call_fun_1 free, [rdi + DATA_FIELD] ; free(bi->data)
-    call free                           ; free(bi)
+    myfree                               ; free(bi)
     ret
 
 ; int biSign(BigInt bi);
 biSign:
-    mov rax, [rdi + SIZE_FIELD]    
+    mov rax, [rdi + SIGN_FIELD]    
     ret
 
 ; void biAdd(BigInt dst, BigInt src);
@@ -393,8 +479,178 @@ biMul:
     pop r12 
     ret
 
+; Compute quotient and remainder by divising numerator by denominator.
+; quotient * denominator + remainder = numerator
+;
+; param remainder must be in range [0, denominator) if denominator > 0
+;                               and (denominator, 0] if denominator < 0.
+; explanation: http://en.wikipedia.org/wiki/Division_algorithm#Integer_division_.28unsigned.29_with_remainder
+;
 ; void biDivRem(BigInt *quotient, BigInt *remainder, BigInt numerator, BigInt denominator);
+;   rdi = pointer to quotient
+;   rsi = pointer to remainder
+;   rdx = numerator
+;   rcx = denominator
+; result:
+;   
 biDivRem:
+    cmp qword [rcx + SIGN_FIELD], 0      ; if (denomirator == 0) {
+    jne .next                            ;   *quotient = NULL
+    mov qword [rdi], 0                   ;   *remainder = NULL
+    mov qword [rsi], 0                   ;   return
+    ret                                  ; }
+
+    .next
+    push r12 
+    push r13 
+    push r14 
+    push r15 
+
+    push qword [rdx + SIGN_FIELD]        ; save signs of numerator and denomirator
+    push qword [rcx + SIGN_FIELD]        ; numerator = abs(numerator)
+    push rcx
+    push rdx
+
+    abs [rdx + SIGN_FIELD], 1            ; denominator = abs(denominator)
+    abs [rcx + SIGN_FIELD], 2
+
+    mov r14, [rdx + SIZE_FIELD]          ; r14 = numerator->size
+    mov r15, rcx                         ; r15 = denominator
+
+    push rdx
+    call_fun_1 createBigInt, r14         ; rax = new bigInt with capacity == denominator->capacity
+
+    mov [rdi], rax                       ; *quotient = rax
+    mov qword [rax + SIZE_FIELD], r14    ; quotient = 0; quotient->size = numerator->size; fixing size at the end
+    mov qword [rax + SIGN_FIELD], 1      ; quotient->sign = 1; fixing sign at the end
+    mov r12, [rax + DATA_FIELD]          ; r12 = quotient->data
+
+    call_fun_1 createBigInt, r14         ; rax = new bigInt with capacity == denominator->capacity
+    mov r13, rax                         ; remainder: r13
+    mov [rsi], r13                       ; *remainder = r13
+    mov qword [r13 + SIZE_FIELD], 1      ; remainder = 0; remainder->size = 1
+
+    mov r9, [r13 + DATA_FIELD]           ; r9  = remainder->data
+    pop rdx
+    dec r14                              ; r14 = numerator->size - 1
+    mov rdx, [rdx + DATA_FIELD]          ; rdx = numerator->data
+
+    ; for (int I = count_bits - 1; I > = 0; --I)
+    ; equivalent to
+    ; for (int i = size - 1; i >= 0; --i) {
+    ;   for (int j = 63; j >= 0; --j) {
+    ;      numerator[i] & (1 << j) <--> numerator[I] 
+    .loop_r14:
+        mov cl, 63
+        ;mov cl, 4 
+        .loop_cl:
+            push rcx
+            push r9
+            push rdx
+            call_fun_2 mul_short, r13, 2          ; remainder <<= 1
+            pop rdx
+            pop r9
+            pop rcx
+
+            mov r8, 1
+            shl r8, cl
+            and r8, [rdx + r14 * SIZEOF_FLD]      ; r8 = numerator->data[r14] & (1 << cl)
+            jz .without_set_bit
+            or qword [r9], 1                      ; set first bit in remainder = 1
+            cmp qword [r13 + SIGN_FIELD], 0
+            jne .without_set_bit
+            mov qword [r13 + SIGN_FIELD], 1
+
+            .without_set_bit
+
+            push rcx
+            push r9
+            push rdx
+
+            call_fun_2 biCmp, r13, r15            ; cmp(remainder, denominator)
+            cmp rax, 0
+            jl .continue_pop_loop_cl              ; if (remainder >= denominator) {
+            call_fun_2 biSub, r13, r15            ;   remainder -= denominator;
+
+            pop rdx
+            pop r9
+            pop rcx
+
+            ; set bit; 
+            mov r8, 1
+            shl r8, cl
+            or r8, [r12 + r14 * SIZEOF_FLD]       ;   r8 = quotient->data[r14] | (1 << cl)
+            mov [r12 + r14 * SIZEOF_FLD], r8      ;   quotient->data[r14] = r8
+            jmp .continue_loop_cl                 ; }
+
+            .continue_pop_loop_cl
+            pop rdx
+            pop r9
+            pop rcx
+            .continue_loop_cl
+            sub cl, 1
+            jge .loop_cl
+
+        sub r14, 1
+        jge .loop_r14
+
+        mov rdi, [rdi]                   ; rdi = *quotient
+        mov rsi, [rsi]                   ; rsi = *remainder
+        call_fun_2 clear_leader_zero, rdi, rsi
+        call_fun_2 clear_leader_zero, rsi, rdi
+        
+        pop rdx                             ; rdx = numerator
+        pop rcx                             ; rcx = denominator
+        pop qword [rcx + SIGN_FIELD]        ; restore signs
+        pop qword [rdx + SIGN_FIELD]
+
+        ; d - denominator; n - numerator; q - quotient; r - remainder
+        ; analysis of the sign:
+        ; currently i suppose that d > 0 and n > 0, and get this equality: n = q * d + r 
+        ; next cases are very easy:
+        ; n > 0, d < 0: n = (-(q + 1)) * d + (r + d)
+        ; n < 0, d > 0: n = (-(q + 1)) * d + (d - r)
+        ; n < 0, d < 0: n = q * d + (-r)
+        ; 
+        cmp qword [rdx + SIGN_FIELD], 0
+        jg .numerator_greater_0
+        jl .numerator_less_0
+        je .end
+
+        ; numerator < 0
+        .numerator_less_0:
+            cmp qword [rcx + SIGN_FIELD], 0
+            jg .l_denominator_greater_0
+            ; numerator < 0, denominator < 0
+            neg qword [rsi + SIGN_FIELD]
+            jmp .end
+
+        ; numerator < 0, denominator > 0
+        .l_denominator_greater_0:
+            push rcx
+            call_fun_2 add_short, rdi, 1
+            pop  rcx
+            neg qword [rdi + SIGN_FIELD]
+            call_fun_2 biSub, rsi, rcx
+            neg qword [rsi + SIGN_FIELD]
+            jmp .end
+
+        ; numerator > 0 
+        .numerator_greater_0:
+            cmp qword [rcx + SIGN_FIELD], 0
+            jg .end                             ; if (n > 0 && d > 0) return
+            ; numerator > 0, denominator < 0
+            push rcx
+            call_fun_2 add_short, rdi, 1
+            pop  rcx
+            neg qword [rdi + SIGN_FIELD]
+            call_fun_2 biAdd, rsi, rcx
+        
+        .end
+        pop r15 
+        pop r14 
+        pop r13 
+        pop r12 
     ret
 
 ; int biCmp(BigInt a, BigInt b);
@@ -434,8 +690,8 @@ biCmp:
 
         repz cmpsq                  ; while (a->data[i] - b->data[i] == 0);
         je .ret_0                   ; a == b -> return 0
-        jg .end_biCmp               ; a > b -> return rax = a->sign
-        jl .ret_neg_sign            ; a < b -> return -rax
+        ja .end_biCmp               ; a > b -> return rax = a->sign
+        jmp .ret_neg_sign           ; a < b -> return -rax
 
     .ret_neg_sign:                  ; if (a->size < b.size) {
         neg rax                     ;   return -a->sign;
@@ -452,25 +708,25 @@ biCmp:
 ; **reallocate memory for data with apropriate size
 ; void realloc_data(BigInt src, long long new_capacity)
 realloc_data:
-    call_fun_2 calloc, rsi, SIZEOF_FLD  ; calloc(new_capacity, 8)
+    call_fun_2_aligned calloc, rsi, SIZEOF_FLD       ; calloc(new_capacity, 8)
 
     push rax
     push rdi
     push rsi
 
-    mov rcx, [rdi + SIZE_FIELD]              ; rcx = src->size
-    mov rsi, [rdi + DATA_FIELD]              ; rsi = src->data
-    mov rdi, rax                             ; rdi = new allocated data
-    repnz movsq                              ; copy src->size qwords from src->data to data
+    mov rcx, [rdi + SIZE_FIELD]                      ; rcx = src->size
+    mov rsi, [rdi + DATA_FIELD]                      ; rsi = src->data
+    mov rdi, rax                                     ; rdi = new allocated data
+    repnz movsq                                      ; copy src->size qwords from src->data to data
 
     pop rsi
     pop rdi
 
-    call_fun_2 free, [rdi + DATA_FIELD], rsi ; free(src->data) and save rsi
+    call_fun_2_aligned free, [rdi + DATA_FIELD], rsi ; free(src->data) and save rsi
 
     pop rax
-    mov [rdi], rsi                           ; src->capacity = new_capacity
-    mov [rdi + DATA_FIELD], rax              ; src->data = rax
+    mov [rdi], rsi                                   ; src->capacity = new_capacity
+    mov [rdi + DATA_FIELD], rax                      ; src->data = rax
     ret
 
 ; realloc data, if needed, to src->size * 2
@@ -512,7 +768,7 @@ copy_BigInt:
 ;   rdi = destination pointer to BigInt
 ;   rsi = source pointer to BigInt
 copy_data:
-    mov rcx, [rsi + SIZE_FIELD]  ; rcx = src->size
+    mov rcx, [rsi + SIZE_FIELD] ; rcx = src->size
 
     mov rdi, [rdi + DATA_FIELD] ; rdi = dest->data
     mov rsi, [rsi + DATA_FIELD] ; rsi = src->data
@@ -552,11 +808,11 @@ set_or_push_back:
 ;   rax = pointer to allocated BigInt
 createBigInt:
     ; allocate memory for: capacity, size, sign, data
-    call_fun_2 calloc, 4, SIZEOF_FLD
+    call_fun_2_aligned calloc, 4, SIZEOF_FLD
 
     mov  [rax], rdi                     ; set capacity
     push rax
-    call_fun_2 calloc, rdi, SIZEOF_FLD
+    call_fun_2_aligned calloc, rdi, SIZEOF_FLD
     mov rdi, rax                        ; rdi = new allocated data
     pop rax
     mov [rax + DATA_FIELD], rdi
@@ -573,13 +829,15 @@ move_bigInt:
     push rdi
 
     mov rcx, 3           ; count of copy fields
+    cld
     repnz movsq          ; copy fields size and sign
 
     mov rdi, [rdi]       ; now rdi == dest->data
-    call free            
+    myfree
 
     pop rdi
     pop rsi
+
     mov rcx, [rsi + DATA_FIELD]
     mov [rdi + DATA_FIELD], rcx
     ret
@@ -662,26 +920,33 @@ add_short:
     mov  r10, [rdi + DATA_FIELD]      ; r10 = src->data
     .while_carry:
         add [r10], rsi                ; src->data[0] += num
-        jnc .end
         mov rsi, 0                    ; carry = 0
+        jnc .end_while
         adc rsi, 0                    ; carry = get_carry()
         add r10, SIZEOF_FLD
         sub rcx, 1
         jg .while_carry
+    .end_while:
 
     cmp  rsi, 0                       ; if (carry == 0) return
-    je .end                           ; else push_back(src, carry)
+    je .after_push                    ; else push_back(src, carry)
     call_fun_2 push_back, rdi, rsi
+    .after_push
+    cmp qword [rdi + SIGN_FIELD], 0         
+    jg .next
+    jl .next
+    mov qword [rdi + SIGN_FIELD], 1   ; if src->sign == 0: src->sign = 1;
+    jmp .end
+
+    .next 
+    cmp qword [rdi +SIZE_FIELD], 1    ;   if src->size == 1:
+    jg .end
+    mov rdi, [rdi + DATA_FIELD]       ;      if src->data[0] == 0:
+    cmp qword [rdi], 0                ;         
+    jne .end
+    mov qword [rdi + SIGN_FIELD], 0   ;        src->sign = 0
 
     .end
-    ;cmp qword [rdi + SIGN_FIELD], 0   ; if (src->sign == 0) {
-    ;jne .end_add                      ;    
-    ;mov r10, [rdi + DATA_FIELD]       ;   r10 = src->data
-    ;cmp qword [r10], 0                ;   if (src->data[0] != 0) {
-    ;je .end_add                       ;      src->sign = 1;
-    ;mov qword [rdi + SIGN_FIELD], 1   ;   }
-                                      ;; }
-    .end_add
     ret
 
 ; void ensure_first_greater(BigInt fst, BigInt scd)
@@ -706,15 +971,15 @@ ensure_first_greater:
     call_fun_2 biCmp, rdi, rsi                       ; save rdi, rsi
     cmp rax, 0                                       ; if ( abs(fst) > abs(scd) ) return
     jge .end_ensure                                  ; else {
-    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     pop qword [rsi + SIGN_FIELD]
+    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
 
     push qword [rsi + SIZE_FIELD]
     call_fun_2 createBigInt, [rsi + SIZE_FIELD], rsi ; rax = new BigInt();
                                                      ; rax->capacity = scd->size 
     call_fun_2 copy_BigInt, rax, rsi                 ; deep_copy: rax = rsi
     mov rsi, rdi                                     ; scd = fst
-    mov rdi, rax                                     ; fst = rax
+    mov rdi, rax                                     ; fst = new_bigInt, copy of scd
     pop rax                                          ; rax = previous scd->size
     call_fun_2 realloc_data, rsi, rax                ; ensure that second number
                                                      ; have at least rax capacity
@@ -724,8 +989,8 @@ ensure_first_greater:
                                                      ; }
 
     .end_ensure
-    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     pop qword [rsi + SIGN_FIELD]
+    pop qword [rdi + SIGN_FIELD]                     ;   restore signs 
     mov rax, 0
     ret
 
@@ -751,9 +1016,29 @@ clear_leader_zero:
     ret
 
 ; unsigned long long div_short(BigInt numerator, int64_t denominator);
+;   rdi = numerator
+;   rsi = denominator
+; result
 ;   numerator /= denominator
 ;   return remainder after numerator / denominator
 ; 
 div_short:
-    
+    push rdi
+    xor rdx, rdx
+    mov r11, [rdi + SIZE_FIELD]           
+    dec r11                               ; r11 = numerator->size - 1
+    mov rdi, [rdi + DATA_FIELD]
+    .loop:
+        mov rax, [rdi + r11 * SIZEOF_FLD] ; rax = carry + numerator->data[r11]
+        div rsi
+        mov [rdi + r11 * SIZEOF_FLD], rax ; numerator->data[r11] = (carry + n->data[r11]) / denominator
+        ; rdx = (carry + n->data[r11]) % denominator
+        ; so how rdx:rax / rdi, therefore carry automatically * base
+        sub r11, 1                        ; r11--
+        jge .loop
+    .end_ 
+    pop rdi
+    push rdx                              ; result already saved in rax
+    call_fun_1 clear_leader_zero, rdi
+    pop  rax
     ret

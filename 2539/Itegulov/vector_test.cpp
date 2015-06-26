@@ -14,9 +14,7 @@ extern "C" {
     vector vecNew();
     vector vecAlloc(uint64_t size);
     void vecFree(vector vec);
-    void vecCopy(vector dst, vector src);
-    vector vecResize(vector vec, uint64_t new_size);
-    vector vecPush(vector vec, uint64_t value);
+    void vecPush(vector vec, uint64_t value);
     uint64_t vecSize(vector vec);
     uint64_t vecCapacity(vector vec);
     uint64_t vecGet(vector vec, uint64_t index);
@@ -56,7 +54,7 @@ bool vector_iteration(unsigned n) {
 
     // Fill `vec` in with integers.
     for (unsigned i = 0; i < n; i++) {
-        vec = vecPush(vec, i + 1);
+        vecPush(vec, i + 1);
         EXPECT(vecSize(vec) == i + 1);
         EXPECT(vecSize(vec) <= vecCapacity(vec));
     }
@@ -79,21 +77,21 @@ bool vector_iteration(unsigned n) {
 }
 
 bool vector_transformation(unsigned n) {
-    vector vec = vecAlloc(5);
+    vector vec = vecAlloc(n);
 
     // Assign initial values.
-    for (unsigned i = 0; i < 5; i++) {
+    for (unsigned i = 0; i < n; i++) {
         vecSet(vec, i, i + 1);
     }
 
     // Play with `vec` size.
-    unsigned step = rand() % (n / 1000 + 1) + n / 1000 + 1;
-    for (unsigned sz = 0; sz < n; sz += step) {
-        vec = vecResize(vec, sz + 5);
-    }
+    //unsigned step = rand() % (n / 1000 + 1) + n / 1000 + 1;
+    //for (unsigned sz = 0; sz < n; sz += step) {
+    //    vec = vecResize(vec, sz + 5);
+    //}
 
     // Initial elements should be present.
-    for (unsigned i = 0; i < 5; i++) {
+    for (unsigned i = 0; i < n; i++) {
         EXPECT(vecGet(vec, i) == i + 1);
     }
 
@@ -109,10 +107,10 @@ int main() {
 
     srand(time(NULL));
 
-    for (unsigned t = 1; t <= 1e7; t *= 10) {
-        int salt = rand() % 256;
+    for (unsigned t = 1; t <= 1000; t++) {
+        int salt = 10;
         TEST(t + salt, vector_creation);
-        TEST(t + salt, vector_iteration);
+		TEST(t + salt, vector_iteration);
         TEST(t + salt, vector_transformation);
     }
 
