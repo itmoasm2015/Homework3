@@ -74,6 +74,12 @@ int main() {
         biDelete(b);
     }
 
+    a = biFromInt(2);
+    b = biFromInt(-123);
+    biAdd(a, b);
+    biToString(a, buf, 100);
+    printf("%s\n", buf);
+
     return 0;
 }
 

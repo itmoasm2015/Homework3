@@ -714,6 +714,7 @@ subArray:
     jg .continue ;Если первое число меньше второго swapнем их
         xchg    rdi, rdx
         xchg    rsi, rcx
+        mov     r11, -1
     .continue:
 
     push    rdi
@@ -829,7 +830,6 @@ biAddNew:
         call    biFromArray
         ret
     .not_equals:
-        ;Если знаки равны, просто сложим
         push    rdi
         push    rsi
 
