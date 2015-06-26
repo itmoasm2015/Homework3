@@ -1024,7 +1024,7 @@ biSign:
 ; temporary changes dividend and divisor to call biDivRemPositive
 ; time: O(bits * n) [where bits — qty of set bits in dividend], additional memory: O(n)
 biDivRem:   
-            call biDivRemPositive
+            ; call biDivRemPositive
             ret
 
 ; void biDivRemPositive(BigInt *quotient, BigInt *remainder, BigInt dividend, BigInt divisor)
