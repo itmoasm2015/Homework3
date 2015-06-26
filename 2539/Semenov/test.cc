@@ -13,7 +13,7 @@ std::mt19937_64 rng;
 
 void test_set_bit(const int iterations = 1, bool verbose = false) {
   if (verbose) DEBUG("biSetBit testing (%d iterations)\n", iterations);
-  const int max_bit = 256; // 10 * 1000;
+  const int max_bit = 10 * 1000;
   const int ops = 1000;
   for (int it = 0; it < iterations; ++it) {
     BigIntRepresentation *foo = (BigIntRepresentation *) biFromInt(0);
@@ -59,13 +59,8 @@ void test_to_string(const int iterations = 1, bool verbose = false) {
       while (j == 0 && src[ptr - 1] == '0') src[ptr - 1] = '0' + (rng() % 10);
     }
     src[ptr] = 0;
-//    auto start_constructing = std::chrono::system_clock::now();
     BigIntRepresentation *foo = (BigIntRepresentation *) biFromString(src);
-//    auto finish_constructing = std::chrono::system_clock::now();
-//    auto start_printing = std::chrono::system_clock::now();
     biToString(foo, dst, max_length);
-//    auto finish_printing = std::chrono::system_clock::now();
-//    DEBUG("constructing: %.3fs, printing: %.3fs\n", std::chrono::duration<double>(finish_constructing - start_constructing).count(), std::chrono::duration<double>(finish_printing - start_printing).count());
     ptr = 0;
     while (true) {
       if (src[ptr] != dst[ptr]) {
@@ -75,7 +70,6 @@ void test_to_string(const int iterations = 1, bool verbose = false) {
       if (src[ptr] == 0) break;
       ++ptr;
     }
-//    DEBUG("%d ok\n", (int) i);
   }
 }
 
@@ -409,7 +403,111 @@ void test_mul_large(const int iterations = 1, const int multipliers = 100, bool 
   }
 }
 
+BigIntRepresentation *generateBigInt(size_t decimal_length) {
+  assert (decimal_length > 0);
+  static auto distribution = std::uniform_int_distribution<int>(0, 9);
+  static auto next_digit = bind(distribution, rng);
+  char *str = new char[decimal_length];
+  assert(str);
+  size_t ptr = 0;
+  if (decimal_length > 1 && rng() % 2) {
+    str[ptr++] = '-';
+  }
+  while (ptr != decimal_length) {
+    str[ptr++] = '0' + next_digit();
+  }
+  str[ptr-1] = 0;
+  BigIntRepresentation *retval = (BigIntRepresentation *) biFromString(str);
+  assert (retval);
+  delete[] str;
+  return retval;
+}
+
+void test_corner_cases() {
+  DEBUG("test_corner_cases()\n");
+  size_t length = 7777;
+  BigIntRepresentation *zero = (BigIntRepresentation *) biFromInt(0);
+  for (int it = 0; it < 100; ++it) {
+    BigIntRepresentation *foo = generateBigInt(length);
+    assert(foo);
+    biMul(zero, foo);
+    assert (zero->size == 1);
+    assert (biSign(zero) == 0);
+    biDelete(foo);
+  }
+  biDelete(zero);
+  // some testcases from github
+  {
+    DEBUG("1\n");
+    BigInt bi1 = biFromInt(2ll);
+    BigInt bi2 = biFromInt(-123ll);
+    BigInt bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    biSub(bi1, bi2);
+    assert(biCmp(bi2, bi3) == 0);
+    biDelete(bi1);
+    biDelete(bi2);
+    biDelete(bi3);
+  }
+  {
+    DEBUG("2\n");
+    BigInt bi1 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215"); // 2**1024 -1
+    BigInt bi2 = biFromInt(-1ll);
+    assert(bi1);
+    assert(bi2);
+    biSub(bi1, bi2);
+    assert(bi1);
+    bi2 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216"); // 2**1024
+    assert(biCmp(bi1, bi2) == 0);
+    biDelete(bi1);
+    biDelete(bi2);
+  }
+  {
+    DEBUG("3\n");
+    BigInt bi2 = biFromString("179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216"); // 2**1024
+    BigInt bi3 = biFromString("-179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215"); // -(2**1024 - 1)
+    biAdd(bi2, bi3);
+    std::string buf;
+    buf.reserve(4096);
+    biToString(bi2, (char *) buf.data(), 4096);
+    assert (strlen(buf.data()) == 1);
+    assert (buf.data()[0] == '1');
+    assert (buf.data()[1] == 0);
+  }
+  {
+    DEBUG("4\n");
+    BigInt bi1 = biFromInt(2ll);
+    BigInt bi2 = biFromInt(-123ll);
+    BigInt bi3 = biFromInt(-123ll);
+    biAdd(bi1, bi2);
+    assert(biCmp(bi2, bi3) == 0);
+    biDelete(bi1);
+    biDelete(bi2);
+    biDelete(bi3);
+  }
+  {
+    DEBUG("5\n");
+    BigInt bi2 = biFromInt(2LL);
+    biAdd(bi2, bi2);
+    BigInt bi4 = biFromInt(4LL);
+    assert (biCmp(bi2, bi4) == 0);
+    biDelete(bi2);
+    biDelete(bi4);
+  }
+  {
+    DEBUG("6\n");
+    BigInt bi = biFromString("");
+    assert (!bi);
+  }
+  {
+    DEBUG("7\n");
+    BigInt bi = biFromString("123456789009876543212345678998761234567890q123456780");
+    assert(!bi);
+  }
+}
+
 int main() {
+  test_corner_cases();
   test_set_bit(100, true);
   test_to_string(100, true);
   test_inc_case(-4858338985614885836);

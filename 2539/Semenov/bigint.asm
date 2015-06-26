@@ -1,7 +1,5 @@
 default rel
 
-;;; TODO: tell about time/memory complexity
-
 ; extern _biDump
 
 extern malloc
@@ -21,9 +19,9 @@ global biNot            ;; DONE
 global biInc            ;; DONE
 global biNegate         ;; DONE
 
-global biAdd            ;; DONE (TODO: test it better)
-global biSub            ;; DONE (TODO: test it better)
-global biMul            ;; DONE (TODO: test it better)
+global biAdd            ;; DONE
+global biSub            ;; DONE
+global biMul            ;; DONE
 
 global biCmp            ;; DONE
 global biSign           ;; DONE
@@ -119,6 +117,7 @@ global biToString       ;; DONE
     mov r11, [%2 + DATA]
 %endmacro
  
+;;; NB: Time and memory complexities are in number of qwords
 
 section .text
 
@@ -129,6 +128,7 @@ section .text
 ; BigInt->capacity = capcity
 ; BigInt->data filled with zeros (or trash)
 ; capacity in RDI
+; time: O(n), additional memory: O(1)
 biAllocate:
             push r12
             push r13
@@ -164,6 +164,7 @@ biAllocate:
 ; creates BigInt from one signed 64-bit integer
 ; x in RDI
 ; result in RAX
+; time: O(1); memory: O(1)
 biFromInt: 
             push r12
 
@@ -189,6 +190,7 @@ biFromInt:
 ;   with simple and cheap biMulShort/biAddShort calls
 ; string in RDI
 ; result in RAX
+; time: O(n^2), additional memory: O(1)
 biFromString: 
             push r12 ; accumulator
             push r13 ; multiplier
@@ -345,6 +347,7 @@ biDelete:
 ; void biGrowCapacity(BigInt x, size_t new_capacity) 
 ; x in RDI
 ; new_capacity in RSI
+; time: O(n), additional memory: O(1)
 biGrowCapacity:
             push rdi
             push rsi
@@ -381,6 +384,7 @@ biGrowCapacity:
 ; void biEnsureCapacity(BigInt x, size_t capacity);
 ; x in RDI
 ; capacity in RSI
+; time: O(n), additional memory: O(1)
 biEnsureCapacity:
             mov r8, [rdi + CAPACITY]
             cmp rsi, r8
@@ -401,6 +405,7 @@ biEnsureCapacity:
 ; void biMulBy2(BigInt x)
 ; multiplies x by 2
 ; x in RDI
+; time: O(n), memory: O(1)
 biMulBy2:
             mov rsi, [rdi + SIZE] ; RSI = x->size
             mov rdx, [rdi + DATA] ; RDX = x->data
@@ -450,6 +455,7 @@ biMulBy2:
 ; dst += src
 ; dst in RDI
 ; src in RSI
+; time: O(n), additional memory: O(1)
 biAdd:
             fillR8__11 rdi, rsi
             cmp r9, r11
@@ -564,7 +570,6 @@ biAdd:
 ; multiplies x by 2^shift
 biShl: ret
 
-
 ; void biShr(BigInt x, size_t shift) 
 ; divides x by 2^shift
 biShr: ret
@@ -574,6 +579,7 @@ biShr: ret
 ; x in RDI
 ; bit in RSI
 ; x |= 2^bit
+; time: O(n), additional memory: O(1)
 biSetBit: 
             xor rdx, rdx
             mov rax, rsi
@@ -637,6 +643,7 @@ biSetBit:
 ; void biNot(BigInt x);
 ; x = ~x
 ; x in RDI
+; time: O(n), memory: O(1)
 biNot:
             mov rcx, [rdi + SIZE]
             mov rdx, [rdi + DATA]
@@ -653,6 +660,7 @@ biNot:
 ; void biInc(BigInt x);
 ; x = x + 1
 ; x in RDI
+; time: O(n), memory: O(1)
 biInc:
             mov rdx, [rdi + DATA]
             mov r8, [rdi + SIZE]
@@ -692,6 +700,7 @@ biInc:
 ; void biNegate(BigInt x);
 ; x = -x = (~x) + 1
 ; x in RDI
+; time: O(n), memory: O(1)
 biNegate:
             push rdi
             call biNot
@@ -706,6 +715,7 @@ biNegate:
 ; dst -= src
 ; dst in RDI
 ; src in RSI
+; time: O(n), memory: O(1)
 biSub:      
             ; dst -= src <==> dst += (-src) <==> dst += (~src + 1)
             push rdi
@@ -731,6 +741,7 @@ biSub:
 ; dst *= src
 ; dst in RDI
 ; src in RSI
+; time: O(n^2), adititonal memory: O(n)
 biMul:
             push rdi
             push rsi
@@ -794,6 +805,7 @@ biMul:
 ; multiplicand in RDI
 ; multiplier in RSI
 ; result in RAX
+; time: O(n^2), memory: O(n)
 biMulByPositiveMultiplier:
             mov rax, [rdi + SIZE]
             add rax, [rsi + SIZE]
@@ -920,6 +932,7 @@ biMulByPositiveMultiplier:
 ; fst in RDI
 ; snd in RSI
 ; retval in RAX (EAX)
+; time: O(n), memory: O(1)
 biCmp:
             ; as fst and snd are normalized, 
             ; we need just check signs, after that - sizes, 
@@ -980,6 +993,7 @@ biCmp:
 ; int biSign(BigInt x);
 ; x in RDI
 ; result in RAX (-1 if x < 0, 1 if x > 0, 0 ohterwise)
+; time: O(1), memory: O(1)
 biSign:     
             mov r8, [rdi + DATA] ; R8 = x->data
             mov r9, [rdi + SIZE] ; R9 = x->size
@@ -1008,6 +1022,7 @@ biSign:
 ; dividend in RDX
 ; divisor in RCX
 ; temporary changes dividend and divisor to call biDivRemPositive
+; time: O(bits * n) [where bits — qty of set bits in dividend], additional memory: O(n)
 biDivRem:   
             call biDivRemPositive
             ret
@@ -1019,6 +1034,7 @@ biDivRem:
 ; divisor in RCX
 ; 
 ; assumes that divident and divisor are positive
+; time: O(bits * n) [where bits — qty of set bits in dividend], additional memory: O(n)
 biDivRemPositive:
             push r12 
             push r13
@@ -1131,6 +1147,7 @@ biDivRemPositive:
 ; if lenghtOf(x) >= limit - 1 result is undefined 
 ; (but without access to invalid memory)
 ; TODO: improve performance, dividing 10^18, not 10
+; time: O(n), additional memory: O(1)
 biToString:
             push rbp
             mov rbp, rsp
@@ -1244,6 +1261,7 @@ biTrim:     ret
 ; removes leading ones/zeros (in two's complement representaion)
 ; * TODO: call trim inside to spare memory
 ; x in RDI
+; time: O(n), memory: O(1)
 biNormalize:
             ; we need to find last idx such that
             ;  * or sign(x->data[idx - 1]) != sign(x->data[idx - 2])
@@ -1292,6 +1310,7 @@ biNormalize:
 ; replace all data from dst with src
 ; dst in RDI
 ; src in RSI
+; time O(1), additional memory: O(1)
 biMove:
             ; at first we need to free memory
             push rdi
@@ -1317,6 +1336,7 @@ biMove:
 ; BigInt biClone(BigInt x);
 ; x in RDI
 ; result in RAX
+; time: O(n), additional memory: O(1)
 biClone:
             push rdi
             mov rdi, [rdi + SIZE]
@@ -1344,6 +1364,7 @@ biClone:
 
 ; void biSwap(BigInt x, BigInt y)
 ; after swap x' point to y, y' points to x
+; time: O(1), memory: O(1)
 biSwap:
         %macro swap 1
             mov r8, [rdi + %1]
