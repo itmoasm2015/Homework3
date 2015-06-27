@@ -975,6 +975,8 @@ mulArray:
     pop     rsi
     pop     rdi
 
+    push    r12
+
     xor     r8, r8
     ;xor     r11, r11 ; остаток
     .loopA:
@@ -1021,6 +1023,8 @@ mulArray:
         inc     r8
         jmp     .loopA
     .loopA_end:
+
+    pop     r12
 
     ; Осталось удалить лидирующие нули
     lea     r8, [rsi + rcx]
