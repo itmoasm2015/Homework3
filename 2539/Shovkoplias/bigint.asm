@@ -11,7 +11,7 @@ global biDelete
 global biSign
 global biAdd
 global biSub
-global biMul    ;TODO чуть-чуть не упел, сам виноват(
+global biMul
 global biDivRem ;TODO but not today:)
 global biCmp
 global biCopy
@@ -710,7 +710,6 @@ subArray:
         ret
     .not_equals:
 
-    cmp rsi, rcx
     jg .continue ;Если первое число меньше второго swapнем их
         xchg    rdi, rdx
         xchg    rsi, rcx
@@ -792,13 +791,13 @@ biAddNew:
     cmp     dword[rdi], 0
     jne     .a_not_zero
         mov     rdi, rsi
-        call biCopy
+        call    biCopy
         ret
     .a_not_zero:
 
     cmp     dword[rsi], 0
     jne     .b_not_zero
-        call biCopy
+        call    biCopy
         ret
     .b_not_zero:
 
@@ -944,7 +943,163 @@ biCmp:
     pop     rax
     ret
 
+;Вспомогательная функция
+;Умножает два массива
+;int64_t* mulArray(int64_t *a, int len_a, int64_t *b, int len_b);
+;rdi - a
+;rsi - len_a
+;rdx - b
+;rcx - len_b
+;результат в rax
+;длина результата в r8
+mulArray:
+    cmp rsi, rcx
+    jnl .continue ;Если первое число меньше второго swapнем их
+        xchg    rdi, rdx
+        xchg    rsi, rcx
+    .continue:
+    push    rbx
+    mov     rbx, rdx
+
+    push    rdi
+    push    rsi
+    push    rbx
+    push    rcx
+    mov     rdi, rsi
+    add     rdi, rcx
+    mov     rsi, 8
+    alignedCalloc ; Выделим память под массив с размером на единицу больше чем длина большего числа
+    ;указатель на этот массив rax
+    pop     rcx
+    pop     rbx
+    pop     rsi
+    pop     rdi
+
+    xor     r8, r8
+    ;xor     r11, r11 ; остаток
+    .loopA:
+        cmp     r8, rsi
+        jge     .loopA_end
+
+        xor     r9, r9
+        xor     rdx, rdx
+        .loopB:
+            mov     r10, rsi
+            add     r10, rcx
+            sub     r10, r8 ; r10 = len_a + len_b - r8
+            cmp     r9, r10 ; r8 + r9 < len_a + len_b
+            jge     .loopB_end
+
+            mov     r10, r8
+            add     r10, r9
+            add     [rax + r10 * 8], rdx
+            pushf
+
+            xor     r11, r11
+            push    rax
+            mov     rax, [rdi + r8 * 8] ;Получим первую цифру
+            ;Вторую
+            mov     r12, 0
+            cmp     r9, rcx
+            jnl     .digit_existB
+            mov     r12, [rbx + r9 * 8]
+            .digit_existB:
+            mul     r12
+            mov     r12, rax
+            pop     rax
+
+            ;Запишем в ответ
+            add     [rax + r10 * 8], r12
+            adc     rdx, 0
+            popf
+            adc     rdx, 0
+
+            inc     r9
+            jmp     .loopB
+        .loopB_end:
+
+        inc     r8
+        jmp     .loopA
+    .loopA_end:
+
+    ; Осталось удалить лидирующие нули
+    lea     r8, [rsi + rcx]
+    .loop2
+        cmp     r8, 1
+        je      .break
+        cmp     qword[rax + r8 * 8 - 8], 0
+        jne     .break
+        dec     r8
+        jmp     .loop2
+    .break:
+    pop     rbx
+    ret
+
+;Вспомогательная функия
+;Возвращает новое большое число являющееся произведением аргументов
+;BigInt biMulNew(BigInt a, BigInt b)
+;rdi - a
+;rsi - b
+;результат в rax
+biMulNew:
+    ;проверим оба слагаемых на равенство нулю, ибо тогда ответ очевиден
+    cmp     dword[rdi], 0
+    jne     .a_not_zero
+        mov     rdi, 0
+        call    biFromInt
+        ret
+    .a_not_zero:
+
+    cmp     dword[rsi], 0
+    jne     .b_not_zero
+        mov     rdi, 0
+        call    biFromInt
+        ret
+    .b_not_zero:
+
+    ;Вычислим знак
+    xor     r8, r8
+    xor     r9, r9
+    mov     r8D, [rdi]
+    mov     r9D, [rsi]
+    imul    r8, r9
+    push    r8
+
+    push    rdi
+    push    rsi
+
+    xor     rcx, rcx
+    mov     ecx, [rsi + 4]
+    mov     rdx, [rsi + 8]
+
+    xor     rsi, rsi
+    mov     esi, [rdi + 4]
+    mov     rdi, [rdi + 8]
+
+    call    mulArray
+
+    pop     rsi
+    pop     rdi
+
+    ;С помощью вспомогательного конструктора получим ответ
+    mov     rsi, r8
+    pop     r8
+    mov     rdi, r8
+    mov     rdx, rax
+    call    biFromArray
+    ret
+
+;Умножает число на второе
+;void biAdd(BigInt a, BigInt b)
+;rdi - a
+;rsi - b
 biMul:
+    push    rdi
+    call    biMulNew
+    pop     rdi
+    mov     rsi, rax
+    call    biSubstitution
+    ret
     ret
 
 biDivRem:
