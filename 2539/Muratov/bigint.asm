@@ -56,6 +56,7 @@ new_vector:
     mov rbp, rsp
     mov rdi, rdx
     mov rsi, 8 ; qword = 8 bytes
+    and rsp, ~15  ; aligning stack
     call calloc
     test rax, rax
     jnz .correct
@@ -83,8 +84,10 @@ extend_vector:
     mov rdi, [rax + data]
     mov rsi, r15
     lea rdx, [r14 * 8] ; size of vector in bytes
+    and rsp, ~15  ; aligning stack
     call memcpy ; copy data to new place in memory
     mov rdi, r15
+    and rsp, ~15  ; aligning stack
     call free ; free memory where was data before the function
     mov rsp, r13
     pop rdi
@@ -101,6 +104,7 @@ biCopy:
     mov rbp, rsp
     mov rdi, 4
     mov rsi, 8 ; qword = 8 bytes
+    and rsp, ~15  ; aligning stack
     call calloc
     test rax, rax
     jnz .correct
@@ -118,6 +122,7 @@ biCopy:
     mov rdi, [rax + data]
     mov rsi, [r12 + data]
     lea rdx, [r13 * 8]
+    and rsp, ~15  ; aligning stack
     call memcpy ; copy our bigint
     mov rsp, r15
     mov [r14 + size], r13
@@ -136,6 +141,7 @@ biFromInt:
     mov rbp, rsp
     mov rdi, 4
     mov rsi, 8
+    and rsp, ~15  ; aligning stack
     call calloc
     test rax, rax
     jnz .correct
@@ -318,8 +324,10 @@ biDelete:
     mov r15, rsp
     mov r14, rdi
     mov rdi, [rdi + data] ; delete vector with data
+    and rsp, ~15  ; aligning stack
     call free
     mov rdi, r14 ; delete structure
+    and rsp, ~15  ; aligning stack
     call free
     mov rsp, r15
     pop_registers
@@ -493,6 +501,7 @@ biSub:
         mov rsi, [rdi + data]
         mov rdi, [rbx + data]
         lea rdx, [r13 * 8] ; arguments for memcpy
+	    and rsp, ~15  ; aligning stack
         call memcpy
         mov rsp, r15
         pop r15
@@ -739,6 +748,8 @@ biMul:
             mov rdi, [rdi + data]
             mov rsi, [r13 + data]
             lea rdx, [r14 * 8]
+            
+            and rsp, ~15  ; aligning stack
             call memcpy ; copy resulted bigint to rdi
             mov rsp, r15
             mov rdi, r13
