@@ -93,9 +93,10 @@ extend_vector:
     pop rdi
     pop_registers
 
-; Copy given bigint
 ; rdi - pointer to bigint
 ; rax - copyied bigint
+; Copy given bigint
+; local function
 biCopy:
     push_registers
     mov r12, rdi
@@ -176,8 +177,8 @@ biAddInt:
     push rsi
     mov rsi, r14
     ;check if we should extend vector
-    mov r14, [rdi + capacity]
-    cmp r14, rsi
+    mov r13, [rdi + capacity]
+    cmp r13, rsi
     jge .dont_extend ; we don't need to extend if capacity >= size
     call extend_vector
 .dont_extend:
@@ -221,7 +222,6 @@ biMulInt:
     inc r14 ; after function size of vector <= size of vector before the function + 1
     push rsi
     mov rsi, r14
-    
     ;check if we should extend vector
     mov r13, [rdi + capacity]
     cmp r13, rsi
@@ -501,7 +501,7 @@ biSub:
         mov rsi, [rdi + data]
         mov rdi, [rbx + data]
         lea rdx, [r13 * 8] ; arguments for memcpy
-	    and rsp, ~15  ; aligning stack
+        and rsp, ~15  ; aligning stack
         call memcpy
         mov rsp, r15
         pop r15
