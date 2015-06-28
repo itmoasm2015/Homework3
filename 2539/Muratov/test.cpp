@@ -273,12 +273,12 @@ int main()
     assert(bi1 == NULL);
     printf("Test %d: OK \n", testnum);
     testnum++;
-
+        
 
     bi1 = biFromInt(1);
     for (int i = 0; i < 100; i++) {
     	biMul(bi1, biFromInt(2));
-    }    
+    }
     biToString(bi1, buffer, 100000);
     printf("%s\n", buffer);
 	return 0;
